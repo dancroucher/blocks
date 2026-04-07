@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blocks</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e4e4ec;
+    --dim: #6b6f80;
+    --accent: #6366f1;
+    --accent-dim: rgba(99, 102, 241, 0.15);
+    --header-bg: #14161e;
+    --row-alt: #12141c;
+    --cell-size: 40;
+    --row-header-width: 160;
+  }
+
+  body {
+    font-family: -apple-system, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Top bar */
+  .topbar {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--border);
+    gap: 1rem;
+    flex-shrink: 0;
+    z-index: 10;
+  }
+
+  .topbar h1 {
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    color: var(--accent);
+  }
+
+  .topbar-controls {
+    display: flex;
+    gap: 0.4rem;
+    margin-left: auto;
+  }
+
+  .topbar button {
+    font-family: inherit;
+    font-size: 0.75rem;
+    padding: 0.3rem 0.8rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface);
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .topbar button:hover { border-color: var(--accent); }
+  .topbar button.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+
+  /* Main layout */
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* Grid area */
+  .grid-area {
+    flex: 1;
+    position: relative;
+    overflow: auto;
+    cursor: default;
+  }
+
+  .grid-wrapper {
+    position: relative;
+    min-width: 100%;
+    min-height: 100%;
+  }
+
+  /* Column headers (timeline) */
+  .col-headers {
+    position: sticky;
+    top: 0;
+    z-index: 5;
+    display: flex;
+    background: var(--header-bg);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .row-header-spacer {
+    width: 160px;
+    min-width: 160px;
+    border-right: 1px solid var(--border);
+    background: var(--header-bg);
+  }
+
+  .col-header {
+    width: 40px;
+    min-width: 40px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.6rem;
+    color: var(--dim);
+    border-right: 1px solid var(--border);
+    user-select: none;
+  }
+
+  .col-header.weekend { background: rgba(99, 102, 241, 0.05); }
+  .col-header.month-start { border-left: 2px solid var(--accent); }
+
+  /* Rows */
+  .row {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+  }
+
+  .row:nth-child(even) .row-cells { background: var(--row-alt); }
+
+  .row-header {
+    width: 160px;
+    min-width: 160px;
+    padding: 0 0.5rem;
+    display: flex;
+    align-items: center;
+    border-right: 1px solid var(--border);
+    background: var(--header-bg);
+    position: sticky;
+    left: 0;
+    z-index: 3;
+    font-size: 0.8rem;
+    cursor: text;
+  }
+
+  .row-header input {
+    background: none;
+    border: none;
+    color: var(--text);
+    font-family: inherit;
+    font-size: 0.8rem;
+    width: 100%;
+    outline: none;
+  }
+
+  .row-header input::placeholder { color: var(--dim); }
+
+  .row-cells {
+    display: flex;
+    position: relative;
+    flex: 1;
+    height: 40px;
+  }
+
+  .cell-line {
+    width: 40px;
+    min-width: 40px;
+    height: 100%;
+    border-right: 1px solid var(--border);
+  }
+
+  .cell-line.weekend { background: rgba(99, 102, 241, 0.03); }
+
+  /* Blocks */
+  .block {
+    position: absolute;
+    height: 28px;
+    top: 6px;
+    border-radius: 6px;
+    cursor: grab;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #fff;
+    user-select: none;
+    transition: box-shadow 0.15s;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    z-index: 2;
+  }
+
+  .block:hover {
+    box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+  }
+
+  .block.dragging {
+    opacity: 0.85;
+    cursor: grabbing;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    z-index: 10;
+  }
+
+  .block .handle-left,
+  .block .handle-right {
+    position: absolute;
+    top: 0;
+    width: 8px;
+    height: 100%;
+    cursor: ew-resize;
+  }
+
+  .block .handle-left { left: 0; }
+  .block .handle-right { right: 0; }
+
+  /* Block colours */
+  .block-color-0 { background: #6366f1; }
+  .block-color-1 { background: #8b5cf6; }
+  .block-color-2 { background: #ec4899; }
+  .block-color-3 { background: #f59e0b; }
+  .block-color-4 { background: #10b981; }
+  .block-color-5 { background: #3b82f6; }
+  .block-color-6 { background: #ef4444; }
+  .block-color-7 { background: #14b8a6; }
+
+  /* Data panel */
+  .data-panel {
+    width: 300px;
+    min-width: 300px;
+    background: var(--header-bg);
+    border-left: 1px solid var(--border);
+    overflow-y: auto;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .data-panel.hidden { display: none; }
+
+  .panel-header {
+    padding: 0.6rem 1rem;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .panel-stats {
+    padding: 0.8rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .panel-stat {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    padding: 0.2rem 0;
+  }
+
+  .panel-stat .label { color: var(--dim); }
+  .panel-stat .value { color: var(--accent); font-weight: 600; }
+
+  .panel-blocks {
+    flex: 1;
+    overflow-y: auto;
+  }
+
+  .panel-block-item {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--border);
+    font-size: 0.75rem;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+
+  .panel-block-item:hover { background: var(--surface); }
+
+  .panel-block-item .block-name {
+    font-weight: 600;
+    margin-bottom: 0.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .panel-block-item .block-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .panel-block-item .block-meta {
+    color: var(--dim);
+    font-size: 0.65rem;
+  }
+
+  /* Add row button */
+  .add-row-btn {
+    display: flex;
+    align-items: center;
+    padding: 0 0.5rem;
+    height: 32px;
+    color: var(--dim);
+    font-size: 0.75rem;
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .add-row-btn:hover { color: var(--accent); }
+
+  /* Context menu */
+  .context-menu {
+    position: fixed;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.3rem;
+    z-index: 100;
+    min-width: 160px;
+    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+  }
+
+  .context-menu-item {
+    padding: 0.4rem 0.8rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    border-radius: 5px;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .context-menu-item:hover { background: var(--accent-dim); color: var(--accent); }
+  .context-menu-item.danger:hover { background: rgba(239, 68, 68, 0.15); color: var(--red, #ef4444); }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>BLOCKS</h1>
+  <div class="topbar-controls">
+    <button id="btn-day" class="active" onclick="setZoom('day')">Day</button>
+    <button id="btn-week" onclick="setZoom('week')">Week</button>
+    <button id="btn-month" onclick="setZoom('month')">Month</button>
+    <button id="btn-panel" class="active" onclick="togglePanel()">Data</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="grid-area" id="grid-area">
+    <div class="grid-wrapper" id="grid-wrapper"></div>
+  </div>
+  <div class="data-panel" id="data-panel">
+    <div class="panel-header">Project Data</div>
+    <div class="panel-stats" id="panel-stats"></div>
+    <div class="panel-header">Blocks</div>
+    <div class="panel-blocks" id="panel-blocks"></div>
+  </div>
+</div>
+
+<div class="context-menu" id="context-menu" style="display:none;"></div>
+
+<script>
+// --- State ---
+const CELL_W = 40;
+const ROW_H = 40;
+const ROW_HEADER_W = 160;
+const COLORS = 8;
+const TOTAL_COLS = 365; // one year of days
+
+let zoom = 'day'; // day, week, month
+let rows = [
+  { id: 1, label: '' },
+  { id: 2, label: '' },
+  { id: 3, label: '' },
+  { id: 4, label: '' },
+  { id: 5, label: '' },
+];
+let blocks = [];
+let nextBlockId = 1;
+let nextRowId = 6;
+
+// Drag state
+let dragState = null; // { type: 'move'|'resize-left'|'resize-right', blockId, startX, origStart, origDuration }
+let createState = null; // { rowId, startCol }
+
+// --- Date helpers ---
+const projectStart = new Date();
+projectStart.setHours(0,0,0,0);
+// Start from Monday of current week
+projectStart.setDate(projectStart.getDate() - projectStart.getDay() + 1);
+
+function colToDate(col) {
+  const d = new Date(projectStart);
+  d.setDate(d.getDate() + col);
+  return d;
+}
+
+function formatDate(d) {
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return `${d.getDate()} ${months[d.getMonth()]}`;
+}
+
+function formatDateFull(d) {
+  const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const days = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
+}
+
+function isWeekend(col) {
+  const d = colToDate(col);
+  return d.getDay() === 0 || d.getDay() === 6;
+}
+
+function isMonthStart(col) {
+  const d = colToDate(col);
+  return d.getDate() === 1;
+}
+
+// --- Render ---
+function render() {
+  const wrapper = document.getElementById('grid-wrapper');
+  wrapper.innerHTML = '';
+
+  // Column headers
+  const colHeaders = document.createElement('div');
+  colHeaders.className = 'col-headers';
+
+  const spacer = document.createElement('div');
+  spacer.className = 'row-header-spacer';
+  colHeaders.appendChild(spacer);
+
+  for (let c = 0; c < TOTAL_COLS; c++) {
+    const ch = document.createElement('div');
+    ch.className = 'col-header';
+    if (isWeekend(c)) ch.classList.add('weekend');
+    if (isMonthStart(c)) ch.classList.add('month-start');
+
+    const d = colToDate(c);
+    if (zoom === 'day') {
+      ch.textContent = d.getDate();
+      ch.title = formatDateFull(d);
+    } else if (zoom === 'week') {
+      if (d.getDay() === 1) ch.textContent = formatDate(d);
+    } else {
+      if (d.getDate() === 1) {
+        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        ch.textContent = months[d.getMonth()];
+      }
+    }
+    colHeaders.appendChild(ch);
+  }
+  wrapper.appendChild(colHeaders);
+
+  // Rows
+  rows.forEach(row => {
+    const rowEl = document.createElement('div');
+    rowEl.className = 'row';
+    rowEl.dataset.rowId = row.id;
+
+    // Row header
+    const header = document.createElement('div');
+    header.className = 'row-header';
+    const input = document.createElement('input');
+    input.placeholder = 'Row ' + row.id;
+    input.value = row.label;
+    input.oninput = (e) => { row.label = e.target.value; renderPanel(); };
+    header.appendChild(input);
+    rowEl.appendChild(header);
+
+    // Cells
+    const cells = document.createElement('div');
+    cells.className = 'row-cells';
+    cells.dataset.rowId = row.id;
+
+    for (let c = 0; c < TOTAL_COLS; c++) {
+      const line = document.createElement('div');
+      line.className = 'cell-line';
+      if (isWeekend(c)) line.classList.add('weekend');
+      cells.appendChild(line);
+    }
+
+    // Render blocks for this row
+    const rowBlocks = blocks.filter(b => b.rowId === row.id);
+    rowBlocks.forEach(block => {
+      const bEl = document.createElement('div');
+      bEl.className = `block block-color-${block.color}`;
+      bEl.style.left = (block.start * CELL_W) + 'px';
+      bEl.style.width = (block.duration * CELL_W - 2) + 'px';
+      bEl.textContent = block.label || '';
+      bEl.dataset.blockId = block.id;
+
+      // Resize handles
+      const hl = document.createElement('div');
+      hl.className = 'handle-left';
+      hl.addEventListener('mousedown', (e) => startResize(e, block.id, 'left'));
+      bEl.appendChild(hl);
+
+      const hr = document.createElement('div');
+      hr.className = 'handle-right';
+      hr.addEventListener('mousedown', (e) => startResize(e, block.id, 'right'));
+      bEl.appendChild(hr);
+
+      // Move
+      bEl.addEventListener('mousedown', (e) => {
+        if (e.target.classList.contains('handle-left') || e.target.classList.contains('handle-right')) return;
+        startMove(e, block.id);
+      });
+
+      // Context menu
+      bEl.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        showBlockContextMenu(e, block.id);
+      });
+
+      // Double click to rename
+      bEl.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        const name = prompt('Block name:', block.label || '');
+        if (name !== null) { block.label = name; render(); }
+      });
+
+      cells.appendChild(bEl);
+    });
+
+    // Double click on empty space to create block
+    cells.addEventListener('dblclick', (e) => {
+      if (e.target.closest('.block')) return;
+      const rect = cells.getBoundingClientRect();
+      const x = e.clientX - rect.left + cells.scrollLeft;
+      const col = Math.floor(x / CELL_W);
+      createBlock(row.id, col, 3);
+    });
+
+    // Mousedown to start creating
+    cells.addEventListener('mousedown', (e) => {
+      if (e.target.closest('.block')) return;
+      if (e.button !== 0) return;
+      const rect = cells.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const col = Math.floor(x / CELL_W);
+      createState = { rowId: row.id, startCol: col, currentCol: col };
+    });
+
+    rowEl.appendChild(cells);
+    wrapper.appendChild(rowEl);
+  });
+
+  // Add row button
+  const addRow = document.createElement('div');
+  addRow.className = 'add-row-btn';
+  addRow.textContent = '+ Add row';
+  addRow.onclick = () => {
+    rows.push({ id: nextRowId++, label: '' });
+    render();
+  };
+  wrapper.appendChild(addRow);
+
+  renderPanel();
+}
+
+function renderPanel() {
+  const stats = document.getElementById('panel-stats');
+  const totalDays = blocks.reduce((s, b) => s + b.duration, 0);
+  const totalBlocks = blocks.length;
+  const rowsUsed = new Set(blocks.map(b => b.rowId)).size;
+
+  stats.innerHTML = `
+    <div class="panel-stat"><span class="label">Total blocks</span><span class="value">${totalBlocks}</span></div>
+    <div class="panel-stat"><span class="label">Total days</span><span class="value">${totalDays}</span></div>
+    <div class="panel-stat"><span class="label">Rows used</span><span class="value">${rowsUsed}</span></div>
+  `;
+
+  const list = document.getElementById('panel-blocks');
+  list.innerHTML = '';
+
+  blocks.forEach(block => {
+    const row = rows.find(r => r.id === block.rowId);
+    const startDate = formatDateFull(colToDate(block.start));
+    const endDate = formatDateFull(colToDate(block.start + block.duration - 1));
+
+    const item = document.createElement('div');
+    item.className = 'panel-block-item';
+    item.innerHTML = `
+      <div class="block-name">
+        <span class="block-dot block-color-${block.color}"></span>
+        ${block.label || 'Untitled'}
+      </div>
+      <div class="block-meta">
+        ${row ? (row.label || 'Row ' + row.id) : '?'} · ${block.duration} day${block.duration > 1 ? 's' : ''}<br>
+        ${startDate} → ${endDate}
+      </div>
+    `;
+    item.onclick = () => {
+      // Scroll to block
+      const gridArea = document.getElementById('grid-area');
+      gridArea.scrollLeft = block.start * CELL_W - 200;
+    };
+    list.appendChild(item);
+  });
+}
+
+// --- Block operations ---
+function createBlock(rowId, startCol, duration, label) {
+  const block = {
+    id: nextBlockId++,
+    rowId,
+    start: startCol,
+    duration: duration || 3,
+    label: label || '',
+    color: (nextBlockId - 2) % COLORS,
+  };
+  blocks.push(block);
+  render();
+  return block;
+}
+
+function deleteBlock(id) {
+  blocks = blocks.filter(b => b.id !== id);
+  render();
+}
+
+// --- Drag: Move ---
+function startMove(e, blockId) {
+  e.preventDefault();
+  const block = blocks.find(b => b.id === blockId);
+  if (!block) return;
+
+  dragState = {
+    type: 'move',
+    blockId,
+    startX: e.clientX,
+    startY: e.clientY,
+    origStart: block.start,
+    origRowId: block.rowId,
+  };
+
+  const el = document.querySelector(`[data-block-id="${blockId}"]`);
+  if (el) el.classList.add('dragging');
+}
+
+// --- Drag: Resize ---
+function startResize(e, blockId, side) {
+  e.preventDefault();
+  e.stopPropagation();
+  const block = blocks.find(b => b.id === blockId);
+  if (!block) return;
+
+  dragState = {
+    type: side === 'left' ? 'resize-left' : 'resize-right',
+    blockId,
+    startX: e.clientX,
+    origStart: block.start,
+    origDuration: block.duration,
+  };
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (dragState) {
+    const block = blocks.find(b => b.id === dragState.blockId);
+    if (!block) return;
+
+    const dx = e.clientX - dragState.startX;
+    const colDelta = Math.round(dx / CELL_W);
+
+    if (dragState.type === 'move') {
+      block.start = Math.max(0, dragState.origStart + colDelta);
+
+      // Check if we should move to a different row
+      const gridArea = document.getElementById('grid-area');
+      const rowEls = gridArea.querySelectorAll('.row');
+      for (const rowEl of rowEls) {
+        const rect = rowEl.getBoundingClientRect();
+        if (e.clientY >= rect.top && e.clientY < rect.bottom) {
+          const rowId = parseInt(rowEl.dataset.rowId);
+          if (rowId) block.rowId = rowId;
+          break;
+        }
+      }
+
+      render();
+      const el = document.querySelector(`[data-block-id="${dragState.blockId}"]`);
+      if (el) el.classList.add('dragging');
+    }
+    else if (dragState.type === 'resize-right') {
+      block.duration = Math.max(1, dragState.origDuration + colDelta);
+      render();
+    }
+    else if (dragState.type === 'resize-left') {
+      const newStart = dragState.origStart + colDelta;
+      const newDuration = dragState.origDuration - colDelta;
+      if (newDuration >= 1 && newStart >= 0) {
+        block.start = newStart;
+        block.duration = newDuration;
+      }
+      render();
+    }
+  }
+
+  // Create by drag
+  if (createState) {
+    // We'll handle this on mouseup
+  }
+});
+
+document.addEventListener('mouseup', (e) => {
+  if (dragState) {
+    dragState = null;
+    render();
+  }
+
+  if (createState) {
+    const rect = document.querySelector(`.row-cells[data-row-id="${createState.rowId}"]`);
+    if (rect) {
+      const r = rect.getBoundingClientRect();
+      const x = e.clientX - r.left;
+      const endCol = Math.floor(x / CELL_W);
+      const start = Math.min(createState.startCol, endCol);
+      const end = Math.max(createState.startCol, endCol);
+      const duration = end - start + 1;
+
+      if (duration >= 2) {
+        createBlock(createState.rowId, start, duration);
+      }
+    }
+    createState = null;
+  }
+});
+
+// --- Context menu ---
+function showBlockContextMenu(e, blockId) {
+  const menu = document.getElementById('context-menu');
+  const block = blocks.find(b => b.id === blockId);
+  if (!block) return;
+
+  menu.style.display = 'block';
+  menu.style.left = e.clientX + 'px';
+  menu.style.top = e.clientY + 'px';
+
+  menu.innerHTML = `
+    <div class="context-menu-item" onclick="renameBlock(${blockId})">Rename</div>
+    <div class="context-menu-item" onclick="cycleColor(${blockId})">Change colour</div>
+    <div class="context-menu-item" onclick="duplicateBlock(${blockId})">Duplicate</div>
+    <div class="context-menu-item danger" onclick="deleteBlock(${blockId})">Delete</div>
+  `;
+}
+
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.context-menu')) {
+    document.getElementById('context-menu').style.display = 'none';
+  }
+});
+
+function renameBlock(id) {
+  document.getElementById('context-menu').style.display = 'none';
+  const block = blocks.find(b => b.id === id);
+  if (!block) return;
+  const name = prompt('Block name:', block.label || '');
+  if (name !== null) { block.label = name; render(); }
+}
+
+function cycleColor(id) {
+  document.getElementById('context-menu').style.display = 'none';
+  const block = blocks.find(b => b.id === id);
+  if (!block) return;
+  block.color = (block.color + 1) % COLORS;
+  render();
+}
+
+function duplicateBlock(id) {
+  document.getElementById('context-menu').style.display = 'none';
+  const block = blocks.find(b => b.id === id);
+  if (!block) return;
+  createBlock(block.rowId, block.start + block.duration + 1, block.duration, block.label);
+}
+
+// --- Zoom ---
+function setZoom(z) {
+  zoom = z;
+  document.getElementById('btn-day').classList.toggle('active', z === 'day');
+  document.getElementById('btn-week').classList.toggle('active', z === 'week');
+  document.getElementById('btn-month').classList.toggle('active', z === 'month');
+  render();
+}
+
+// --- Panel toggle ---
+function togglePanel() {
+  const panel = document.getElementById('data-panel');
+  panel.classList.toggle('hidden');
+  document.getElementById('btn-panel').classList.toggle('active');
+}
+
+// --- Keyboard ---
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    document.getElementById('context-menu').style.display = 'none';
+  }
+});
+
+// --- Init ---
+// Add some example blocks
+createBlock(1, 0, 5, 'Planning');
+createBlock(1, 6, 8, 'Design');
+createBlock(2, 3, 10, 'Frontend');
+createBlock(3, 8, 12, 'Backend');
+createBlock(2, 14, 6, 'Testing');
+
+render();
+</script>
+</body>
+</html>
