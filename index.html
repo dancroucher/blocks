@@ -656,6 +656,14 @@
   }
   .row-drag-handle:hover { color: #999; }
   body.row-reordering { cursor: grabbing !important; user-select: none; }
+  body.row-reordering .row:not(.row-dragging) {
+    opacity: 0.7;
+    transition: opacity 0.1s;
+  }
+  body.row-reordering .panel-section-header:not(.row-dragging) {
+    opacity: 0.7;
+    transition: opacity 0.1s;
+  }
   .row-reordering-indicator {
     position: fixed;
     height: 2px;
@@ -692,13 +700,11 @@
   }
   .row-reordering-indicator {
     position: fixed;
-    height: 3px;
-    background: linear-gradient(90deg, var(--accent), #6af);
-    border-radius: 2px;
+    height: 2px;
+    background: var(--accent);
     pointer-events: none;
     z-index: 999;
     display: none;
-    box-shadow: 0 0 8px var(--accent);
   }
 
   /* Context menu */
