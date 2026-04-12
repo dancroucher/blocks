@@ -879,20 +879,26 @@ projectStart.setHours(0,0,0,0);
 
 // Returns the weekday-col index for today, or -1 if today isn't on the grid
 // (weekend or outside [projectStart, projectEnd]).
+// Returns the nearest weekday-col index for today.
+// If today is itself a weekday, that's returned.
+// If today is a weekend, the nearest past Friday is used as the visual stand-in.
 function todayWeekdayCol() {
   const t = new Date(); t.setHours(0,0,0,0);
-  const wd = t.getDay();
-  if (wd === 0 || wd === 6) return -1;
-  if (t < projectStart || t > PROJECT_END_DATE) return -1;
-  // Count weekdays from projectStart up to (not including) today
+  let wd = t.getDay();
+  // If weekend, snap back to Friday ( Sat→-1, Sun→-2 )
+  if (wd === 0) wd = -2; // Sunday → Friday
+  else if (wd === 6) wd = -1; // Saturday → Friday
+  const tAdj = new Date(t);
+  tAdj.setDate(tAdj.getDate() + wd);
+  if (tAdj < projectStart || tAdj > PROJECT_END_DATE) return -1;
   let n = 0;
   const d = new Date(projectStart);
-  while (d < t) {
+  while (d <= tAdj) {
     const day = d.getDay();
     if (day !== 0 && day !== 6) n++;
     d.setDate(d.getDate() + 1);
   }
-  return n;
+  return n - 1;
 }
 
 // Grid is weekday-only: col 0 = projectStart (a Monday), col 1 = next weekday,
@@ -943,7 +949,14 @@ function _render() {
   const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
   // For today's-column highlight — compare stamps, not Date objects.
-  const todayStamp = (() => { const t = new Date(); t.setHours(0,0,0,0); return t.getTime(); })();
+  const todayStamp = (() => {
+    const t = new Date(); t.setHours(0,0,0,0);
+    const wd = t.getDay();
+    // If weekend, stand in on Friday
+    if (wd === 0) t.setDate(t.getDate() - 2); // Sun → Fri
+    else if (wd === 6) t.setDate(t.getDate() - 1); // Sat → Fri
+    return t.getTime();
+  })();
   const isToday = (d) => { const c = new Date(d); c.setHours(0,0,0,0); return c.getTime() === todayStamp; };
 
   // --- Row 1: Months ---
