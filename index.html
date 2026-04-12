@@ -666,21 +666,23 @@
   }
   /* Row drag effects — lifted row + drop shadow + scaled ghost */
   .row.row-dragging {
-    opacity: 0.9;
-    transform: scale(1.02) translateX(4px);
+    opacity: 0.95;
     box-shadow: 0 8px 24px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12);
     z-index: 100;
     position: relative;
   }
   .row.row-dragging.row-lifted {
-    transform: scale(1.025) translateX(6px);
     box-shadow: 0 16px 40px rgba(0,0,0,0.22), 0 4px 12px rgba(0,0,0,0.15);
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    transition: box-shadow 0.15s ease;
+  }
+  .panel-section-header.row-dragging {
+    opacity: 0.95;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    z-index: 100;
   }
   .panel-section-header.row-dragging.row-lifted {
-    transform: scale(1.025) translateX(6px);
     box-shadow: 0 16px 40px rgba(0,0,0,0.22);
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    transition: box-shadow 0.15s ease;
   }
   .panel-section-header.row-dragging {
     opacity: 0.9;
