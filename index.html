@@ -1993,20 +1993,8 @@ document.addEventListener('mousemove', (e) => {
       indicatorY = rect.bottom;
     }
 
-    // Move the dragged row element directly in the DOM — no state change yet.
-    // addRowWrapper (last child of grid-wrapper) is always the bottom anchor — never insert before it.
-    const _gridWrapper = document.getElementById('grid-wrapper');
-    const addRowWrapper = _gridWrapper?.querySelector('.add-row-btn')?.closest('.row');
-    if (dragged) {
-      if (targetEl && targetEl !== dragged.nextSibling && targetEl !== addRowWrapper) {
-        targetEl.parentNode.insertBefore(dragged, targetEl);
-      } else if (targetEl === addRowWrapper) {
-        // Insert above the add-row button (always last in wrapper)
-        addRowWrapper.parentNode.insertBefore(dragged, addRowWrapper);
-      } else if (!targetEl && dragged.nextSibling) {
-        dragged.parentNode.appendChild(dragged);
-      }
-    }
+    // Don't manipulate DOM here — rows state updates on mouseup, render() rebuilds correctly.
+    // Visual feedback comes from the row being highlighted; the state change on drop is instant.
 
     if (indicatorY !== null && rowDragIndicator) {
       rowDragIndicator.style.top = (indicatorY - 1) + 'px';
