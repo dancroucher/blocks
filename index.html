@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <title>Blocks</title>
 <style>
   @import url('https://api.fontshare.com/v1/css?f[]=clash-grotesk@400,500,600,700&display=swap');
@@ -765,6 +767,26 @@ function cellVisualW() { return dayPx() * daysPerCell(); }
 const ROW_HEADER_W = 160;
 const COLORS = 9;
 
+// --- Firebase shared state ---
+// Replace with your actual Firebase project config from:
+// https://console.firebase.google.com → Project Settings → Your apps → SDK setup
+const FIREBASE_API_KEY    = 'AIzaSyD-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
+const FIREBASE_AUTH_DOMAIN = 'blocks-shared.firebaseapp.com';
+const FIREBASE_PROJECT_ID = 'blocks-shared';  // create this project in Firebase console
+
+function firebaseInit() {
+  if (typeof firebase === 'undefined') {
+    console.warn('Firebase SDK not loaded'); return;
+  }
+  firebase.initializeApp({
+    apiKey:             FIREBASE_API_KEY,
+    authDomain:         FIREBASE_AUTH_DOMAIN,
+    projectId:          FIREBASE_PROJECT_ID,
+  });
+  _db = firebase.firestore();
+}
+firebaseInit();
+
 // Timeline runs from PROJECT_START_DATE through PROJECT_END_DATE inclusive
 // (weekdays only). TOTAL_COLS is computed from these.
 const PROJECT_START_DATE = new Date(2026, 0, 1);   // 2026-01-01 (Thu)
@@ -792,13 +814,14 @@ function fmtDays(base, conting) {
   return `${base}<span class="cg">d</span>`;
 }
 
-// --- IndexedDB persistence ---
-// Single key/value store: db 'blocks-db', store 'state', key 'app' holds
-// the full app state (rows, blocks, counters, settings, project anchor).
+// --- Firestore persistence (primary) + IndexedDB (local fallback) ---
 const DB_NAME = 'blocks-db';
 const STORE = 'state';
 const STATE_KEY = 'app';
+const DOC_PATH = 'projects/blocks';
+let _db = null; // Firestore ref (set by firebaseInit)
 let _dbPromise = null;
+let _unsub = null; // Firestore listener unsubscribe
 
 function openDB() {
   if (_dbPromise) return _dbPromise;
@@ -811,7 +834,21 @@ function openDB() {
   return _dbPromise;
 }
 
+// Load from Firestore first, fall back to IndexedDB
 async function loadState() {
+  // Try Firestore
+  if (_db) {
+    try {
+      const snap = await _db.doc(DOC_PATH).get();
+      if (snap.exists) {
+        console.log('State loaded from Firestore');
+        return snap.data();
+      }
+    } catch (e) {
+      console.warn('Firestore load failed, falling back to IndexedDB:', e);
+    }
+  }
+  // IndexedDB fallback
   try {
     const db = await openDB();
     return await new Promise((resolve, reject) => {
@@ -820,32 +857,90 @@ async function loadState() {
       req.onerror = () => reject(req.error);
     });
   } catch (e) {
-    console.warn('loadState failed:', e);
+    console.warn('IndexedDB loadState failed:', e);
     return null;
   }
 }
 
-// Debounced — render() fires on every mutation, no need to hammer the db.
+// Debounced save — Firestore primary + IndexedDB local fallback
 let _saveTimer = null;
-let _saveReady = false; // guard: don't save until initial load finishes
+let _saveReady = false;
 function saveState() {
   if (!_saveReady) return;
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async () => {
+    const snapshot = {
+      version: STATE_VERSION,
+      rows, blocks, nextBlockId, nextRowId,
+      contingencyPct, zoom, panelWidth, collapsedRows,
+      projectStart: projectStart.toISOString(),
+      savedAt: Date.now(),
+    };
+
+    // Firestore — ignore failure (offline etc.), fallback persists locally
+    if (_db) {
+      try {
+        await _db.doc(DOC_PATH).set({ ...snapshot, _source: 'local' }, { merge: true });
+        // Clear local flag on next clean write
+        setTimeout(() => {
+          _db.doc(DOC_PATH).set({ _source: null, _cleared: true }, { merge: true }).catch(() => {});
+        }, 500);
+      } catch (e) {
+        console.warn('Firestore save failed:', e);
+      }
+    }
+
+    // IndexedDB local backup
     try {
       const db = await openDB();
-      const snapshot = {
-        version: STATE_VERSION,
-        rows, blocks, nextBlockId, nextRowId,
-        contingencyPct, zoom, panelWidth, collapsedRows,
-        projectStart: projectStart.toISOString(),
-        savedAt: Date.now(),
-      };
       db.transaction(STORE, 'readwrite').objectStore(STORE).put(snapshot, STATE_KEY);
     } catch (e) {
-      console.warn('saveState failed:', e);
+      console.warn('IndexedDB saveState failed:', e);
     }
   }, 200);
+}
+
+// Listen for remote state changes and apply them
+function listenForChanges() {
+  if (!_db) return;
+  _unsub = _db.doc(DOC_PATH).onSnapshot((snap) => {
+    const data = snap.data();
+    if (!data) return;
+    // Ignore our own writes (echo prevention)
+    if (data._source === 'local') return;
+    // Ignore null-cleared fields
+    if (data._cleared) return;
+    // Apply remote state (merge to avoid overwriting _source)
+    const remote = { ...data };
+    delete remote._source; delete remote._cleared;
+    applyRemoteState(remote);
+  }, (err) => {
+    console.warn('Firestore listener error:', err);
+  });
+}
+
+// Apply state received from Firestore remote write
+function applyRemoteState(data) {
+  if (!data || typeof data !== 'object') return;
+  if (data.rows)     { rows           = data.rows; }
+  if (data.blocks)   { blocks         = data.blocks; }
+  if (data.nextBlockId != null) nextBlockId = data.nextBlockId;
+  if (data.nextRowId != null)   nextRowId   = data.nextRowId;
+  if (data.contingencyPct != null) contingencyPct = data.contingencyPct;
+  if (data.collapsedRows) collapsedRows = data.collapsedRows;
+  if (data.zoom)     zoom = data.zoom;
+  if (typeof data.panelWidth === 'number') panelWidth = data.panelWidth;
+
+  // Sync UI
+  document.getElementById('contingency').value = contingencyPct;
+  document.getElementById('btn-day').classList.toggle('active', zoom === 'day');
+  document.getElementById('btn-week').classList.toggle('active', zoom === 'week');
+  document.getElementById('btn-month').classList.toggle('active', zoom === 'month');
+
+  // Re-render without full state write-back
+  _renderScheduled = false;
+  render();
+  renderPanel();
 }
 
 let zoom = 'day'; // day, week, month
@@ -1992,7 +2087,7 @@ function migrateV1ToV2(savedBlocks) {
 async function init() {
   const saved = await loadState();
   if (saved) {
-    // Restore from IndexedDB
+    // Restore state (Firestore or IndexedDB)
     rows = saved.rows || rows;
     blocks = saved.blocks || [];
     // v1 state had no version field and used calendar-day columns.
@@ -2007,7 +2102,6 @@ async function init() {
     if (typeof saved.panelWidth === 'number') panelWidth = saved.panelWidth;
     if (saved.collapsedRows && typeof saved.collapsedRows === 'object') collapsedRows = saved.collapsedRows;
     // projectStart is now fixed (Jan 1 2026); intentionally ignore saved.projectStart.
-    // Sync UI controls to restored state
     document.getElementById('contingency').value = contingencyPct;
     document.getElementById('btn-day').classList.toggle('active', zoom === 'day');
     document.getElementById('btn-week').classList.toggle('active', zoom === 'week');
@@ -2019,16 +2113,16 @@ async function init() {
     createBlock(2, 3, 10, 'Frontend');
     createBlock(3, 8, 12, 'Backend');
     createBlock(2, 14, 6, 'Testing');
+    saveState(); // write seed data to Firestore immediately
   }
   applyPanelWidth();
   setupPanelResize();
-  // Row drag indicator
   rowDragIndicator = document.createElement('div');
   rowDragIndicator.className = 'row-reordering-indicator';
   document.body.appendChild(rowDragIndicator);
   _saveReady = true;
+  listenForChanges(); // start real-time sync
   render();
-  // Header drag-to-pan — attach listener to scrollable grid area
   document.getElementById('grid-area').addEventListener('mousedown', startPan);
 }
 
