@@ -658,7 +658,10 @@
   body.row-reordering { cursor: grabbing !important; user-select: none; }
   body.row-reordering .row:not(.row-dragging) {
     opacity: 0.7;
-    transition: opacity 0.1s;
+    transition: opacity 0.1s, transform 0.2s ease;
+  }
+  body.row-reordering .row:not(.row-dragging):not(.row-drag-placeholder) {
+    will-change: transform;
   }
   body.row-reordering .panel-section-header:not(.row-dragging) {
     opacity: 0.7;
@@ -2026,12 +2029,42 @@ document.addEventListener('mousemove', (e) => {
       indicatorY = rect.bottom;
     }
 
-    // Move dragged row to follow cursor (absolute position)
+    // Move dragged row to follow cursor from its pickup position
     if (dragged && rowDragState) {
       const dy = e.clientY - rowDragState.startMouseY;
       dragged.style.transform = `translateY(${dy}px)`;
       dragged.style.transition = 'none';
     }
+
+    // Shift other rows smoothly to make room for the dragged row (react-beautiful-dnd pattern)
+    const allRows = [...document.querySelectorAll('.row[data-row-id]')];
+    allRows.forEach(r => {
+      if (r.dataset.rowId === String(rowId)) return;
+      if (r.classList.contains('row-drag-placeholder')) return;
+      const rect = r.getBoundingClientRect();
+      const midY = rect.top + rect.height / 2;
+      const fromIdx = rows.findIndex(row => row.id === rowId);
+      const toIdx = rows.findIndex(row => String(row.dataset.rowId) === String(r.dataset.rowId));
+      const draggedIdx = fromIdx;
+      const targetIdx = toIdx;
+      if (insertBefore !== null) {
+        const insertIdx = rows.findIndex(row => row.id === insertBefore);
+        // Simple case: rows between original pos and target pos shift
+        const minI = Math.min(draggedIdx, insertIdx);
+        const maxI = Math.max(draggedIdx, insertIdx);
+        if (targetIdx > minI && targetIdx <= maxI) {
+          const dir = draggedIdx > insertIdx ? -1 : 1;
+          r.style.transform = `translateY(${dir * rowDragState.rowH}px)`;
+          r.style.transition = 'transform 0.2s ease';
+        } else {
+          r.style.transform = '';
+          r.style.transition = 'transform 0.2s ease';
+        }
+      } else {
+        r.style.transform = '';
+        r.style.transition = 'transform 0.2s ease';
+      }
+    });
 
     if (indicatorY !== null && rowDragIndicator) {
       rowDragIndicator.style.top = (indicatorY - 1) + 'px';
@@ -2060,7 +2093,10 @@ document.addEventListener('mouseup', (e) => {
     document.body.classList.remove('row-reordering');
     if (rowDragIndicator) rowDragIndicator.style.display = 'none';
 
-    // Clean up: remove placeholder, reset dragged row
+    // Clean up: reset all row transforms, remove placeholder
+    document.querySelectorAll('.row').forEach(r => {
+      r.style.transform = '';
+    });
     const dragged = document.querySelector('.row.row-dragging');
     if (dragged) {
       dragged.classList.remove('row-dragging', 'row-lifted');
@@ -2070,7 +2106,7 @@ document.addEventListener('mouseup', (e) => {
       dragged.style.zIndex = '';
     }
     const ph = document.querySelector('.row-drag-placeholder');
-    if (ph) { ph.classList.remove('row-drag-placeholder-active'); ph.style.visibility = 'hidden'; }
+    if (ph) ph.remove();
 
     const fromIndex = rows.findIndex(r => r.id === rowId);
     if (fromIndex !== -1) {
