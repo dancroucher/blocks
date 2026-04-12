@@ -1841,43 +1841,39 @@ function startEditingBlockLabel(bEl, labelEl, block) {
 function startRowDrag(e, rowId, source) {
   e.preventDefault();
   e.stopPropagation();
-  if (rows.findIndex(r => r.id === rowId) === -1) return;
+  const fromIdx = rows.findIndex(r => r.id === rowId);
+  if (fromIdx === -1) return;
   const rowEl = document.querySelector(`.row[data-row-id="${rowId}"]`);
-  const originalIndex = rows.findIndex(r => r.id === rowId);
-  const rowH = rowEl ? parseInt(rowEl.style.height) || 40 : 40;
+  const rowH = rowEl ? (parseInt(rowEl.style.height) || rowEl.getBoundingClientRect().height) : 40;
+  // Anchor the row to its exact pickup position in the document
+  const rect = rowEl.getBoundingClientRect();
+  rowEl.style.position = 'absolute';
+  rowEl.style.width = rect.width + 'px';
+  rowEl.style.top = rect.top + 'px';
+  rowEl.style.left = rect.left + 'px';
+  rowEl.style.zIndex = '300';
+  rowEl.style.margin = '0';
+  rowEl.classList.add('row-dragging');
+  requestAnimationFrame(() => rowEl.classList.add('row-lifted'));
+  // Create placeholder at end of list (not in-place)
+  const wrapper = document.getElementById('grid-wrapper');
+  if (wrapper) {
+    let ph = wrapper.querySelector('.row-drag-placeholder');
+    if (ph) ph.remove();
+    ph = document.createElement('div');
+    ph.className = 'row row-drag-placeholder';
+    ph.style.height = rowH + 'px';
+    ph.style.visibility = 'hidden';
+    wrapper.appendChild(ph);
+    requestAnimationFrame(() => { ph.style.visibility = 'visible'; });
+  }
   rowDragState = {
-    rowId, insertBefore: null, source,
+    rowId, fromIdx, insertBefore: null, source,
     startMouseY: e.clientY,
-    startElTop: rowEl ? rowEl.getBoundingClientRect().top : e.clientY,
-    originalIndex,
+    startElTop: rect.top,
     rowH,
   };
   document.body.classList.add('row-reordering');
-  // Lift: make dragged row position:absolute (out of flow)
-  if (rowEl) {
-    rowEl.classList.add('row-dragging');
-    const rect = rowEl.getBoundingClientRect();
-    rowEl.style.width = rect.width + 'px';
-    rowEl.style.top = rect.top + 'px';
-    requestAnimationFrame(() => rowEl.classList.add('row-lifted'));
-  }
-  // Create placeholder at end of list — avoids animation fighting from in-place gaps
-  const gridWrapper = document.getElementById('grid-wrapper');
-  if (gridWrapper) {
-    let ph = gridWrapper.querySelector('.row-drag-placeholder');
-    if (!ph) {
-      ph = document.createElement('div');
-      ph.className = 'row row-drag-placeholder';
-      ph.style.height = rowH + 'px';
-      gridWrapper.appendChild(ph);
-    } else {
-      ph.style.height = rowH + 'px';
-      ph.style.visibility = 'hidden';
-    }
-    requestAnimationFrame(() => ph.classList.add('row-drag-placeholder-active'));
-  }
-  const sectionEl = document.querySelector(`.panel-section-header[data-row-id="${rowId}"]`);
-  if (sectionEl) sectionEl.classList.add('row-dragging');
   if (rowDragIndicator) rowDragIndicator.style.display = 'block';
 }
 
@@ -2029,34 +2025,62 @@ document.addEventListener('mousemove', (e) => {
       indicatorY = rect.bottom;
     }
 
-    // Move dragged row to follow cursor from its pickup position
-    if (dragged && rowDragState) {
-      const dy = e.clientY - rowDragState.startMouseY;
-      dragged.style.transform = `translateY(${dy}px)`;
-      dragged.style.transition = 'none';
+    // Move dragged row to follow cursor
+    const dy = e.clientY - rowDragState.startMouseY;
+    dragged.style.transform = `translateY(${dy}px)`;
+    dragged.style.transition = 'none';
+
+    // Compute where the dragged row's center is in document space
+    const draggedRect = dragged.getBoundingClientRect();
+    const draggedCenterDocY = draggedRect.top + draggedRect.height / 2;
+
+    // Find which row slot the dragged center is over — traverse the LIVE DOM order
+    // (which reflects the current rows[] order plus our transforms)
+    const liveRows = [...document.querySelectorAll('.row[data-row-id]')].filter(r =>
+      !r.classList.contains('row-drag-placeholder') && String(r.dataset.rowId) !== String(rowId)
+    );
+
+    let newInsertBefore = null;
+    for (const r of liveRows) {
+      const rect = r.getBoundingClientRect();
+      if (draggedCenterDocY < rect.top + rect.height / 2) {
+        newInsertBefore = parseInt(r.dataset.rowId);
+        break;
+      }
     }
 
-    // Shift other rows smoothly to make room (react-beautiful-dnd pattern)
-    // Use rows array indices, not DOM order
-    const fromIdx = rows.findIndex(r => r.id === rowId);
-    let insertIdx = insertBefore !== null ? rows.findIndex(r => r.id === insertBefore) : rows.length;
-    // Adjust insertIdx if dragged row was before the insertion point
-    if (fromIdx < insertIdx) insertIdx--;
-    document.querySelectorAll('.row[data-row-id]').forEach(r => {
-      if (String(r.dataset.rowId) === String(rowId)) return;
-      if (r.classList.contains('row-drag-placeholder')) return;
-      const rowIdx = rows.findIndex(row => String(row.id) === String(r.dataset.rowId));
-      const minI = Math.min(fromIdx, insertIdx);
-      const maxI = Math.max(fromIdx, insertIdx);
-      if (rowIdx > minI && rowIdx <= maxI) {
-        const dir = fromIdx > insertIdx ? -1 : 1;
-        r.style.transform = `translateY(${dir * rowDragState.rowH}px)`;
-        r.style.transition = 'transform 0.2s ease';
-      } else {
-        r.style.transform = '';
-        r.style.transition = 'transform 0.2s ease';
-      }
+    // Compute shift direction and magnitude from current insertBefore (not fromIdx)
+    // This is the key: rows only shift by ONE slot at a time as insertBefore changes
+    const prevInsertBefore = rowDragState.insertBefore;
+    const prevInsertIdx = prevInsertBefore !== null
+      ? rows.findIndex(r => r.id === prevInsertBefore)
+      : rows.length;
+    const newInsertIdx = newInsertBefore !== null
+      ? rows.findIndex(r => r.id === newInsertBefore)
+      : rows.length;
+
+    // Reset all non-dragged rows to their natural position first
+    liveRows.forEach(r => {
+      r.style.transform = '';
+      r.style.transition = 'transform 0.2s ease, opacity 0.15s ease';
+      r.style.opacity = '';
     });
+
+    // Then shift rows between prev and new insert positions
+    const minI = Math.min(prevInsertIdx, newInsertIdx);
+    const maxI = Math.max(prevInsertIdx, newInsertIdx);
+    if (newInsertIdx < rows.length) {
+      liveRows.forEach(r => {
+        const idx = rows.findIndex(row => String(row.id) === String(r.dataset.rowId));
+        if (idx > minI && idx <= maxI) {
+          const dir = newInsertIdx < prevInsertIdx ? 1 : -1;
+          r.style.transform = `translateY(${dir * rowDragState.rowH}px)`;
+        }
+      });
+    }
+
+    rowDragState.insertBefore = newInsertBefore;
+    rowDragState.insertIdx = newInsertIdx;
 
     if (indicatorY !== null && rowDragIndicator) {
       rowDragIndicator.style.top = (indicatorY - 1) + 'px';
@@ -2081,45 +2105,50 @@ document.addEventListener('mousemove', (e) => {
 document.addEventListener('mouseup', (e) => {
   if (rowDragState) {
     const { rowId, insertBefore } = rowDragState;
-    rowDragState = null;
     document.body.classList.remove('row-reordering');
     if (rowDragIndicator) rowDragIndicator.style.display = 'none';
 
-    // Clean up: reset all row transforms, remove placeholder
+    // Reset all transforms
     document.querySelectorAll('.row').forEach(r => {
       r.style.transform = '';
+      r.style.transition = '';
+      r.style.opacity = '';
     });
+
+    // Reset dragged row styling
     const dragged = document.querySelector('.row.row-dragging');
     if (dragged) {
-      dragged.classList.remove('row-dragging', 'row-lifted');
-      dragged.style.width = '';
+      dragged.style.position = '';
       dragged.style.top = '';
-      dragged.style.transform = '';
+      dragged.style.left = '';
+      dragged.style.width = '';
       dragged.style.zIndex = '';
+      dragged.style.transform = '';
+      dragged.classList.remove('row-dragging', 'row-lifted');
     }
+
+    // Remove placeholder
     const ph = document.querySelector('.row-drag-placeholder');
     if (ph) ph.remove();
 
-    // Reorder DOM to match rows[] without a full render()
-    const fromIndex = rows.findIndex(r => r.id === rowId);
-    if (fromIndex !== -1) {
-      const [moved] = rows.splice(fromIndex, 1);
-      if (insertBefore === null) {
-        rows.push(moved);
-      } else {
-        const toIndex = rows.findIndex(r => r.id === insertBefore);
-        rows.splice(toIndex === -1 ? rows.length : toIndex, 0, moved);
-      }
-      // Rebuild DOM order to match rows[] without wiping event listeners
+    // Apply state change
+    const fromIdx = rows.findIndex(r => r.id === rowId);
+    if (fromIdx !== -1) {
+      const [moved] = rows.splice(fromIdx, 1);
+      const toIdx = insertBefore !== null ? rows.findIndex(r => r.id === insertBefore) : rows.length;
+      rows.splice(toIdx === -1 ? rows.length : toIdx, 0, moved);
+      // Reorder DOM to match rows[]
       const wrapper = document.getElementById('grid-wrapper');
-      const addRow = wrapper.querySelector('.add-row-btn')?.closest('.row');
+      const addRowEl = wrapper.querySelector('.add-row-btn')?.closest('.row');
       rows.forEach(row => {
         const el = wrapper.querySelector(`.row[data-row-id="${row.id}"]`);
-        if (el) wrapper.insertBefore(el, addRow);
+        if (el && el !== addRowEl) wrapper.insertBefore(el, addRowEl);
       });
       renderPanel();
       saveState();
     }
+
+    rowDragState = null;
     return;
   }
 
