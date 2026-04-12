@@ -90,6 +90,7 @@
     display: flex;
     flex: 1;
     overflow: hidden;
+    min-height: 0;
   }
 
   /* Grid area */
@@ -98,12 +99,14 @@
     position: relative;
     overflow: auto;
     cursor: default;
+    min-height: 0; /* Override default stretch, rows determine height */
   }
 
   .grid-wrapper {
     position: relative;
     min-width: 100%;
-    min-height: 100%;
+    min-height: 0;
+    flex: 1;
   }
 
   /* Column headers (timeline) */
@@ -246,8 +249,8 @@
   .row-cells {
     display: flex;
     position: relative;
-    flex: 0 0 auto;              /* size to content so row border spans every cell */
-    height: var(--cell-size);
+    flex: 0 0 auto;
+    height: var(--row-h, var(--cell-size));
   }
 
   /* Painted grid backgrounds — repeating gradients are dramatically faster
@@ -1256,6 +1259,7 @@ function _render() {
     const cells = document.createElement('div');
     cells.className = 'row-cells';
     cells.dataset.rowId = row.id;
+    cells.style.setProperty('--row-h', (rowHeights[row.id] || ROW_H_DEFAULT) + 'px');
 
     // Body cells.
     // Day/week views: paint the grid via CSS gradient on .row-cells (no DOM
