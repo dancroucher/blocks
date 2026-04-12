@@ -199,6 +199,20 @@
     width: max-content;
     min-width: 100%;
   }
+  .row-resize {
+    position: absolute;
+    bottom: -3px;
+    left: 0;
+    right: 0;
+    height: 6px;
+    cursor: row-resize;
+    z-index: 10;
+    border-bottom: 2px solid transparent;
+  }
+  .row-resize:hover,
+  .row-resize.dragging {
+    border-bottom-color: var(--accent);
+  }
 
   .row-header {
     width: 160px;
@@ -213,6 +227,8 @@
     z-index: 3;
     font-size: 0.95rem;
     cursor: text;
+    height: var(--row-h, 40px);
+    transition: height 0.1s;
   }
 
   .row-header input {
@@ -282,7 +298,7 @@
   /* Blocks */
   .block {
     position: absolute;
-    height: calc(var(--cell-size) - 6px);
+    height: calc(var(--row-h, 40px) - 6px);
     top: 3px;
     border-radius: 2px;
     cursor: grab;
@@ -766,6 +782,9 @@ function daysPerCell() { return zoom === 'week' ? 5 : 1; }
 function cellVisualW() { return dayPx() * daysPerCell(); }
 const ROW_HEADER_W = 160;
 const COLORS = 9;
+const ROW_H_MIN = 30;
+const ROW_H_DEFAULT = 40;
+const ROW_H_MAX = 120;
 
 // --- Firebase shared state ---
 // Replace with your actual Firebase project config from:
@@ -955,6 +974,7 @@ let rows = [
   { id: 5, label: '' },
 ];
 let blocks = [];
+let rowHeights = {}; // { rowId: height }
 let nextBlockId = 1;
 let nextRowId = 6;
 let contingencyPct = 0;
@@ -1205,6 +1225,13 @@ function _render() {
     const rowEl = document.createElement('div');
     rowEl.className = 'row';
     rowEl.dataset.rowId = row.id;
+
+    // Row resize handle at bottom of row
+    const resizeHandle = document.createElement('div');
+    resizeHandle.className = 'row-resize';
+    resizeHandle.title = 'Drag to resize';
+    resizeHandle.addEventListener('mousedown', (e) => startRowResize(e, row.id));
+    rowEl.appendChild(resizeHandle);
 
     // Row header
     const header = document.createElement('div');
@@ -1638,6 +1665,53 @@ function renderPanel() {
       <span class="totals-col totals-total">${totalRowDays}d</span>
     `;
     body.appendChild(totals);
+  });
+}
+
+// --- Row vertical resize ---
+let _rowResize = null; // { rowId, startY, startH }
+
+function startRowResize(e, rowId) {
+  e.preventDefault();
+  e.stopPropagation();
+  const startH = rowHeights[rowId] || ROW_H_DEFAULT;
+  _rowResize = { rowId, startY: e.clientY, startH };
+  document.addEventListener('mousemove', onRowResizeMove);
+  document.addEventListener('mouseup', endRowResize);
+  document.body.style.cursor = 'row-resize';
+  document.body.style.userSelect = 'none';
+}
+
+function onRowResizeMove(e) {
+  if (!_rowResize) return;
+  const { rowId, startY, startH } = _rowResize;
+  const dy = e.clientY - startY;
+  const newH = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, startH + dy));
+  rowHeights[rowId] = newH;
+  applyRowHeights();
+}
+
+function endRowResize() {
+  if (!_rowResize) return;
+  const rowId = _rowResize.rowId;
+  _rowResize = null;
+  document.removeEventListener('mousemove', onRowResizeMove);
+  document.removeEventListener('mouseup', endRowResize);
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+  saveState();
+}
+
+function applyRowHeights() {
+  rows.forEach(row => {
+    const h = rowHeights[row.id] || ROW_H_DEFAULT;
+    const rowEl = document.querySelector(`.row[data-row-id="${row.id}"]`);
+    if (!rowEl) return;
+    rowEl.style.setProperty('--row-h', h + 'px');
+    const header = rowEl.querySelector('.row-header');
+    if (header) header.style.setProperty('--row-h', h + 'px');
+    const cells = rowEl.querySelector('.row-cells');
+    if (cells) cells.style.setProperty('--row-h', h + 'px');
   });
 }
 
@@ -2125,6 +2199,7 @@ async function init() {
   document.body.appendChild(rowDragIndicator);
   _saveReady = true;
   listenForChanges(); // start real-time sync
+  applyRowHeights(); // apply saved row heights before first render
   render();
   document.getElementById('grid-area').addEventListener('mousedown', startPan);
 }
