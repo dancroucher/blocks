@@ -1996,7 +1996,10 @@ document.addEventListener('mousemove', (e) => {
 
     // Track insertBefore from mouse Y (for state commit on drop)
     if (dragged && targetEl) {
-      dragged.style.transform = `translateY(${targetEl.offsetTop - dragged.offsetTop}px)`;
+      // Use getBoundingClientRect for accurate current positions, works with varying row heights
+      const draggedRect = dragged.getBoundingClientRect();
+      const targetRect = targetEl.getBoundingClientRect();
+      dragged.style.transform = `translateY(${targetRect.top - draggedRect.top}px)`;
       dragged.style.zIndex = '100';
       dragged.style.transition = 'none';
     }
