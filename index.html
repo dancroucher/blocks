@@ -86,6 +86,8 @@
     cursor: default;
   }
 
+  .grid-area.panning { cursor: grabbing; }
+
   .grid-wrapper {
     position: relative;
     min-width: 100%;
@@ -100,13 +102,20 @@
     display: flex;
     background: var(--header-bg);
     border-bottom: 1px solid var(--border);
+    cursor: grab;
+    user-select: none;
   }
+
+  .col-headers.panning { cursor: grabbing; }
 
   .row-header-spacer {
     width: 160px;
     min-width: 160px;
     border-right: 1px solid var(--border);
     background: var(--header-bg);
+    position: sticky;
+    left: 0;
+    z-index: 6;
   }
 
   .col-header {
@@ -120,6 +129,7 @@
     color: var(--dim);
     border-right: 1px solid var(--border);
     user-select: none;
+    pointer-events: none;
   }
 
   .col-header.weekend { background: rgba(99, 102, 241, 0.05); }
@@ -395,6 +405,9 @@ let nextRowId = 6;
 let dragState = null; // { type: 'move'|'resize-left'|'resize-right', blockId, startX, origStart, origDuration }
 let createState = null; // { rowId, startCol }
 
+// Pan state — header drag to scroll
+let panState = null; // { startX, startScrollLeft }
+
 // --- Date helpers ---
 const projectStart = new Date();
 projectStart.setHours(0,0,0,0);
@@ -436,6 +449,7 @@ function render() {
   // Column headers
   const colHeaders = document.createElement('div');
   colHeaders.className = 'col-headers';
+  colHeaders.id = 'col-headers';
 
   const spacer = document.createElement('div');
   spacer.className = 'row-header-spacer';
@@ -461,6 +475,20 @@ function render() {
     }
     colHeaders.appendChild(ch);
   }
+
+  // Header drag-to-pan
+  colHeaders.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    if (e.target.closest('.col-header')) return; // don't pan when clicking header cell
+    const gridArea = document.getElementById('grid-area');
+    panState = {
+      startX: e.clientX,
+      startScrollLeft: gridArea.scrollLeft,
+    };
+    colHeaders.classList.add('panning');
+    gridArea.classList.add('panning');
+  });
+
   wrapper.appendChild(colHeaders);
 
   // Rows
@@ -603,7 +631,6 @@ function renderPanel() {
       </div>
     `;
     item.onclick = () => {
-      // Scroll to block
       const gridArea = document.getElementById('grid-area');
       gridArea.scrollLeft = block.start * CELL_W - 200;
     };
@@ -667,6 +694,14 @@ function startResize(e, blockId, side) {
 }
 
 document.addEventListener('mousemove', (e) => {
+  // Pan by dragging header
+  if (panState) {
+    const gridArea = document.getElementById('grid-area');
+    const dx = panState.startX - e.clientX;
+    gridArea.scrollLeft = panState.startScrollLeft + dx;
+    return;
+  }
+
   if (dragState) {
     const block = blocks.find(b => b.id === dragState.blockId);
     if (!block) return;
@@ -677,7 +712,6 @@ document.addEventListener('mousemove', (e) => {
     if (dragState.type === 'move') {
       block.start = Math.max(0, dragState.origStart + colDelta);
 
-      // Check if we should move to a different row
       const gridArea = document.getElementById('grid-area');
       const rowEls = gridArea.querySelectorAll('.row');
       for (const rowEl of rowEls) {
@@ -707,14 +741,16 @@ document.addEventListener('mousemove', (e) => {
       render();
     }
   }
-
-  // Create by drag
-  if (createState) {
-    // We'll handle this on mouseup
-  }
 });
 
 document.addEventListener('mouseup', (e) => {
+  // End pan
+  if (panState) {
+    panState = null;
+    document.getElementById('col-headers')?.classList.remove('panning');
+    document.getElementById('grid-area')?.classList.remove('panning');
+  }
+
   if (dragState) {
     dragState = null;
     render();
@@ -809,7 +845,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 // --- Init ---
-// Add some example blocks
+// Example blocks
 createBlock(1, 0, 5, 'Planning');
 createBlock(1, 6, 8, 'Design');
 createBlock(2, 3, 10, 'Frontend');
