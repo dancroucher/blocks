@@ -674,23 +674,33 @@
   }
   /* Row drag effects — lifted row + drop shadow + scaled ghost */
   .row.row-dragging {
-    opacity: 0.95;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12);
-    z-index: 100;
-    position: relative;
+    opacity: 1;
+    box-shadow: 0 12px 36px rgba(0,0,0,0.22), 0 4px 12px rgba(0,0,0,0.15);
+    z-index: 200;
+    position: absolute;
+    left: 0; right: 0;
+    pointer-events: none;
     will-change: transform;
-  }
-  .row.row-dragging.row-lifted {
-    box-shadow: 0 16px 40px rgba(0,0,0,0.22), 0 4px 12px rgba(0,0,0,0.15);
     transition: box-shadow 0.15s ease;
   }
+  .row.row-dragging.row-lifted {
+    box-shadow: 0 20px 50px rgba(0,0,0,0.28), 0 6px 16px rgba(0,0,0,0.18);
+  }
+  /* Placeholder row that maintains list height during drag */
+  .row.row-drag-placeholder {
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .row.row-drag-placeholder.row-drag-placeholder-active {
+    visibility: visible;
+  }
   .panel-section-header.row-dragging {
-    opacity: 0.95;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
-    z-index: 100;
+    opacity: 1;
+    box-shadow: 0 12px 36px rgba(0,0,0,0.22);
+    z-index: 200;
   }
   .panel-section-header.row-dragging.row-lifted {
-    box-shadow: 0 16px 40px rgba(0,0,0,0.22);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.28);
     transition: box-shadow 0.15s ease;
   }
   .panel-section-header.row-dragging {
@@ -1830,23 +1840,41 @@ function startRowDrag(e, rowId, source) {
   e.stopPropagation();
   if (rows.findIndex(r => r.id === rowId) === -1) return;
   const rowEl = document.querySelector(`.row[data-row-id="${rowId}"]`);
+  const originalIndex = rows.findIndex(r => r.id === rowId);
+  const rowH = rowEl ? parseInt(rowEl.style.height) || 40 : 40;
   rowDragState = {
     rowId, insertBefore: null, source,
     startMouseY: e.clientY,
     startElTop: rowEl ? rowEl.getBoundingClientRect().top : e.clientY,
+    originalIndex,
+    rowH,
   };
   document.body.classList.add('row-reordering');
-  // Lift the dragged row in both views with shadow + slight scale
+  // Lift: make dragged row position:absolute (out of flow)
   if (rowEl) {
     rowEl.classList.add('row-dragging');
-    // Small delay then add lifted class for smooth transition
+    const rect = rowEl.getBoundingClientRect();
+    rowEl.style.width = rect.width + 'px';
+    rowEl.style.top = rect.top + 'px';
     requestAnimationFrame(() => rowEl.classList.add('row-lifted'));
   }
-  const sectionEl = document.querySelector(`.panel-section-header[data-row-id="${rowId}"]`);
-  if (sectionEl) {
-    sectionEl.classList.add('row-dragging');
-    requestAnimationFrame(() => sectionEl.classList.add('row-lifted'));
+  // Create placeholder at end of list — avoids animation fighting from in-place gaps
+  const gridWrapper = document.getElementById('grid-wrapper');
+  if (gridWrapper) {
+    let ph = gridWrapper.querySelector('.row-drag-placeholder');
+    if (!ph) {
+      ph = document.createElement('div');
+      ph.className = 'row row-drag-placeholder';
+      ph.style.height = rowH + 'px';
+      gridWrapper.appendChild(ph);
+    } else {
+      ph.style.height = rowH + 'px';
+      ph.style.visibility = 'hidden';
+    }
+    requestAnimationFrame(() => ph.classList.add('row-drag-placeholder-active'));
   }
+  const sectionEl = document.querySelector(`.panel-section-header[data-row-id="${rowId}"]`);
+  if (sectionEl) sectionEl.classList.add('row-dragging');
   if (rowDragIndicator) rowDragIndicator.style.display = 'block';
 }
 
@@ -1998,12 +2026,10 @@ document.addEventListener('mousemove', (e) => {
       indicatorY = rect.bottom;
     }
 
-    // Track insertBefore from mouse Y (for state commit on drop)
-    if (dragged && targetEl && rowDragState) {
-      const initialTop = rowDragState.startElTop;
-      const targetRect = targetEl.getBoundingClientRect();
-      dragged.style.transform = `translateY(${targetRect.top - initialTop}px)`;
-      dragged.style.zIndex = '100';
+    // Move dragged row to follow cursor (absolute position)
+    if (dragged && rowDragState) {
+      const dy = e.clientY - rowDragState.startMouseY;
+      dragged.style.transform = `translateY(${dy}px)`;
       dragged.style.transition = 'none';
     }
 
@@ -2034,12 +2060,17 @@ document.addEventListener('mouseup', (e) => {
     document.body.classList.remove('row-reordering');
     if (rowDragIndicator) rowDragIndicator.style.display = 'none';
 
-    // Reset any transform on the dragged row
+    // Clean up: remove placeholder, reset dragged row
     const dragged = document.querySelector('.row.row-dragging');
     if (dragged) {
+      dragged.classList.remove('row-dragging', 'row-lifted');
+      dragged.style.width = '';
+      dragged.style.top = '';
       dragged.style.transform = '';
       dragged.style.zIndex = '';
     }
+    const ph = document.querySelector('.row-drag-placeholder');
+    if (ph) { ph.classList.remove('row-drag-placeholder-active'); ph.style.visibility = 'hidden'; }
 
     const fromIndex = rows.findIndex(r => r.id === rowId);
     if (fromIndex !== -1) {
