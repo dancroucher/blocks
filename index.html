@@ -770,6 +770,7 @@ const COLORS = 9;
 // --- Firebase shared state ---
 // Replace with your actual Firebase project config from:
 // https://console.firebase.google.com → Project Settings → Your apps → SDK setup
+let _db = null; // Firestore ref (set by firebaseInit below)
 const FIREBASE_API_KEY     = 'AIzaSyDWANMFaYLy54EYudU4S5svY_0F1uLDaFs';
 const FIREBASE_AUTH_DOMAIN = 'blocks-shared.firebaseapp.com';
 const FIREBASE_PROJECT_ID  = 'blocks-shared';
@@ -822,7 +823,6 @@ const DB_NAME = 'blocks-db';
 const STORE = 'state';
 const STATE_KEY = 'app';
 const DOC_PATH = 'projects/blocks';
-let _db = null; // Firestore ref (set by firebaseInit)
 let _dbPromise = null;
 let _unsub = null; // Firestore listener unsubscribe
 
