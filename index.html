@@ -1829,10 +1829,14 @@ function startRowDrag(e, rowId, source) {
   e.preventDefault();
   e.stopPropagation();
   if (rows.findIndex(r => r.id === rowId) === -1) return;
-  rowDragState = { rowId, insertBefore: null, source };
+  const rowEl = document.querySelector(`.row[data-row-id="${rowId}"]`);
+  rowDragState = {
+    rowId, insertBefore: null, source,
+    startMouseY: e.clientY,
+    startElTop: rowEl ? rowEl.getBoundingClientRect().top : e.clientY,
+  };
   document.body.classList.add('row-reordering');
   // Lift the dragged row in both views with shadow + slight scale
-  const rowEl = document.querySelector(`.row[data-row-id="${rowId}"]`);
   if (rowEl) {
     rowEl.classList.add('row-dragging');
     // Small delay then add lifted class for smooth transition
@@ -1995,11 +1999,10 @@ document.addEventListener('mousemove', (e) => {
     }
 
     // Track insertBefore from mouse Y (for state commit on drop)
-    if (dragged && targetEl) {
-      // Use getBoundingClientRect for accurate current positions, works with varying row heights
-      const draggedRect = dragged.getBoundingClientRect();
+    if (dragged && targetEl && rowDragState) {
+      const initialTop = rowDragState.startElTop;
       const targetRect = targetEl.getBoundingClientRect();
-      dragged.style.transform = `translateY(${targetRect.top - draggedRect.top}px)`;
+      dragged.style.transform = `translateY(${targetRect.top - initialTop}px)`;
       dragged.style.zIndex = '100';
       dragged.style.transition = 'none';
     }
