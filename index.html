@@ -770,9 +770,9 @@ const COLORS = 9;
 // --- Firebase shared state ---
 // Replace with your actual Firebase project config from:
 // https://console.firebase.google.com → Project Settings → Your apps → SDK setup
-const FIREBASE_API_KEY    = 'AIzaSyD-XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX';
+const FIREBASE_API_KEY     = 'AIzaSyDWANMFaYLy54EYudU4S5svY_0F1uLDaFs';
 const FIREBASE_AUTH_DOMAIN = 'blocks-shared.firebaseapp.com';
-const FIREBASE_PROJECT_ID = 'blocks-shared';  // create this project in Firebase console
+const FIREBASE_PROJECT_ID  = 'blocks-shared';
 
 function firebaseInit() {
   if (typeof firebase === 'undefined') {
@@ -782,6 +782,9 @@ function firebaseInit() {
     apiKey:             FIREBASE_API_KEY,
     authDomain:         FIREBASE_AUTH_DOMAIN,
     projectId:          FIREBASE_PROJECT_ID,
+    storageBucket:      'blocks-shared.firebasestorage.app',
+    messagingSenderId:  '322779812327',
+    appId:              '1:322779812327:web:4655738cad49855915ed42',
   });
   _db = firebase.firestore();
 }
