@@ -678,6 +678,7 @@
     box-shadow: 0 8px 24px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12);
     z-index: 100;
     position: relative;
+    will-change: transform;
   }
   .row.row-dragging.row-lifted {
     box-shadow: 0 16px 40px rgba(0,0,0,0.22), 0 4px 12px rgba(0,0,0,0.15);
@@ -1993,8 +1994,12 @@ document.addEventListener('mousemove', (e) => {
       indicatorY = rect.bottom;
     }
 
-    // Don't manipulate DOM here — rows state updates on mouseup, render() rebuilds correctly.
-    // Visual feedback comes from the row being highlighted; the state change on drop is instant.
+    // Track insertBefore from mouse Y (for state commit on drop)
+    if (dragged && targetEl) {
+      dragged.style.transform = `translateY(${targetEl.offsetTop - dragged.offsetTop}px)`;
+      dragged.style.zIndex = '100';
+      dragged.style.transition = 'none';
+    }
 
     if (indicatorY !== null && rowDragIndicator) {
       rowDragIndicator.style.top = (indicatorY - 1) + 'px';
@@ -2022,6 +2027,13 @@ document.addEventListener('mouseup', (e) => {
     rowDragState = null;
     document.body.classList.remove('row-reordering');
     if (rowDragIndicator) rowDragIndicator.style.display = 'none';
+
+    // Reset any transform on the dragged row
+    const dragged = document.querySelector('.row.row-dragging');
+    if (dragged) {
+      dragged.style.transform = '';
+      dragged.style.zIndex = '';
+    }
 
     const fromIndex = rows.findIndex(r => r.id === rowId);
     if (fromIndex !== -1) {
