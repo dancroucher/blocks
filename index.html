@@ -2036,30 +2036,22 @@ document.addEventListener('mousemove', (e) => {
       dragged.style.transition = 'none';
     }
 
-    // Shift other rows smoothly to make room for the dragged row (react-beautiful-dnd pattern)
-    const allRows = [...document.querySelectorAll('.row[data-row-id]')];
-    allRows.forEach(r => {
-      if (r.dataset.rowId === String(rowId)) return;
+    // Shift other rows smoothly to make room (react-beautiful-dnd pattern)
+    // Use rows array indices, not DOM order
+    const fromIdx = rows.findIndex(r => r.id === rowId);
+    let insertIdx = insertBefore !== null ? rows.findIndex(r => r.id === insertBefore) : rows.length;
+    // Adjust insertIdx if dragged row was before the insertion point
+    if (fromIdx < insertIdx) insertIdx--;
+    document.querySelectorAll('.row[data-row-id]').forEach(r => {
+      if (String(r.dataset.rowId) === String(rowId)) return;
       if (r.classList.contains('row-drag-placeholder')) return;
-      const rect = r.getBoundingClientRect();
-      const midY = rect.top + rect.height / 2;
-      const fromIdx = rows.findIndex(row => row.id === rowId);
-      const toIdx = rows.findIndex(row => String(row.dataset.rowId) === String(r.dataset.rowId));
-      const draggedIdx = fromIdx;
-      const targetIdx = toIdx;
-      if (insertBefore !== null) {
-        const insertIdx = rows.findIndex(row => row.id === insertBefore);
-        // Simple case: rows between original pos and target pos shift
-        const minI = Math.min(draggedIdx, insertIdx);
-        const maxI = Math.max(draggedIdx, insertIdx);
-        if (targetIdx > minI && targetIdx <= maxI) {
-          const dir = draggedIdx > insertIdx ? -1 : 1;
-          r.style.transform = `translateY(${dir * rowDragState.rowH}px)`;
-          r.style.transition = 'transform 0.2s ease';
-        } else {
-          r.style.transform = '';
-          r.style.transition = 'transform 0.2s ease';
-        }
+      const rowIdx = rows.findIndex(row => String(row.id) === String(r.dataset.rowId));
+      const minI = Math.min(fromIdx, insertIdx);
+      const maxI = Math.max(fromIdx, insertIdx);
+      if (rowIdx > minI && rowIdx <= maxI) {
+        const dir = fromIdx > insertIdx ? -1 : 1;
+        r.style.transform = `translateY(${dir * rowDragState.rowH}px)`;
+        r.style.transition = 'transform 0.2s ease';
       } else {
         r.style.transform = '';
         r.style.transition = 'transform 0.2s ease';
@@ -2108,6 +2100,7 @@ document.addEventListener('mouseup', (e) => {
     const ph = document.querySelector('.row-drag-placeholder');
     if (ph) ph.remove();
 
+    // Reorder DOM to match rows[] without a full render()
     const fromIndex = rows.findIndex(r => r.id === rowId);
     if (fromIndex !== -1) {
       const [moved] = rows.splice(fromIndex, 1);
@@ -2117,7 +2110,14 @@ document.addEventListener('mouseup', (e) => {
         const toIndex = rows.findIndex(r => r.id === insertBefore);
         rows.splice(toIndex === -1 ? rows.length : toIndex, 0, moved);
       }
-      render();
+      // Rebuild DOM order to match rows[] without wiping event listeners
+      const wrapper = document.getElementById('grid-wrapper');
+      const addRow = wrapper.querySelector('.add-row-btn')?.closest('.row');
+      rows.forEach(row => {
+        const el = wrapper.querySelector(`.row[data-row-id="${row.id}"]`);
+        if (el) wrapper.insertBefore(el, addRow);
+      });
+      renderPanel();
       saveState();
     }
     return;
