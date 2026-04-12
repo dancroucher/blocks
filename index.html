@@ -664,8 +664,40 @@
     z-index: 1000;
     display: none;
   }
-  .row.row-dragging { opacity: 0.4; }
-  .panel-section-header.row-dragging { opacity: 0.4; }
+  /* Row drag effects — lifted row + drop shadow + scaled ghost */
+  .row.row-dragging {
+    opacity: 0.9;
+    transform: scale(1.02) translateX(4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.12);
+    z-index: 100;
+    position: relative;
+  }
+  .row.row-dragging.row-lifted {
+    transform: scale(1.025) translateX(6px);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.22), 0 4px 12px rgba(0,0,0,0.15);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .panel-section-header.row-dragging.row-lifted {
+    transform: scale(1.025) translateX(6px);
+    box-shadow: 0 16px 40px rgba(0,0,0,0.22);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+  }
+  .panel-section-header.row-dragging {
+    opacity: 0.9;
+    transform: scale(1.02) translateX(4px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    z-index: 100;
+  }
+  .row-reordering-indicator {
+    position: fixed;
+    height: 3px;
+    background: linear-gradient(90deg, var(--accent), #6af);
+    border-radius: 2px;
+    pointer-events: none;
+    z-index: 999;
+    display: none;
+    box-shadow: 0 0 8px var(--accent);
+  }
 
   /* Context menu */
   .context-menu {
@@ -1795,11 +1827,18 @@ function startRowDrag(e, rowId, source) {
   if (rows.findIndex(r => r.id === rowId) === -1) return;
   rowDragState = { rowId, insertBefore: null, source };
   document.body.classList.add('row-reordering');
-  // Dim the dragged row in both views
+  // Lift the dragged row in both views with shadow + slight scale
   const rowEl = document.querySelector(`.row[data-row-id="${rowId}"]`);
-  if (rowEl) rowEl.classList.add('row-dragging');
+  if (rowEl) {
+    rowEl.classList.add('row-dragging');
+    // Small delay then add lifted class for smooth transition
+    requestAnimationFrame(() => rowEl.classList.add('row-lifted'));
+  }
   const sectionEl = document.querySelector(`.panel-section-header[data-row-id="${rowId}"]`);
-  if (sectionEl) sectionEl.classList.add('row-dragging');
+  if (sectionEl) {
+    sectionEl.classList.add('row-dragging');
+    requestAnimationFrame(() => sectionEl.classList.add('row-lifted'));
+  }
   if (rowDragIndicator) rowDragIndicator.style.display = 'block';
 }
 
