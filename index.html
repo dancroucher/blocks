@@ -1967,29 +1967,43 @@ document.addEventListener('mousemove', (e) => {
 
   // Row reorder drag
   if (rowDragState) {
-    const elList = rowDragState.source === 'panel'
+    const { rowId, source } = rowDragState;
+    const isPanel = source === 'panel';
+    const elList = isPanel
       ? [...document.querySelectorAll('.panel-section-header[data-row-id]')]
       : [...document.querySelectorAll('.row[data-row-id]')];
+    const dragged = document.querySelector(`.${isPanel ? 'panel-section-header' : 'row'}[data-row-id="${rowId}"]`);
 
     let insertBefore = null;
     let indicatorY = null;
+    let targetEl = null;
 
     for (let i = 0; i < elList.length; i++) {
       const rect = elList[i].getBoundingClientRect();
       const rId = parseInt(elList[i].dataset.rowId);
-      if (rId === rowDragState.rowId) continue; // skip dragged row
+      if (rId === rowId) continue;
       const midY = rect.top + rect.height / 2;
       if (e.clientY < midY) {
         insertBefore = rId;
         indicatorY = rect.top;
+        targetEl = elList[i];
         break;
       }
       indicatorY = rect.bottom;
     }
 
+    // Move the dragged row element directly in the DOM — no state change yet
+    if (dragged) {
+      if (targetEl && targetEl !== dragged.nextSibling) {
+        targetEl.parentNode.insertBefore(dragged, targetEl);
+      } else if (!targetEl && dragged.nextSibling) {
+        dragged.parentNode.appendChild(dragged);
+      }
+    }
+
     if (indicatorY !== null && rowDragIndicator) {
       rowDragIndicator.style.top = (indicatorY - 1) + 'px';
-      if (rowDragState.source === 'panel') {
+      if (isPanel) {
         const panelRect = document.getElementById('data-panel').getBoundingClientRect();
         rowDragIndicator.style.left = panelRect.left + 'px';
         rowDragIndicator.style.width = panelRect.width + 'px';
