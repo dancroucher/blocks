@@ -512,6 +512,35 @@
   .panel-section-header .section-title { flex: 1; display: flex; align-items: center; }
   .panel-section-body.collapsed { display: none; }
 
+  /* 3-column days display in section header */
+  .section-days-3col {
+    display: flex;
+    gap: 0.5rem;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--dim);
+  }
+  .section-days-3col .sec-base { color: var(--text); }
+  .section-days-3col .sec-conting { color: var(--contingency); }
+  .section-days-3col .sec-total { color: var(--text); font-weight: 600; }
+
+  /* Row totals bar at bottom of section body */
+  .section-totals {
+    display: flex;
+    align-items: center;
+    padding: 0.4rem 1rem;
+    border-top: 1px solid var(--border);
+    background: #f8f8f8;
+    font-size: 0.8rem;
+    gap: 0.5rem;
+    color: var(--dim);
+  }
+  .section-totals .totals-label { font-weight: 600; color: #666; flex: 1; }
+  .section-totals .totals-base { color: var(--text); }
+  .section-totals .totals-conting { color: var(--contingency); }
+  .section-totals .totals-total { color: var(--text); font-weight: 700; }
+  .section-totals .totals-col { min-width: 40px; text-align: right; }
+
   .section-days {
     font-size: 0.75rem;
     font-weight: 400;
@@ -1426,8 +1455,9 @@ function renderPanel() {
     sectionTitle.appendChild(rowLabelSpan);
 
     const sectionDays = document.createElement('span');
-    sectionDays.className = 'section-days';
-    sectionDays.innerHTML = fmtDays(rowDays, rowContingency);
+    sectionDays.className = 'section-days-3col';
+    const totalRowDays = rowDays + rowContingency;
+    sectionDays.innerHTML = `<span class="sec-base">${rowDays}d</span><span class="sec-conting">+${rowContingency}d</span><span class="sec-total">${totalRowDays}d</span>`;
 
     section.appendChild(sectionTitle);
     section.appendChild(sectionDays);
@@ -1499,6 +1529,18 @@ function renderPanel() {
       });
       body.appendChild(item);
     });
+
+    // Row totals bar
+    const totalRowDays = rowDays + rowContingency;
+    const totals = document.createElement('div');
+    totals.className = 'section-totals';
+    totals.innerHTML = `
+      <span class="totals-label">Total</span>
+      <span class="totals-col totals-base">${rowDays}d</span>
+      <span class="totals-col totals-conting">+${rowContingency}d</span>
+      <span class="totals-col totals-total">${totalRowDays}d</span>
+    `;
+    body.appendChild(totals);
   });
 }
 
