@@ -272,8 +272,9 @@
     height: 100%;
     border-right: 1px solid var(--border);
   }
-  .cell-line.today { background: var(--today-bg); }
   .row-cells .cell-line:nth-child(even) { background: var(--alt-bg); }
+  /* today bg must override nth-child(even) for both even and odd cells */
+  .row-cells .cell-line.today,
   .row-cells .cell-line:nth-child(even).today { background: var(--today-bg); }
 
   /* Blocks */
@@ -684,6 +685,7 @@
     <button id="btn-day" class="active" onclick="setZoom('day')">Day</button>
     <button id="btn-week" onclick="setZoom('week')">Week</button>
     <button id="btn-month" onclick="setZoom('month')">Month</button>
+    <button id="btn-today" onclick="jumpToToday()" title="Jump to today" style="font-size:0.85rem;padding:0.35rem 0.6rem;">&#8595; Today</button>
     <button id="btn-panel" class="active" onclick="togglePanel()">Data</button>
   </div>
 </div>
@@ -1878,6 +1880,14 @@ function setZoom(z) {
 }
 
 // --- Panel toggle ---
+function jumpToToday() {
+  const col = todayWeekdayCol();
+  if (col === -1) return;
+  const gridArea = document.getElementById('grid-area');
+  const target = col * dayPx() - gridArea.clientWidth / 2;
+  gridArea.scrollLeft = Math.max(0, target);
+}
+
 function togglePanel() {
   const panel = document.getElementById('data-panel');
   panel.classList.toggle('hidden');
