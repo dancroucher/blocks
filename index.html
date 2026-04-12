@@ -5,24 +5,35 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Blocks</title>
 <style>
+  @import url('https://api.fontshare.com/v1/css?f[]=clash-grotesk@400,500,600,700&display=swap');
+
   * { margin: 0; padding: 0; box-sizing: border-box; }
 
   :root {
-    --bg: #0f1117;
-    --surface: #1a1d27;
-    --border: #2a2d3a;
-    --text: #e4e4ec;
-    --dim: #6b6f80;
-    --accent: #6366f1;
-    --accent-dim: rgba(99, 102, 241, 0.15);
-    --header-bg: #14161e;
-    --row-alt: #12141c;
-    --cell-size: 40;
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --border: #e8e8e8;
+    --grid-bg: #f0f0f0;     /* solid grey background for the timeline grid */
+    --grid-line: #d4d4d4;   /* darker grey for grid lines */
+    --text: #333333;
+    --dim: #999999;
+    --accent: #f5a623;
+    --accent-dim: rgba(245, 166, 35, 0.1);
+    --contingency: #7a9a7a;
+    --header-bg: #fafafa;
+    --row-alt: #fdfdfd;
+    --cell-size: 40px;
     --row-header-width: 160;
+    --alt-bg: #eaeaea;    /* slightly darker grey for alternating header banding */
+    --today-bg: #e0f2ff;  /* light sky blue for today's column */
   }
 
+  /* green for contingency amounts + the 'd' day-unit wherever it appears */
+  .cg { color: var(--contingency); }
+
   body {
-    font-family: -apple-system, 'Segoe UI', sans-serif;
+    font-family: 'Clash Grotesk', -apple-system, 'Segoe UI', sans-serif;
+    font-size: 15px;
     background: var(--bg);
     color: var(--text);
     overflow: hidden;
@@ -35,8 +46,8 @@
   .topbar {
     display: flex;
     align-items: center;
-    padding: 0.5rem 1rem;
-    background: var(--header-bg);
+    padding: 0.6rem 1.2rem;
+    background: var(--bg);
     border-bottom: 1px solid var(--border);
     gap: 1rem;
     flex-shrink: 0;
@@ -44,10 +55,10 @@
   }
 
   .topbar h1 {
-    font-size: 1rem;
-    font-weight: 700;
-    letter-spacing: 0.1em;
-    color: var(--accent);
+    font-size: 1.1rem;
+    font-weight: 400;
+    letter-spacing: 0.02em;
+    color: var(--text);
   }
 
   .topbar-controls {
@@ -58,18 +69,19 @@
 
   .topbar button {
     font-family: inherit;
-    font-size: 0.75rem;
-    padding: 0.3rem 0.8rem;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--surface);
-    color: var(--text);
+    font-size: 0.9rem;
+    padding: 0.35rem 0.8rem;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--dim);
     cursor: pointer;
     transition: all 0.15s;
+    font-weight: 400;
   }
 
-  .topbar button:hover { border-color: var(--accent); }
-  .topbar button.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent); }
+  .topbar button:hover { color: var(--text); background: var(--header-bg); }
+  .topbar button.active { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
 
   /* Main layout */
   .main {
@@ -86,8 +98,6 @@
     cursor: default;
   }
 
-  .grid-area.panning { cursor: grabbing; }
-
   .grid-wrapper {
     position: relative;
     min-width: 100%;
@@ -95,127 +105,205 @@
   }
 
   /* Column headers (timeline) */
-  .col-headers {
+  .col-headers-wrap {
     position: sticky;
     top: 0;
     z-index: 5;
-    display: flex;
-    background: var(--header-bg);
-    border-bottom: 1px solid var(--border);
-    cursor: grab;
-    user-select: none;
+    background: #f2f2f2;
   }
 
-  .col-headers.panning { cursor: grabbing; }
+  .col-headers {
+    display: flex;
+    border-bottom: 1px solid var(--border);
+    width: max-content;
+    min-width: 100%;
+  }
 
   .row-header-spacer {
     width: 160px;
     min-width: 160px;
     border-right: 1px solid var(--border);
-    background: var(--header-bg);
+    background: #f2f2f2;
     position: sticky;
     left: 0;
-    z-index: 6;
+    z-index: 2;
+    flex-shrink: 0;
   }
 
   .col-header {
-    width: 40px;
-    min-width: 40px;
-    height: 32px;
+    width: var(--cell-size);
+    min-width: var(--cell-size);
+    height: 22px;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.6rem;
-    color: var(--dim);
+    font-size: 0.7rem;
+    color: #666;
     border-right: 1px solid var(--border);
     user-select: none;
-    pointer-events: none;
+    font-family: inherit;
+    background: #f2f2f2;
   }
 
-  .col-header.weekend { background: rgba(99, 102, 241, 0.05); }
-  .col-header.month-start { border-left: 2px solid var(--accent); }
+  /* Alternating banding on header rows for readability. nth-child(1) is
+     the row-header-spacer, so nth-child(even) hits the 1st, 3rd, 5th ... span. */
+  .col-header:nth-child(even) { background: var(--alt-bg); }
+  .month-span:nth-child(even) { background: var(--alt-bg); }
+  .week-span:nth-child(even)  { background: var(--alt-bg); }
+
+  /* Today's column — sky blue. Declared AFTER the alt-bg rules so same-
+     specificity selectors win here. */
+  .col-header.today,
+  .cell-line.today,
+  .month-span.today,
+  .week-span.today {
+    background: var(--today-bg);
+  }
+
+
+  /* Month header row */
+  .month-span {
+    height: 22px;
+    display: flex;
+    align-items: center;
+    padding-left: 6px;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: #666;
+    border-right: 1px solid #ccc;
+    font-family: inherit;
+    background: #f2f2f2;
+  }
+
+  /* Week header row */
+  .week-span {
+    height: 22px;
+    display: flex;
+    align-items: center;
+    padding-left: 6px;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: #666;
+    border-right: 1px solid var(--border);
+    font-family: inherit;
+    background: #f2f2f2;
+  }
 
   /* Rows */
   .row {
     display: flex;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--grid-line);
     position: relative;
+    width: max-content;
+    min-width: 100%;
   }
-
-  .row:nth-child(even) .row-cells { background: var(--row-alt); }
 
   .row-header {
     width: 160px;
     min-width: 160px;
-    padding: 0 0.5rem;
+    padding: 0 0.75rem;
     display: flex;
     align-items: center;
     border-right: 1px solid var(--border);
-    background: var(--header-bg);
+    background: #f2f2f2;
     position: sticky;
     left: 0;
     z-index: 3;
-    font-size: 0.8rem;
+    font-size: 0.95rem;
     cursor: text;
   }
 
   .row-header input {
     background: none;
     border: none;
-    color: var(--text);
+    color: #555;
     font-family: inherit;
-    font-size: 0.8rem;
+    font-size: 0.95rem;
     width: 100%;
     outline: none;
   }
 
-  .row-header input::placeholder { color: var(--dim); }
+  .row-header input::placeholder { color: #ccc; }
 
   .row-cells {
     display: flex;
     position: relative;
-    flex: 1;
-    height: 40px;
+    flex: 0 0 auto;              /* size to content so row border spans every cell */
+    height: var(--cell-size);
   }
 
+  /* Painted grid backgrounds — repeating gradients are dramatically faster
+     than one DOM node per day for thousands of columns. Solid grey fill
+     + darker vertical gridlines. Stride changes between zoom modes. */
+  .row-cells.painted-day {
+    background-color: var(--grid-bg);
+    background-image: repeating-linear-gradient(
+      to right,
+      transparent 0, transparent 39px,
+      var(--grid-line) 39px, var(--grid-line) 40px
+    );
+  }
+  .row-cells.painted-week {
+    background-color: var(--grid-bg);
+    background-image: repeating-linear-gradient(
+      to right,
+      transparent 0, transparent 79px,
+      var(--grid-line) 79px, var(--grid-line) 80px
+    );
+    /* background-position-x set inline to align lines with week header boundaries */
+  }
+
+  .row-cells.painted-month {
+    background-color: var(--grid-bg);
+  }
+
+  /* Today overlay — single absolute div per row, painted on top of gradient */
+  .today-overlay {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: var(--today-bg);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Month-view body cells (kept as DOM since month widths are variable). */
   .cell-line {
-    width: 40px;
-    min-width: 40px;
     height: 100%;
     border-right: 1px solid var(--border);
   }
-
-  .cell-line.weekend { background: rgba(99, 102, 241, 0.03); }
+  .cell-line.today { background: var(--today-bg); }
+  .row-cells .cell-line:nth-child(even) { background: var(--alt-bg); }
+  .row-cells .cell-line:nth-child(even).today { background: var(--today-bg); }
 
   /* Blocks */
   .block {
     position: absolute;
-    height: 28px;
-    top: 6px;
-    border-radius: 6px;
+    height: calc(var(--cell-size) - 6px);
+    top: 3px;
+    border-radius: 2px;
     cursor: grab;
     display: flex;
     align-items: center;
-    padding: 0 8px;
-    font-size: 0.7rem;
-    font-weight: 600;
-    color: #fff;
+    padding: 0 10px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: inherit;
     user-select: none;
-    transition: box-shadow 0.15s;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
+    transition: box-shadow 0.15s, opacity 0.15s;
+    overflow: visible;
     z-index: 2;
+    font-family: inherit;
   }
 
   .block:hover {
-    box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
   }
 
   .block.dragging {
-    opacity: 0.85;
+    opacity: 0.9;
     cursor: grabbing;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     z-index: 10;
   }
 
@@ -231,33 +319,96 @@
   .block .handle-left { left: 0; }
   .block .handle-right { right: 0; }
 
-  /* Block colours */
-  .block-color-0 { background: #6366f1; }
-  .block-color-1 { background: #8b5cf6; }
-  .block-color-2 { background: #ec4899; }
-  .block-color-3 { background: #f59e0b; }
-  .block-color-4 { background: #10b981; }
-  .block-color-5 { background: #3b82f6; }
-  .block-color-6 { background: #ef4444; }
-  .block-color-7 { background: #14b8a6; }
+  .block .block-label {
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    pointer-events: none;
+    min-width: 0;
+  }
+  .block .block-days-badge {
+    flex: 0 0 auto;
+    margin-left: 8px;
+    font-size: 0.75rem;
+    font-weight: 500;
+    opacity: 0.85;
+    pointer-events: none;
+  }
+  .block-contingency .contingency-days {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--contingency);
+    z-index: 2;
+  }
+  .block .block-label-input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    padding: 0;
+    margin: 0;
+    user-select: text;
+    cursor: text;
+  }
+
+  /* Block colours — oranges, browns, greens */
+  .block-color-0 { background: rgb(253, 227, 184); border: 1px solid #e8922a; color: #7a3e08; } /* light orange */
+  .block-color-1 { background: rgb(245, 190, 112); border: 1px solid #d4621e; color: #7a3000; } /* mid orange */
+  .block-color-2 { background: rgb(232, 146, 58);  border: 1px solid #a84000; color: #5a2000; } /* burnt orange */
+  .block-color-3 { background: rgb(234, 216, 181); border: 1px solid #c09050; color: #6b4820; } /* light sand */
+  .block-color-4 { background: rgb(207, 170, 118); border: 1px solid #a07040; color: #5a3010; } /* mid brown */
+  .block-color-5 { background: rgb(176, 136, 88);  border: 1px solid #7a5020; color: #3a2008; } /* dark brown */
+  .block-color-6 { background: rgb(190, 224, 186); border: 1px solid #5a9e50; color: #1e4a18; } /* light sage */
+  .block-color-7 { background: rgb(142, 200, 148); border: 1px solid #3a8040; color: #0f3a18; } /* mid green */
+  .block-color-8 { background: rgb(106, 170, 116); border: 1px solid #2a7035; color: #0a3015; } /* deep green */
 
   /* Data panel */
   .data-panel {
-    width: 300px;
-    min-width: 300px;
-    background: var(--header-bg);
+    width: 280px;
+    min-width: 200px;
+    max-width: 800px;
+    background: var(--bg);
     border-left: 1px solid var(--border);
     overflow-y: auto;
     flex-shrink: 0;
     display: flex;
     flex-direction: column;
+    position: relative;
   }
 
   .data-panel.hidden { display: none; }
 
+  .panel-resize-handle {
+    position: absolute;
+    top: 0;
+    left: -3px;
+    width: 6px;
+    height: 100%;
+    cursor: ew-resize;
+    z-index: 20;
+    background: transparent;
+  }
+  .panel-resize-handle:hover,
+  .panel-resize-handle.dragging {
+    background: var(--accent);
+    opacity: 0.4;
+  }
+  body.panel-resizing {
+    cursor: ew-resize;
+    user-select: none;
+  }
+
   .panel-header {
     padding: 0.6rem 1rem;
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     font-weight: 700;
     color: var(--dim);
     text-transform: uppercase;
@@ -273,7 +424,7 @@
   .panel-stat {
     display: flex;
     justify-content: space-between;
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     padding: 0.2rem 0;
   }
 
@@ -288,7 +439,7 @@
   .panel-block-item {
     padding: 0.6rem 1rem;
     border-bottom: 1px solid var(--border);
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     cursor: pointer;
     transition: background 0.1s;
   }
@@ -303,6 +454,26 @@
     gap: 0.4rem;
   }
 
+  /* Editable name hints in the panel */
+  .panel-block-name-text:hover,
+  .panel-row-label:hover {
+    text-decoration: underline;
+    text-decoration-style: dotted;
+    cursor: text;
+  }
+
+  .panel-name-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    font: inherit;
+    color: inherit;
+    padding: 0;
+    margin: 0;
+    width: 100%;
+    min-width: 40px;
+  }
+
   .panel-block-item .block-dot {
     width: 8px;
     height: 8px;
@@ -312,22 +483,138 @@
 
   .panel-block-item .block-meta {
     color: var(--dim);
-    font-size: 0.65rem;
+    font-size: 0.75rem;
   }
 
-  /* Add row button */
-  .add-row-btn {
+  .panel-section-header {
+    padding: 0.5rem 1rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: #444;
+    background: #f5f5f5;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+  }
+  .panel-section-header:hover { background: #ececec; }
+  .panel-section-header .caret {
+    display: inline-block;
+    width: 10px;
+    margin-right: 0.4rem;
+    transition: transform 0.12s;
+    color: var(--dim);
+  }
+  .panel-section-header.collapsed .caret { transform: rotate(-90deg); }
+  .panel-section-header .section-title { flex: 1; display: flex; align-items: center; }
+  .panel-section-body.collapsed { display: none; }
+
+  .section-days {
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--dim);
+  }
+
+  .block-days {
+    margin-left: auto;
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--dim);
+  }
+
+  .panel-settings {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .setting-row {
     display: flex;
     align-items: center;
-    padding: 0 0.5rem;
-    height: 32px;
-    color: var(--dim);
-    font-size: 0.75rem;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+    color: #555;
     cursor: pointer;
-    border-bottom: 1px solid var(--border);
+  }
+
+  .setting-row input[type="checkbox"] {
+    accent-color: var(--accent);
+  }
+
+  /* Contingency extension on blocks — lives inside .block (overflow:visible) so it
+     auto-follows the block during drag without needing separate position updates. */
+  .block-contingency {
+    position: absolute;
+    height: 100%;
+    top: 0;
+    border-radius: 0 2px 2px 0;
+    pointer-events: none;
+    z-index: 1;
+    border: 1px solid;
+    border-left: none;
+  }
+
+  .block-contingency::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 3px,
+      rgba(255,255,255,0.4) 3px,
+      rgba(255,255,255,0.4) 6px
+    );
+  }
+
+  .block-contingency.block-color-0 { background: rgba(232, 146, 42, 0.3);  border-color: #e8922a; }
+  .block-contingency.block-color-1 { background: rgba(212, 98, 30, 0.3);   border-color: #d4621e; }
+  .block-contingency.block-color-2 { background: rgba(168, 64, 0, 0.3);    border-color: #a84000; }
+  .block-contingency.block-color-3 { background: rgba(192, 144, 80, 0.3);  border-color: #c09050; }
+  .block-contingency.block-color-4 { background: rgba(160, 112, 64, 0.3);  border-color: #a07040; }
+  .block-contingency.block-color-5 { background: rgba(122, 80, 32, 0.3);   border-color: #7a5020; }
+  .block-contingency.block-color-6 { background: rgba(90, 158, 80, 0.3);   border-color: #5a9e50; }
+  .block-contingency.block-color-7 { background: rgba(58, 128, 64, 0.3);   border-color: #3a8040; }
+  .block-contingency.block-color-8 { background: rgba(42, 112, 53, 0.3);   border-color: #2a7035; }
+
+  /* Add row button — applied to the sticky row-header of the add-row row */
+  .add-row-btn {
+    color: #ccc;
+    font-size: 0.8rem;
+    cursor: pointer;
+    height: 32px;
   }
 
   .add-row-btn:hover { color: var(--accent); }
+
+  /* Row drag handles */
+  .row-drag-handle {
+    cursor: grab;
+    color: #ccc;
+    font-size: 0.85rem;
+    line-height: 1;
+    padding: 0 6px 0 0;
+    flex-shrink: 0;
+    user-select: none;
+    display: flex;
+    align-items: center;
+  }
+  .row-drag-handle:hover { color: #999; }
+  body.row-reordering { cursor: grabbing !important; user-select: none; }
+  .row-reordering-indicator {
+    position: fixed;
+    height: 2px;
+    background: var(--accent);
+    pointer-events: none;
+    z-index: 1000;
+    display: none;
+  }
+  .row.row-dragging { opacity: 0.4; }
+  .panel-section-header.row-dragging { opacity: 0.4; }
 
   /* Context menu */
   .context-menu {
@@ -338,12 +625,12 @@
     padding: 0.3rem;
     z-index: 100;
     min-width: 160px;
-    box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.1);
   }
 
   .context-menu-item {
     padding: 0.4rem 0.8rem;
-    font-size: 0.75rem;
+    font-size: 0.85rem;
     cursor: pointer;
     border-radius: 5px;
     display: flex;
@@ -351,8 +638,42 @@
     gap: 0.5rem;
   }
 
-  .context-menu-item:hover { background: var(--accent-dim); color: var(--accent); }
-  .context-menu-item.danger:hover { background: rgba(239, 68, 68, 0.15); color: var(--red, #ef4444); }
+  .context-menu-item:hover { background: #f5f5f5; color: var(--text); }
+  .context-menu-item.danger:hover { background: #fef2f2; color: #dc2626; }
+
+  .context-menu-label {
+    padding: 0.35rem 0.8rem 0.15rem;
+    font-size: 0.7rem;
+    color: var(--dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .context-menu-separator {
+    height: 1px;
+    background: var(--border);
+    margin: 0.3rem 0.3rem;
+  }
+  .color-swatch-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 5px;
+    padding: 0.3rem 0.8rem 0.4rem;
+  }
+  .color-swatch {
+    width: 26px;
+    height: 26px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: transform 0.1s, box-shadow 0.1s;
+    border-width: 1px;
+    border-style: solid;
+  }
+  .color-swatch:hover { transform: scale(1.15); box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+  .color-swatch.selected { outline: 2px solid var(--text); outline-offset: 2px; }
+
+ /* Header drag-to-pan */
+ .grid-area.panning { cursor: grabbing; }
+ .col-headers.panning { cursor: grabbing; }
 </style>
 </head>
 <body>
@@ -372,8 +693,16 @@
     <div class="grid-wrapper" id="grid-wrapper"></div>
   </div>
   <div class="data-panel" id="data-panel">
+    <div class="panel-resize-handle" id="panel-resize-handle"></div>
     <div class="panel-header">Project Data</div>
     <div class="panel-stats" id="panel-stats"></div>
+    <div class="panel-header">Settings</div>
+    <div class="panel-settings">
+      <div class="setting-row">
+        <span>Contingency %</span>
+        <input type="number" id="contingency" min="0" max="100" value="0" onchange="updateContingency()" style="width:50px;text-align:right;padding:0.2rem 0.4rem;border:1px solid var(--border);border-radius:4px;font-family:inherit;font-size:0.85rem;background:var(--bg);color:var(--text);">
+      </div>
+    </div>
     <div class="panel-header">Blocks</div>
     <div class="panel-blocks" id="panel-blocks"></div>
   </div>
@@ -383,11 +712,110 @@
 
 <script>
 // --- State ---
-const CELL_W = 40;
+const CELL_W = 40;           // px per day in day view
+const WEEK_DAY_PX = 16;      // px per day in week view — 5 × 16 = 80px per week cell
+const MONTH_DAY_PX = 5;      // px per day in month view — typical ~22-day month ≈ 110px wide
 const ROW_H = 40;
+
+// Pixels per *day* at the current zoom. Blocks are always day-indexed in the
+// data model; this just controls how wide a day renders. In week view each
+// visual cell is 5 × WEEK_DAY_PX = 80px wide with no day subdivisions drawn,
+// but blocks position + size against day-level pixels underneath.
+function dayPx() {
+  if (zoom === 'week') return WEEK_DAY_PX;
+  if (zoom === 'month') return MONTH_DAY_PX;
+  return CELL_W;
+}
+// For week view we use a fixed 5-day stride. Month view has variable month
+// widths (handled inline in render via per-month iteration), so daysPerCell
+// is only meaningful for day/week.
+function daysPerCell() { return zoom === 'week' ? 5 : 1; }
+function cellVisualW() { return dayPx() * daysPerCell(); }
 const ROW_HEADER_W = 160;
-const COLORS = 8;
-const TOTAL_COLS = 365; // one year of days
+const COLORS = 9;
+
+// Timeline runs from PROJECT_START_DATE through PROJECT_END_DATE inclusive
+// (weekdays only). TOTAL_COLS is computed from these.
+const PROJECT_START_DATE = new Date(2026, 0, 1);   // 2026-01-01 (Thu)
+const PROJECT_END_DATE   = new Date(2028, 11, 31); // 2028-12-31 (Sun)
+function countWeekdaysInclusive(from, to) {
+  const a = new Date(from); a.setHours(0,0,0,0);
+  const b = new Date(to);   b.setHours(0,0,0,0);
+  let n = 0;
+  for (let d = new Date(a); d <= b; d.setDate(d.getDate() + 1)) {
+    const wd = d.getDay();
+    if (wd !== 0 && wd !== 6) n++;
+  }
+  return n;
+}
+const TOTAL_COLS = countWeekdaysInclusive(PROJECT_START_DATE, PROJECT_END_DATE);
+const STATE_VERSION = 2; // v2 = weekday-indexed cols (was calendar-day in v1)
+
+// Format: "[base]d + [conting]d ([total]d)" when contingency > 0, else "[base]d".
+// The letter 'd' and any contingency amount are wrapped in .cg (green).
+function fmtDays(base, conting) {
+  if (conting > 0) {
+    const total = base + conting;
+    return `${base}<span class="cg">d</span> + <span class="cg">${conting}d</span> (${total}<span class="cg">d</span>)`;
+  }
+  return `${base}<span class="cg">d</span>`;
+}
+
+// --- IndexedDB persistence ---
+// Single key/value store: db 'blocks-db', store 'state', key 'app' holds
+// the full app state (rows, blocks, counters, settings, project anchor).
+const DB_NAME = 'blocks-db';
+const STORE = 'state';
+const STATE_KEY = 'app';
+let _dbPromise = null;
+
+function openDB() {
+  if (_dbPromise) return _dbPromise;
+  _dbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(DB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return _dbPromise;
+}
+
+async function loadState() {
+  try {
+    const db = await openDB();
+    return await new Promise((resolve, reject) => {
+      const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(STATE_KEY);
+      req.onsuccess = () => resolve(req.result || null);
+      req.onerror = () => reject(req.error);
+    });
+  } catch (e) {
+    console.warn('loadState failed:', e);
+    return null;
+  }
+}
+
+// Debounced — render() fires on every mutation, no need to hammer the db.
+let _saveTimer = null;
+let _saveReady = false; // guard: don't save until initial load finishes
+function saveState() {
+  if (!_saveReady) return;
+  clearTimeout(_saveTimer);
+  _saveTimer = setTimeout(async () => {
+    try {
+      const db = await openDB();
+      const snapshot = {
+        version: STATE_VERSION,
+        rows, blocks, nextBlockId, nextRowId,
+        contingencyPct, zoom, panelWidth, collapsedRows,
+        projectStart: projectStart.toISOString(),
+        savedAt: Date.now(),
+      };
+      db.transaction(STORE, 'readwrite').objectStore(STORE).put(snapshot, STATE_KEY);
+    } catch (e) {
+      console.warn('saveState failed:', e);
+    }
+  }, 200);
+}
 
 let zoom = 'day'; // day, week, month
 let rows = [
@@ -400,23 +828,81 @@ let rows = [
 let blocks = [];
 let nextBlockId = 1;
 let nextRowId = 6;
+let contingencyPct = 0;
+let panelWidth = 280;
+let collapsedRows = {}; // { [rowId]: true } — sections collapsed in the data panel
+
+// --- Header drag-to-pan ---
+let panState = null; // { startX, startScrollLeft }
+
+function startPan(e) {
+ if (e.target.closest('.block') || e.target.closest('.handle-left') || e.target.closest('.handle-right')) return;
+ const gridEl = document.getElementById('grid-area');
+ panState = {
+ startX: e.clientX,
+ startScrollLeft: gridEl.scrollLeft,
+ };
+ gridEl.classList.add('panning');
+ document.querySelectorAll('.col-headers').forEach(el => el.classList.add('panning'));
+}
+
+function endPan() {
+ panState = null;
+ const gridEl = document.getElementById('grid-area');
+ gridEl.classList.remove('panning');
+ document.querySelectorAll('.col-headers').forEach(el => el.classList.remove('panning'));
+}
+
+document.addEventListener('mousemove', (e) => {
+ if (!panState) return;
+ const gridEl = document.getElementById('grid-area');
+ const dx = panState.startX - e.clientX;
+ gridEl.scrollLeft = panState.startScrollLeft + dx;
+});
+
+document.addEventListener('mouseup', endPan);
 
 // Drag state
 let dragState = null; // { type: 'move'|'resize-left'|'resize-right', blockId, startX, origStart, origDuration }
 let createState = null; // { rowId, startCol }
+let rowDragState = null; // { rowId, insertBefore, source: 'grid'|'panel' }
 
-// Pan state — header drag to scroll
-let panState = null; // { startX, startScrollLeft }
+// Row drag drop-indicator (created once, appended to body on init)
+let rowDragIndicator = null;
 
 // --- Date helpers ---
-const projectStart = new Date();
+// Project timeline is fixed (see PROJECT_START_DATE / PROJECT_END_DATE).
+const projectStart = new Date(PROJECT_START_DATE);
 projectStart.setHours(0,0,0,0);
-// Start from Monday of current week
-projectStart.setDate(projectStart.getDate() - projectStart.getDay() + 1);
 
+// Returns the weekday-col index for today, or -1 if today isn't on the grid
+// (weekend or outside [projectStart, projectEnd]).
+function todayWeekdayCol() {
+  const t = new Date(); t.setHours(0,0,0,0);
+  const wd = t.getDay();
+  if (wd === 0 || wd === 6) return -1;
+  if (t < projectStart || t > PROJECT_END_DATE) return -1;
+  // Count weekdays from projectStart up to (not including) today
+  let n = 0;
+  const d = new Date(projectStart);
+  while (d < t) {
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) n++;
+    d.setDate(d.getDate() + 1);
+  }
+  return n;
+}
+
+// Grid is weekday-only: col 0 = projectStart (a Monday), col 1 = next weekday,
+// weekends never get a column. `colToDate` advances one weekday at a time.
 function colToDate(col) {
   const d = new Date(projectStart);
-  d.setDate(d.getDate() + col);
+  let added = 0;
+  while (added < col) {
+    d.setDate(d.getDate() + 1);
+    const day = d.getDay();
+    if (day !== 0 && day !== 6) added++;
+  }
   return d;
 }
 
@@ -431,65 +917,146 @@ function formatDateFull(d) {
   return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
 }
 
-function isWeekend(col) {
-  const d = colToDate(col);
-  return d.getDay() === 0 || d.getDay() === 6;
-}
-
-function isMonthStart(col) {
-  const d = colToDate(col);
-  return d.getDate() === 1;
-}
-
 // --- Render ---
+// rAF-batched render: multiple synchronous render() calls collapse into a
+// single actual render in the next animation frame.
+let _renderScheduled = false;
 function render() {
+  if (_renderScheduled) return;
+  _renderScheduled = true;
+  requestAnimationFrame(() => {
+    _renderScheduled = false;
+    _render();
+  });
+}
+function _render() {
   const wrapper = document.getElementById('grid-wrapper');
   wrapper.innerHTML = '';
 
-  // Column headers
-  const colHeaders = document.createElement('div');
-  colHeaders.className = 'col-headers';
-  colHeaders.id = 'col-headers';
+  // Column headers wrapper
+  const headersWrap = document.createElement('div');
+  headersWrap.className = 'col-headers-wrap';
 
-  const spacer = document.createElement('div');
-  spacer.className = 'row-header-spacer';
-  colHeaders.appendChild(spacer);
+  const dayLetters = ['S','M','T','W','T','F','S'];
+  const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-  for (let c = 0; c < TOTAL_COLS; c++) {
-    const ch = document.createElement('div');
-    ch.className = 'col-header';
-    if (isWeekend(c)) ch.classList.add('weekend');
-    if (isMonthStart(c)) ch.classList.add('month-start');
+  // For today's-column highlight — compare stamps, not Date objects.
+  const todayStamp = (() => { const t = new Date(); t.setHours(0,0,0,0); return t.getTime(); })();
+  const isToday = (d) => { const c = new Date(d); c.setHours(0,0,0,0); return c.getTime() === todayStamp; };
 
+  // --- Row 1: Months ---
+  const monthRow = document.createElement('div');
+  monthRow.className = 'col-headers month-header-row';
+  const monthSpacer = document.createElement('div');
+  monthSpacer.className = 'row-header-spacer';
+  monthRow.appendChild(monthSpacer);
+
+  let c = 0;
+  while (c < TOTAL_COLS) {
     const d = colToDate(c);
-    if (zoom === 'day') {
-      ch.textContent = d.getDate();
-      ch.title = formatDateFull(d);
-    } else if (zoom === 'week') {
-      if (d.getDay() === 1) ch.textContent = formatDate(d);
-    } else {
-      if (d.getDate() === 1) {
-        const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-        ch.textContent = months[d.getMonth()];
-      }
+    const thisMonth = d.getMonth();
+    const thisYear = d.getFullYear();
+    let span = 0;
+    while (c + span < TOTAL_COLS) {
+      const d2 = colToDate(c + span);
+      if (d2.getMonth() !== thisMonth || d2.getFullYear() !== thisYear) break;
+      span++;
     }
-    colHeaders.appendChild(ch);
+    // Highlight the month containing today
+    let monthHasToday = false;
+    for (let k = 0; k < span; k++) {
+      if (isToday(colToDate(c + k))) { monthHasToday = true; break; }
+    }
+    const monthEl = document.createElement('div');
+    monthEl.className = 'month-span' + (monthHasToday ? ' today' : '');
+    monthEl.style.width = (span * dayPx()) + 'px';
+    monthEl.style.minWidth = (span * dayPx()) + 'px';
+    monthEl.textContent = monthNames[thisMonth] + ' ' + thisYear;
+    monthRow.appendChild(monthEl);
+    c += span;
+  }
+  headersWrap.appendChild(monthRow);
+
+  // --- Row 2: Weeks (w/c date) — hidden in month view ---
+  if (zoom !== 'month') {
+    const weekRow = document.createElement('div');
+    weekRow.className = 'col-headers';
+    const weekSpacer = document.createElement('div');
+    weekSpacer.className = 'row-header-spacer';
+    weekRow.appendChild(weekSpacer);
+
+    c = 0;
+    while (c < TOTAL_COLS) {
+      const d = colToDate(c);
+      // Find start of this week (Monday)
+      let span = 0;
+      const weekDay = d.getDay();
+      // Count days until next Monday or end
+      while (c + span < TOTAL_COLS) {
+        const d2 = colToDate(c + span);
+        if (span > 0 && d2.getDay() === 1) break;
+        span++;
+      }
+      // Highlight the week containing today
+      let weekHasToday = false;
+      for (let k = 0; k < span; k++) {
+        if (isToday(colToDate(c + k))) { weekHasToday = true; break; }
+      }
+      const weekEl = document.createElement('div');
+      weekEl.className = 'week-span' + (weekHasToday ? ' today' : '');
+      weekEl.style.width = (span * dayPx()) + 'px';
+      weekEl.style.minWidth = (span * dayPx()) + 'px';
+      // Find the Monday of this week
+      const monday = new Date(d);
+      monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
+      weekEl.textContent = 'w/c ' + formatDate(monday);
+      weekRow.appendChild(weekEl);
+      c += span;
+    }
+    headersWrap.appendChild(weekRow);
   }
 
-  // Header drag-to-pan
-  colHeaders.addEventListener('mousedown', (e) => {
-    if (e.button !== 0) return;
-    if (e.target.closest('.col-header')) return; // don't pan when clicking header cell
-    const gridArea = document.getElementById('grid-area');
-    panState = {
-      startX: e.clientX,
-      startScrollLeft: gridArea.scrollLeft,
-    };
-    colHeaders.classList.add('panning');
-    gridArea.classList.add('panning');
-  });
+  // --- Rows 3 & 4: Day letters + date numbers (day view only) ---
+  if (zoom === 'day') {
+    const dayRow = document.createElement('div');
+    dayRow.className = 'col-headers';
+    const daySpacer = document.createElement('div');
+    daySpacer.className = 'row-header-spacer';
+    dayRow.appendChild(daySpacer);
 
-  wrapper.appendChild(colHeaders);
+    const dateRow = document.createElement('div');
+    dateRow.className = 'col-headers';
+    const dateSpacer = document.createElement('div');
+    dateSpacer.className = 'row-header-spacer';
+    dateRow.appendChild(dateSpacer);
+
+    // Walk dates once, populate both rows in one pass via fragments.
+    const dayFrag = document.createDocumentFragment();
+    const dateFrag = document.createDocumentFragment();
+    const walker = new Date(projectStart);
+    for (let c = 0; c < TOTAL_COLS; c++) {
+      // Skip weekends
+      while (walker.getDay() === 0 || walker.getDay() === 6) walker.setDate(walker.getDate() + 1);
+      const today = isToday(walker);
+      const dayCh = document.createElement('div');
+      dayCh.className = today ? 'col-header today' : 'col-header';
+      dayCh.textContent = dayLetters[walker.getDay()];
+      dayFrag.appendChild(dayCh);
+
+      const dateCh = document.createElement('div');
+      dateCh.className = today ? 'col-header today' : 'col-header';
+      dateCh.textContent = walker.getDate();
+      dateFrag.appendChild(dateCh);
+
+      walker.setDate(walker.getDate() + 1);
+    }
+    dayRow.appendChild(dayFrag);
+    dateRow.appendChild(dateFrag);
+    headersWrap.appendChild(dayRow);
+    headersWrap.appendChild(dateRow);
+  }
+
+  wrapper.appendChild(headersWrap);
 
   // Rows
   rows.forEach(row => {
@@ -500,10 +1067,19 @@ function render() {
     // Row header
     const header = document.createElement('div');
     header.className = 'row-header';
+
+    // Drag handle
+    const gridHandle = document.createElement('div');
+    gridHandle.className = 'row-drag-handle';
+    gridHandle.textContent = '⠿';
+    gridHandle.title = 'Drag to reorder';
+    gridHandle.addEventListener('mousedown', (e) => startRowDrag(e, row.id, 'grid'));
+    header.appendChild(gridHandle);
+
     const input = document.createElement('input');
     input.placeholder = 'Row ' + row.id;
     input.value = row.label;
-    input.oninput = (e) => { row.label = e.target.value; renderPanel(); };
+    input.oninput = (e) => { row.label = e.target.value; renderPanel(); saveState(); };
     header.appendChild(input);
     rowEl.appendChild(header);
 
@@ -512,11 +1088,61 @@ function render() {
     cells.className = 'row-cells';
     cells.dataset.rowId = row.id;
 
-    for (let c = 0; c < TOTAL_COLS; c++) {
-      const line = document.createElement('div');
-      line.className = 'cell-line';
-      if (isWeekend(c)) line.classList.add('weekend');
-      cells.appendChild(line);
+    // Body cells.
+    // Day/week views: paint the grid via CSS gradient on .row-cells (no DOM
+    // nodes per cell). Month view keeps real DOM nodes since month widths
+    // vary and don't tile cleanly.
+    if (zoom === 'month') {
+      cells.classList.add('painted-month');
+      let mc = 0;
+      while (mc < TOTAL_COLS) {
+        const d0 = colToDate(mc);
+        const m = d0.getMonth();
+        const y = d0.getFullYear();
+        let span = 0;
+        let hasToday = false;
+        while (mc + span < TOTAL_COLS) {
+          const d2 = colToDate(mc + span);
+          if (d2.getMonth() !== m || d2.getFullYear() !== y) break;
+          if (isToday(d2)) hasToday = true;
+          span++;
+        }
+        const w = span * dayPx();
+        const line = document.createElement('div');
+        line.className = 'cell-line';
+        if (hasToday) line.classList.add('today');
+        line.style.width = w + 'px';
+        line.style.minWidth = w + 'px';
+        cells.appendChild(line);
+        mc += span;
+      }
+    } else {
+      cells.classList.add(zoom === 'week' ? 'painted-week' : 'painted-day');
+      // Set explicit width since there are no child cells driving size
+      cells.style.width = (TOTAL_COLS * dayPx()) + 'px';
+      cells.style.minWidth = (TOTAL_COLS * dayPx()) + 'px';
+      // Align week gradient lines with week header boundaries.
+      // The first week may be a partial week (project might not start on Monday),
+      // so offset the repeating gradient by the first week's pixel width.
+      if (zoom === 'week') {
+        let firstWeekDays = 0;
+        for (let wc = 0; wc < TOTAL_COLS; wc++) {
+          if (wc > 0 && colToDate(wc).getDay() === 1) break;
+          firstWeekDays++;
+        }
+        // Gradient line (left edge) is at 79px within each 80px tile.
+        // Shift origin so first line falls at firstWeekDays * WEEK_DAY_PX.
+        cells.style.backgroundPositionX = (firstWeekDays * WEEK_DAY_PX - 79) + 'px';
+      }
+      // Today overlay (single absolute div) — covers today's day column
+      const todayCol = todayWeekdayCol();
+      if (todayCol !== -1) {
+        const ov = document.createElement('div');
+        ov.className = 'today-overlay';
+        ov.style.left = (todayCol * dayPx()) + 'px';
+        ov.style.width = dayPx() + 'px';
+        cells.appendChild(ov);
+      }
     }
 
     // Render blocks for this row
@@ -524,10 +1150,21 @@ function render() {
     rowBlocks.forEach(block => {
       const bEl = document.createElement('div');
       bEl.className = `block block-color-${block.color}`;
-      bEl.style.left = (block.start * CELL_W) + 'px';
-      bEl.style.width = (block.duration * CELL_W - 2) + 'px';
-      bEl.textContent = block.label || '';
+      bEl.style.left = (block.start * dayPx()) + 'px';
+      bEl.style.width = (block.duration * dayPx() - 2) + 'px';
       bEl.dataset.blockId = block.id;
+
+      // Editable label
+      const labelEl = document.createElement('span');
+      labelEl.className = 'block-label';
+      labelEl.textContent = block.label || '';
+      bEl.appendChild(labelEl);
+
+      // Right-aligned day count badge
+      const daysBadge = document.createElement('span');
+      daysBadge.className = 'block-days-badge';
+      daysBadge.textContent = block.duration + 'd';
+      bEl.appendChild(daysBadge);
 
       // Resize handles
       const hl = document.createElement('div');
@@ -543,6 +1180,7 @@ function render() {
       // Move
       bEl.addEventListener('mousedown', (e) => {
         if (e.target.classList.contains('handle-left') || e.target.classList.contains('handle-right')) return;
+        if (e.target.classList.contains('block-label-input')) return;
         startMove(e, block.id);
       });
 
@@ -552,14 +1190,40 @@ function render() {
         showBlockContextMenu(e, block.id);
       });
 
-      // Double click to rename
-      bEl.addEventListener('dblclick', (e) => {
-        e.stopPropagation();
-        const name = prompt('Block name:', block.label || '');
-        if (name !== null) { block.label = name; render(); }
+      // Click-timing double-click detection — more reliable than native dblclick
+      // (which can be lost when render() rebuilds DOM between clicks).
+      bEl.addEventListener('click', (e) => {
+        if (e.target.classList.contains('handle-left') || e.target.classList.contains('handle-right')) return;
+        if (e.target.classList.contains('block-label-input')) return;
+        const now = Date.now();
+        if (now - (block._lastClickAt || 0) < 400) {
+          e.stopPropagation();
+          block._lastClickAt = 0;
+          startEditingBlockLabel(bEl, labelEl, block);
+        } else {
+          block._lastClickAt = now;
+        }
       });
 
       cells.appendChild(bEl);
+
+      // Contingency extension — appended inside bEl so it auto-follows during drag
+      if (contingencyPct > 0) {
+        const extraDays = Math.round(block.duration * contingencyPct / 100);
+        if (extraDays > 0) {
+          const cEl = document.createElement('div');
+          cEl.className = `block-contingency block-color-${block.color}`;
+          cEl.dataset.contingencyFor = block.id;
+          // Positioned relative to the block: starts at the block's right edge
+          cEl.style.left = (block.duration * dayPx() - 2) + 'px';
+          cEl.style.width = (extraDays * dayPx()) + 'px';
+          const cDays = document.createElement('span');
+          cDays.className = 'contingency-days';
+          cDays.textContent = '+' + extraDays + 'd';
+          cEl.appendChild(cDays);
+          bEl.appendChild(cEl);
+        }
+      }
     });
 
     // Double click on empty space to create block
@@ -567,7 +1231,7 @@ function render() {
       if (e.target.closest('.block')) return;
       const rect = cells.getBoundingClientRect();
       const x = e.clientX - rect.left + cells.scrollLeft;
-      const col = Math.floor(x / CELL_W);
+      const col = Math.floor(x / dayPx());
       createBlock(row.id, col, 3);
     });
 
@@ -577,7 +1241,7 @@ function render() {
       if (e.button !== 0) return;
       const rect = cells.getBoundingClientRect();
       const x = e.clientX - rect.left;
-      const col = Math.floor(x / CELL_W);
+      const col = Math.floor(x / dayPx());
       createState = { rowId: row.id, startCol: col, currentCol: col };
     });
 
@@ -585,56 +1249,241 @@ function render() {
     wrapper.appendChild(rowEl);
   });
 
-  // Add row button
-  const addRow = document.createElement('div');
-  addRow.className = 'add-row-btn';
-  addRow.textContent = '+ Add row';
-  addRow.onclick = () => {
+  // Add row button — structured as a row so the left label stays sticky with other headers
+  const addRowWrapper = document.createElement('div');
+  addRowWrapper.className = 'row';
+  addRowWrapper.style.height = '32px';
+
+  const addRowHeader = document.createElement('div');
+  addRowHeader.className = 'row-header add-row-btn';
+  addRowHeader.textContent = '+ Add row';
+  addRowHeader.onclick = () => {
     rows.push({ id: nextRowId++, label: '' });
     render();
   };
-  wrapper.appendChild(addRow);
+  addRowWrapper.appendChild(addRowHeader);
+
+  const addRowCells = document.createElement('div');
+  addRowCells.style.flex = '1';
+  addRowCells.style.height = '32px';
+  if (zoom !== 'month') {
+    addRowCells.style.width = (TOTAL_COLS * dayPx()) + 'px';
+    addRowCells.style.minWidth = (TOTAL_COLS * dayPx()) + 'px';
+  }
+  addRowWrapper.appendChild(addRowCells);
+
+  wrapper.appendChild(addRowWrapper);
 
   renderPanel();
+  saveState();
+}
+
+// --- Panel inline editing ---
+function startEditingPanelRowLabel(labelSpan, row) {
+  if (labelSpan.querySelector('input')) return;
+  const prev = row.label;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'panel-name-input';
+  input.value = row.label;
+  input.placeholder = 'Row ' + row.id;
+  input.addEventListener('mousedown', e => e.stopPropagation());
+  input.addEventListener('click', e => e.stopPropagation());
+  input.addEventListener('dblclick', e => e.stopPropagation());
+  labelSpan.textContent = '';
+  labelSpan.appendChild(input);
+  requestAnimationFrame(() => { input.focus(); input.select(); });
+
+  let done = false;
+  const finish = (commit) => {
+    if (done) return;
+    done = true;
+    if (commit) row.label = input.value.trim();
+    labelSpan.textContent = row.label || 'Row ' + row.id;
+    if (commit && row.label !== prev) {
+      saveState();
+      // Sync grid row header input
+      const gridInput = document.querySelector(`.row[data-row-id="${row.id}"] .row-header input`);
+      if (gridInput) gridInput.value = row.label;
+    }
+  };
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+}
+
+function startEditingPanelBlockLabel(nameSpan, block) {
+  if (nameSpan.querySelector('input')) return;
+  const prev = block.label;
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'panel-name-input';
+  input.value = block.label || '';
+  input.placeholder = 'Untitled';
+  input.addEventListener('mousedown', e => e.stopPropagation());
+  input.addEventListener('click', e => e.stopPropagation());
+  input.addEventListener('dblclick', e => e.stopPropagation());
+  nameSpan.textContent = '';
+  nameSpan.appendChild(input);
+  requestAnimationFrame(() => { input.focus(); input.select(); });
+
+  let done = false;
+  const finish = (commit) => {
+    if (done) return;
+    done = true;
+    if (commit) block.label = input.value.trim();
+    nameSpan.textContent = block.label || 'Untitled';
+    if (commit && block.label !== prev) {
+      saveState();
+      // Sync grid block label without full re-render
+      const gridLabel = document.querySelector(`[data-block-id="${block.id}"] .block-label`);
+      if (gridLabel) gridLabel.textContent = block.label;
+    }
+  };
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
 }
 
 function renderPanel() {
   const stats = document.getElementById('panel-stats');
-  const totalDays = blocks.reduce((s, b) => s + b.duration, 0);
   const totalBlocks = blocks.length;
   const rowsUsed = new Set(blocks.map(b => b.rowId)).size;
 
+  // Every column is a weekday, so block.duration IS the workday count.
+  const totalDays = blocks.reduce((s, b) => s + b.duration, 0);
+  const contingencyDays = contingencyPct > 0 ? blocks.reduce((s, b) => s + Math.round(b.duration * contingencyPct / 100), 0) : 0;
+
   stats.innerHTML = `
-    <div class="panel-stat"><span class="label">Total blocks</span><span class="value">${totalBlocks}</span></div>
-    <div class="panel-stat"><span class="label">Total days</span><span class="value">${totalDays}</span></div>
-    <div class="panel-stat"><span class="label">Rows used</span><span class="value">${rowsUsed}</span></div>
+    <div class="panel-stat"><span class="label">Base Days</span><span class="value" style="color:var(--text)">${totalDays}<span class="cg">d</span></span></div>
+    <div class="panel-stat"><span class="label" style="color:var(--contingency)">Contingency Days @ ${contingencyPct}%</span><span class="value" style="color:var(--contingency)">+${contingencyDays}d</span></div>
+    <div class="panel-stat"><span class="label">Total Days</span><span class="value" style="color:var(--text)">${fmtDays(totalDays, contingencyDays)}</span></div>
+    <div class="panel-stat"><span class="label">Active Rows</span><span class="value">${rowsUsed}</span></div>
+    <div class="panel-stat"><span class="label">Total Blocks</span><span class="value">${totalBlocks}</span></div>
   `;
 
   const list = document.getElementById('panel-blocks');
   list.innerHTML = '';
 
-  blocks.forEach(block => {
-    const row = rows.find(r => r.id === block.rowId);
-    const startDate = formatDateFull(colToDate(block.start));
-    const endDate = formatDateFull(colToDate(block.start + block.duration - 1));
+  // Group blocks by row
+  rows.forEach(row => {
+    const rowBlocks = blocks.filter(b => b.rowId === row.id);
+    if (rowBlocks.length === 0) return;
 
-    const item = document.createElement('div');
-    item.className = 'panel-block-item';
-    item.innerHTML = `
-      <div class="block-name">
-        <span class="block-dot block-color-${block.color}"></span>
-        ${block.label || 'Untitled'}
-      </div>
-      <div class="block-meta">
-        ${row ? (row.label || 'Row ' + row.id) : '?'} · ${block.duration} day${block.duration > 1 ? 's' : ''}<br>
-        ${startDate} → ${endDate}
-      </div>
-    `;
-    item.onclick = () => {
-      const gridArea = document.getElementById('grid-area');
-      gridArea.scrollLeft = block.start * CELL_W - 200;
-    };
-    list.appendChild(item);
+    const rowDays = rowBlocks.reduce((s, b) => s + b.duration, 0);
+    const rowContingency = contingencyPct > 0 ? rowBlocks.reduce((s, b) => s + Math.round(b.duration * contingencyPct / 100), 0) : 0;
+
+    // Section header (collapsible)
+    const isCollapsed = !!collapsedRows[row.id];
+    const section = document.createElement('div');
+    section.className = 'panel-section-header' + (isCollapsed ? ' collapsed' : '');
+    section.dataset.rowId = row.id;
+
+    const panelHandle = document.createElement('div');
+    panelHandle.className = 'row-drag-handle';
+    panelHandle.textContent = '⠿';
+    panelHandle.title = 'Drag to reorder';
+    panelHandle.addEventListener('mousedown', (e) => startRowDrag(e, row.id, 'panel'));
+    section.appendChild(panelHandle);
+
+    const sectionTitle = document.createElement('span');
+    sectionTitle.className = 'section-title';
+
+    const caret = document.createElement('span');
+    caret.className = 'caret';
+    caret.textContent = '▼';
+    sectionTitle.appendChild(caret);
+
+    const rowLabelSpan = document.createElement('span');
+    rowLabelSpan.className = 'panel-row-label';
+    rowLabelSpan.textContent = row.label || 'Row ' + row.id;
+    rowLabelSpan.title = 'Double-click to rename';
+    rowLabelSpan.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      startEditingPanelRowLabel(rowLabelSpan, row);
+    });
+    sectionTitle.appendChild(rowLabelSpan);
+
+    const sectionDays = document.createElement('span');
+    sectionDays.className = 'section-days';
+    sectionDays.innerHTML = fmtDays(rowDays, rowContingency);
+
+    section.appendChild(sectionTitle);
+    section.appendChild(sectionDays);
+
+    section.addEventListener('click', (e) => {
+      if (e.target.closest('.panel-row-label') || e.target.tagName === 'INPUT') return;
+      if (e.target.closest('.row-drag-handle')) return;
+      if (collapsedRows[row.id]) delete collapsedRows[row.id];
+      else collapsedRows[row.id] = true;
+      renderPanel();
+      saveState();
+    });
+    list.appendChild(section);
+
+    // Body container for this row's blocks
+    const body = document.createElement('div');
+    body.className = 'panel-section-body' + (isCollapsed ? ' collapsed' : '');
+    list.appendChild(body);
+
+    // Blocks in this row
+    rowBlocks.forEach(block => {
+      const startDate = formatDate(colToDate(block.start));
+      const endDate = formatDate(colToDate(block.start + block.duration - 1));
+
+      const extraDays = contingencyPct > 0 ? Math.round(block.duration * contingencyPct / 100) : 0;
+
+      const item = document.createElement('div');
+      item.className = 'panel-block-item';
+
+      const nameRow = document.createElement('div');
+      nameRow.className = 'block-name';
+
+      const dot = document.createElement('span');
+      dot.className = `block-dot block-color-${block.color}`;
+
+      const nameSpan = document.createElement('span');
+      nameSpan.className = 'panel-block-name-text';
+      nameSpan.textContent = block.label || 'Untitled';
+      nameSpan.title = 'Double-click to rename';
+      nameSpan.style.flex = '1';
+      nameSpan.style.minWidth = '0';
+      nameSpan.style.overflow = 'hidden';
+      nameSpan.style.textOverflow = 'ellipsis';
+      nameSpan.style.whiteSpace = 'nowrap';
+      nameSpan.addEventListener('dblclick', (e) => {
+        e.stopPropagation();
+        startEditingPanelBlockLabel(nameSpan, block);
+      });
+
+      const daysSpan = document.createElement('span');
+      daysSpan.className = 'block-days';
+      daysSpan.innerHTML = fmtDays(block.duration, extraDays);
+
+      nameRow.appendChild(dot);
+      nameRow.appendChild(nameSpan);
+      nameRow.appendChild(daysSpan);
+
+      const metaDiv = document.createElement('div');
+      metaDiv.className = 'block-meta';
+      metaDiv.textContent = `${startDate} → ${endDate}`;
+
+      item.appendChild(nameRow);
+      item.appendChild(metaDiv);
+
+      item.addEventListener('click', (e) => {
+        if (e.target.tagName === 'INPUT') return;
+        const gridArea = document.getElementById('grid-area');
+        gridArea.scrollLeft = block.start * dayPx() - 200;
+      });
+      body.appendChild(item);
+    });
   });
 }
 
@@ -658,6 +1507,70 @@ function deleteBlock(id) {
   render();
 }
 
+// --- Inline block label edit (real <input> swap, autosaves on commit) ---
+function startEditingBlockLabel(bEl, labelEl, block) {
+  // Already editing? bail.
+  if (bEl.querySelector('.block-label-input')) return;
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'block-label-input';
+  input.value = block.label || '';
+  // Stop drag/dblclick handlers from interfering with the input
+  input.addEventListener('mousedown', (e) => e.stopPropagation());
+  input.addEventListener('dblclick', (e) => e.stopPropagation());
+  input.addEventListener('click', (e) => e.stopPropagation());
+
+  labelEl.style.display = 'none';
+  bEl.insertBefore(input, labelEl);
+
+  // Defer focus to next frame so the dblclick selection / drag preventDefault
+  // doesn't steal it back.
+  requestAnimationFrame(() => {
+    input.focus();
+    input.select();
+  });
+
+  let done = false;
+  const finish = (commit) => {
+    if (done) return;
+    done = true;
+    if (commit) {
+      const next = input.value.trim();
+      if (next !== (block.label || '')) {
+        block.label = next;
+        saveState();
+      }
+      labelEl.textContent = block.label || '';
+      renderPanel();
+    }
+    if (input.parentNode) input.parentNode.removeChild(input);
+    labelEl.style.display = '';
+  };
+
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  });
+}
+
+// --- Row drag-to-reorder ---
+function startRowDrag(e, rowId, source) {
+  e.preventDefault();
+  e.stopPropagation();
+  if (rows.findIndex(r => r.id === rowId) === -1) return;
+  rowDragState = { rowId, insertBefore: null, source };
+  document.body.classList.add('row-reordering');
+  // Dim the dragged row in both views
+  const rowEl = document.querySelector(`.row[data-row-id="${rowId}"]`);
+  if (rowEl) rowEl.classList.add('row-dragging');
+  const sectionEl = document.querySelector(`.panel-section-header[data-row-id="${rowId}"]`);
+  if (sectionEl) sectionEl.classList.add('row-dragging');
+  if (rowDragIndicator) rowDragIndicator.style.display = 'block';
+}
+
 // --- Drag: Move ---
 function startMove(e, blockId) {
   e.preventDefault();
@@ -671,10 +1584,10 @@ function startMove(e, blockId) {
     startY: e.clientY,
     origStart: block.start,
     origRowId: block.rowId,
+    moved: false, // becomes true once cursor passes the drag threshold
   };
-
-  const el = document.querySelector(`[data-block-id="${blockId}"]`);
-  if (el) el.classList.add('dragging');
+  // Don't add .dragging or call render() yet — wait until real movement so
+  // single clicks (and dblclicks) don't rebuild the DOM and lose element identity.
 }
 
 // --- Drag: Resize ---
@@ -688,48 +1601,79 @@ function startResize(e, blockId, side) {
     type: side === 'left' ? 'resize-left' : 'resize-right',
     blockId,
     startX: e.clientX,
+    startY: e.clientY,
     origStart: block.start,
     origDuration: block.duration,
+    moved: false,
   };
 }
 
-document.addEventListener('mousemove', (e) => {
-  // Pan by dragging header
-  if (panState) {
-    const gridArea = document.getElementById('grid-area');
-    const dx = panState.startX - e.clientX;
-    gridArea.scrollLeft = panState.startScrollLeft + dx;
-    return;
-  }
+const DRAG_THRESHOLD_PX = 4;
 
+document.addEventListener('mousemove', (e) => {
   if (dragState) {
     const block = blocks.find(b => b.id === dragState.blockId);
     if (!block) return;
 
     const dx = e.clientX - dragState.startX;
-    const colDelta = Math.round(dx / CELL_W);
+    const dy = (e.clientY - (dragState.startY || e.clientY));
+
+    // Suppress drag until the cursor has actually moved past the threshold —
+    // otherwise plain clicks rebuild the DOM and break dblclick.
+    if (!dragState.moved) {
+      if (Math.abs(dx) < DRAG_THRESHOLD_PX && Math.abs(dy) < DRAG_THRESHOLD_PX) return;
+      dragState.moved = true;
+    }
+
+    const colDelta = Math.round(dx / dayPx());
+    const bEl = document.querySelector(`[data-block-id="${dragState.blockId}"]`);
+    const cEl = document.querySelector(`[data-contingency-for="${dragState.blockId}"]`);
+
+    const updateContingencyEl = () => {
+      if (!cEl) return;
+      const extraDays = Math.round(block.duration * contingencyPct / 100);
+      // Positioned relative to the block: starts at block's right edge
+      cEl.style.left = (block.duration * dayPx() - 2) + 'px';
+      cEl.style.width = (extraDays * dayPx()) + 'px';
+      const cd = cEl.querySelector('.contingency-days');
+      if (cd) cd.textContent = '+' + extraDays + 'd';
+    };
 
     if (dragState.type === 'move') {
       block.start = Math.max(0, dragState.origStart + colDelta);
 
+      // Check if we should move to a different row
       const gridArea = document.getElementById('grid-area');
       const rowEls = gridArea.querySelectorAll('.row');
       for (const rowEl of rowEls) {
         const rect = rowEl.getBoundingClientRect();
         if (e.clientY >= rect.top && e.clientY < rect.bottom) {
           const rowId = parseInt(rowEl.dataset.rowId);
-          if (rowId) block.rowId = rowId;
+          if (rowId && rowId !== block.rowId) {
+            block.rowId = rowId;
+            // Move bEl to the new row's cells; contingency auto-follows as a child of bEl
+            const newCells = rowEl.querySelector('.row-cells');
+            if (newCells && bEl) newCells.appendChild(bEl);
+          }
           break;
         }
       }
 
-      render();
-      const el = document.querySelector(`[data-block-id="${dragState.blockId}"]`);
-      if (el) el.classList.add('dragging');
+      // Update position in-place (no full render during drag)
+      if (bEl) {
+        bEl.style.left = (block.start * dayPx()) + 'px';
+        bEl.classList.add('dragging');
+      }
+      updateContingencyEl();
     }
     else if (dragState.type === 'resize-right') {
       block.duration = Math.max(1, dragState.origDuration + colDelta);
-      render();
+      if (bEl) {
+        bEl.style.width = (block.duration * dayPx() - 2) + 'px';
+        const badge = bEl.querySelector('.block-days-badge');
+        if (badge) badge.textContent = block.duration + 'd';
+      }
+      updateContingencyEl();
     }
     else if (dragState.type === 'resize-left') {
       const newStart = dragState.origStart + colDelta;
@@ -737,23 +1681,93 @@ document.addEventListener('mousemove', (e) => {
       if (newDuration >= 1 && newStart >= 0) {
         block.start = newStart;
         block.duration = newDuration;
+        if (bEl) {
+          bEl.style.left = (block.start * dayPx()) + 'px';
+          bEl.style.width = (block.duration * dayPx() - 2) + 'px';
+          const badge = bEl.querySelector('.block-days-badge');
+          if (badge) badge.textContent = block.duration + 'd';
+        }
+        updateContingencyEl();
       }
-      render();
     }
+  }
+
+  // Row reorder drag
+  if (rowDragState) {
+    const elList = rowDragState.source === 'panel'
+      ? [...document.querySelectorAll('.panel-section-header[data-row-id]')]
+      : [...document.querySelectorAll('.row[data-row-id]')];
+
+    let insertBefore = null;
+    let indicatorY = null;
+
+    for (let i = 0; i < elList.length; i++) {
+      const rect = elList[i].getBoundingClientRect();
+      const rId = parseInt(elList[i].dataset.rowId);
+      if (rId === rowDragState.rowId) continue; // skip dragged row
+      const midY = rect.top + rect.height / 2;
+      if (e.clientY < midY) {
+        insertBefore = rId;
+        indicatorY = rect.top;
+        break;
+      }
+      indicatorY = rect.bottom;
+    }
+
+    if (indicatorY !== null && rowDragIndicator) {
+      rowDragIndicator.style.top = (indicatorY - 1) + 'px';
+      if (rowDragState.source === 'panel') {
+        const panelRect = document.getElementById('data-panel').getBoundingClientRect();
+        rowDragIndicator.style.left = panelRect.left + 'px';
+        rowDragIndicator.style.width = panelRect.width + 'px';
+      } else {
+        rowDragIndicator.style.left = '0';
+        rowDragIndicator.style.width = ROW_HEADER_W + 'px';
+      }
+    }
+    rowDragState.insertBefore = insertBefore;
+  }
+
+  // Create by drag
+  if (createState) {
+    // We'll handle this on mouseup
   }
 });
 
 document.addEventListener('mouseup', (e) => {
-  // End pan
-  if (panState) {
-    panState = null;
-    document.getElementById('col-headers')?.classList.remove('panning');
-    document.getElementById('grid-area')?.classList.remove('panning');
+  if (rowDragState) {
+    const { rowId, insertBefore } = rowDragState;
+    rowDragState = null;
+    document.body.classList.remove('row-reordering');
+    if (rowDragIndicator) rowDragIndicator.style.display = 'none';
+
+    const fromIndex = rows.findIndex(r => r.id === rowId);
+    if (fromIndex !== -1) {
+      const [moved] = rows.splice(fromIndex, 1);
+      if (insertBefore === null) {
+        rows.push(moved);
+      } else {
+        const toIndex = rows.findIndex(r => r.id === insertBefore);
+        rows.splice(toIndex === -1 ? rows.length : toIndex, 0, moved);
+      }
+      render();
+      saveState();
+    }
+    return;
   }
 
   if (dragState) {
+    const wasMoved = dragState.moved;
+    const draggedId = dragState.blockId;
     dragState = null;
-    render();
+    if (wasMoved) {
+      // In-place updates already moved/resized the element. Just persist
+      // and clean up the dragging class — no need for a full render.
+      const el = document.querySelector(`[data-block-id="${draggedId}"]`);
+      if (el) el.classList.remove('dragging');
+      saveState();
+      renderPanel();
+    }
   }
 
   if (createState) {
@@ -761,7 +1775,7 @@ document.addEventListener('mouseup', (e) => {
     if (rect) {
       const r = rect.getBoundingClientRect();
       const x = e.clientX - r.left;
-      const endCol = Math.floor(x / CELL_W);
+      const endCol = Math.floor(x / dayPx());
       const start = Math.min(createState.startCol, endCol);
       const end = Math.max(createState.startCol, endCol);
       const duration = end - start + 1;
@@ -780,16 +1794,49 @@ function showBlockContextMenu(e, blockId) {
   const block = blocks.find(b => b.id === blockId);
   if (!block) return;
 
+  // Position — clamp to viewport edges
+  const menuW = 140, menuH = 120;
+  const left = Math.min(e.clientX, window.innerWidth - menuW - 8);
+  const top  = Math.min(e.clientY, window.innerHeight - menuH - 8);
   menu.style.display = 'block';
-  menu.style.left = e.clientX + 'px';
-  menu.style.top = e.clientY + 'px';
+  menu.style.left = left + 'px';
+  menu.style.top  = top  + 'px';
 
-  menu.innerHTML = `
-    <div class="context-menu-item" onclick="renameBlock(${blockId})">Rename</div>
-    <div class="context-menu-item" onclick="cycleColor(${blockId})">Change colour</div>
-    <div class="context-menu-item" onclick="duplicateBlock(${blockId})">Duplicate</div>
-    <div class="context-menu-item danger" onclick="deleteBlock(${blockId})">Delete</div>
-  `;
+  menu.innerHTML = '';
+
+  // Colour label
+  const label = document.createElement('div');
+  label.className = 'context-menu-label';
+  label.textContent = 'Colour';
+  menu.appendChild(label);
+
+  // Swatch grid
+  const grid = document.createElement('div');
+  grid.className = 'color-swatch-grid';
+  for (let i = 0; i < COLORS; i++) {
+    const sw = document.createElement('div');
+    sw.className = `color-swatch block-color-${i}`;
+    if (i === block.color) sw.classList.add('selected');
+    sw.addEventListener('click', () => {
+      block.color = i;
+      render();
+      menu.style.display = 'none';
+    });
+    grid.appendChild(sw);
+  }
+  menu.appendChild(grid);
+
+  // Separator
+  const sep = document.createElement('div');
+  sep.className = 'context-menu-separator';
+  menu.appendChild(sep);
+
+  // Delete
+  const del = document.createElement('div');
+  del.className = 'context-menu-item danger';
+  del.textContent = 'Delete';
+  del.addEventListener('click', () => deleteBlock(blockId));
+  menu.appendChild(del);
 }
 
 document.addEventListener('click', (e) => {
@@ -837,6 +1884,13 @@ function togglePanel() {
   document.getElementById('btn-panel').classList.toggle('active');
 }
 
+// --- Settings ---
+function updateContingency() {
+  contingencyPct = parseInt(document.getElementById('contingency').value) || 0;
+  contingencyPct = Math.max(0, Math.min(100, contingencyPct));
+  render();
+}
+
 // --- Keyboard ---
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
@@ -844,15 +1898,118 @@ document.addEventListener('keydown', (e) => {
   }
 });
 
-// --- Init ---
-// Example blocks
-createBlock(1, 0, 5, 'Planning');
-createBlock(1, 6, 8, 'Design');
-createBlock(2, 3, 10, 'Frontend');
-createBlock(3, 8, 12, 'Backend');
-createBlock(2, 14, 6, 'Testing');
+// v1 → v2 migration: v1 stored cols as calendar-day indices (weekends included);
+// v2 stores weekday-only indices. Convert each block's start+duration.
+// projectStart in v1 was always a Monday, and col 0 = calendar day 0 = Monday,
+// so calendar cols where (col % 7) is 5 or 6 were weekends.
+function migrateV1ToV2(savedBlocks) {
+  const calIsWeekend = (col) => (col % 7) === 5 || (col % 7) === 6;
+  const calToWeekday = (col) => {
+    let n = 0;
+    for (let c = 0; c < col; c++) if (!calIsWeekend(c)) n++;
+    return n;
+  };
+  return (savedBlocks || []).map(b => {
+    // If the block started on a weekend, snap forward to the next weekday.
+    let start = b.start;
+    while (calIsWeekend(start)) start++;
+    const newStart = calToWeekday(start);
+    // Count weekdays actually covered by the original span.
+    let newDuration = 0;
+    for (let c = b.start; c < b.start + b.duration; c++) {
+      if (!calIsWeekend(c)) newDuration++;
+    }
+    if (newDuration < 1) newDuration = 1;
+    return { ...b, start: newStart, duration: newDuration };
+  });
+}
 
-render();
+// --- Init ---
+async function init() {
+  const saved = await loadState();
+  if (saved) {
+    // Restore from IndexedDB
+    rows = saved.rows || rows;
+    blocks = saved.blocks || [];
+    // v1 state had no version field and used calendar-day columns.
+    if (!saved.version || saved.version < 2) {
+      blocks = migrateV1ToV2(blocks);
+      console.log('migrated', blocks.length, 'blocks from v1 (calendar) to v2 (weekday)');
+    }
+    nextBlockId = saved.nextBlockId || (blocks.reduce((m, b) => Math.max(m, b.id), 0) + 1);
+    nextRowId = saved.nextRowId || (rows.reduce((m, r) => Math.max(m, r.id), 0) + 1);
+    contingencyPct = saved.contingencyPct || 0;
+    zoom = saved.zoom || 'day';
+    if (typeof saved.panelWidth === 'number') panelWidth = saved.panelWidth;
+    if (saved.collapsedRows && typeof saved.collapsedRows === 'object') collapsedRows = saved.collapsedRows;
+    // projectStart is now fixed (Jan 1 2026); intentionally ignore saved.projectStart.
+    // Sync UI controls to restored state
+    document.getElementById('contingency').value = contingencyPct;
+    document.getElementById('btn-day').classList.toggle('active', zoom === 'day');
+    document.getElementById('btn-week').classList.toggle('active', zoom === 'week');
+    document.getElementById('btn-month').classList.toggle('active', zoom === 'month');
+  } else {
+    // First run: seed example blocks
+    createBlock(1, 0, 5, 'Planning');
+    createBlock(1, 6, 8, 'Design');
+    createBlock(2, 3, 10, 'Frontend');
+    createBlock(3, 8, 12, 'Backend');
+    createBlock(2, 14, 6, 'Testing');
+  }
+  applyPanelWidth();
+  setupPanelResize();
+  // Row drag indicator
+  rowDragIndicator = document.createElement('div');
+  rowDragIndicator.className = 'row-reordering-indicator';
+  document.body.appendChild(rowDragIndicator);
+  _saveReady = true;
+  render();
+  // Header drag-to-pan — attach listener to scrollable grid area
+  document.getElementById('grid-area').addEventListener('mousedown', startPan);
+}
+
+function applyPanelWidth() {
+  const panel = document.getElementById('data-panel');
+  panel.style.width = panelWidth + 'px';
+}
+
+function setupPanelResize() {
+  const handle = document.getElementById('panel-resize-handle');
+  const panel = document.getElementById('data-panel');
+  let dragging = false;
+  let startX = 0;
+  let startW = 0;
+
+  handle.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    dragging = true;
+    startX = e.clientX;
+    startW = panel.getBoundingClientRect().width;
+    handle.classList.add('dragging');
+    document.body.classList.add('panel-resizing');
+  });
+
+  document.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    // Panel sits on the right; dragging left increases width.
+    const dx = startX - e.clientX;
+    let w = Math.round(startW + dx);
+    if (w < 200) w = 200;
+    if (w > 800) w = 800;
+    panel.style.width = w + 'px';
+    panelWidth = w;
+  });
+
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    handle.classList.remove('dragging');
+    document.body.classList.remove('panel-resizing');
+    saveState();
+  });
+}
+
+init();
 </script>
 </body>
 </html>
