@@ -201,7 +201,7 @@
     position: relative;
     width: max-content;
     min-width: 100%;
-    height: var(--cell-size);
+    height: var(--row-h, var(--cell-size));
   }
   .row-resize {
     position: absolute;
@@ -215,7 +215,7 @@
   }
   .row-resize:hover,
   .row-resize.dragging {
-    border-bottom-color: var(--accent);
+    border-bottom-color: transparent;
   }
 
   /* Row resize handle */
@@ -249,8 +249,7 @@
     z-index: 3;
     font-size: 0.95rem;
     cursor: text;
-    height: var(--row-h, 40px);
-    transition: height 0.1s;
+    height: 100%;
   }
 
   .row-header input {
@@ -290,7 +289,7 @@
     display: flex;
     position: relative;
     flex: 0 0 auto;
-    height: var(--row-h, var(--cell-size));
+    height: 100%;
   }
 
   /* Painted grid backgrounds — repeating gradients are dramatically faster
@@ -341,7 +340,7 @@
   /* Blocks */
   .block {
     position: absolute;
-    height: calc(var(--row-h, 40px) - 6px);
+    height: calc(100% - 6px);
     top: 3px;
     border-radius: 2px;
     cursor: grab;
@@ -1036,7 +1035,7 @@ function saveState() {
   _saveTimer = setTimeout(async () => {
     const snapshot = {
       version: STATE_VERSION,
-      rows, blocks, nextBlockId, nextRowId,
+      rows, blocks, rowHeights, nextBlockId, nextRowId,
       contingencyPct, zoom, panelWidth, collapsedRows,
       projectStart: projectStart.toISOString(),
       savedAt: Date.now(),
@@ -1430,13 +1429,8 @@ function _render() {
     const rowEl = document.createElement('div');
     rowEl.className = 'row';
     rowEl.dataset.rowId = row.id;
-    // Apply custom height or use CSS variable
-    if (row.height) {
-      rowEl.style.height = row.height + 'px';
-    } else {
-      rowEl.style.height = ''; // use CSS default
-    }
-
+    const rowH = rowHeights[row.id] || row.height || ROW_H_DEFAULT;
+    rowEl.style.setProperty('--row-h', rowH + 'px');
 
     // Row resize handle at bottom of row
     const resizeHandle = document.createElement('div');
@@ -1485,7 +1479,6 @@ function _render() {
     const cells = document.createElement('div');
     cells.className = 'row-cells';
     cells.dataset.rowId = row.id;
-    cells.style.setProperty('--row-h', (rowHeights[row.id] || ROW_H_DEFAULT) + 'px');
 
     // Body cells.
     // Day/week views: paint the grid via CSS gradient on .row-cells (no DOM
@@ -1930,7 +1923,8 @@ let _rowResize = null; // { rowId, startY, startH }
 function startRowResize(e, rowId) {
   e.preventDefault();
   e.stopPropagation();
-  const startH = rowHeights[rowId] || ROW_H_DEFAULT;
+  const row = rows.find(r => r.id === rowId);
+  const startH = rowHeights[rowId] || (row && row.height) || ROW_H_DEFAULT;
   _rowResize = { rowId, startY: e.clientY, startH };
   document.addEventListener('mousemove', onRowResizeMove);
   document.addEventListener('mouseup', endRowResize);
@@ -1944,6 +1938,8 @@ function onRowResizeMove(e) {
   const dy = e.clientY - startY;
   const newH = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, startH + dy));
   rowHeights[rowId] = newH;
+  const row = rows.find(r => r.id === rowId);
+  if (row) row.height = newH;
   applyRowHeights();
 }
 
@@ -1960,14 +1956,10 @@ function endRowResize() {
 
 function applyRowHeights() {
   rows.forEach(row => {
-    const h = rowHeights[row.id] || ROW_H_DEFAULT;
+    const h = rowHeights[row.id] || row.height || ROW_H_DEFAULT;
     const rowEl = document.querySelector(`.row[data-row-id="${row.id}"]`);
     if (!rowEl) return;
     rowEl.style.setProperty('--row-h', h + 'px');
-    const header = rowEl.querySelector('.row-header');
-    if (header) header.style.setProperty('--row-h', h + 'px');
-    const cells = rowEl.querySelector('.row-cells');
-    if (cells) cells.style.setProperty('--row-h', h + 'px');
   });
 }
 
@@ -2616,6 +2608,10 @@ async function init() {
     // Restore state (Firestore or IndexedDB)
     rows = saved.rows || rows;
     normalizeRows();
+    rowHeights = saved.rowHeights || {};
+    rows.forEach(row => {
+      if (!rowHeights[row.id] && row.height) rowHeights[row.id] = row.height;
+    });
     blocks = saved.blocks || [];
     // v1 state had no version field and used calendar-day columns.
     if (!saved.version || saved.version < 2) {
