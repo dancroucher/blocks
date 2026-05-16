@@ -25,13 +25,13 @@
     --header-bg: #fafafa;
     --row-alt: #fdfdfd;
     --cell-size: 40px;
-    --row-header-width: 160;
+    --row-header-width: 220px;
     --alt-bg: #eaeaea;    /* slightly darker grey for alternating header banding */
     --today-bg: #e0f2ff;  /* light sky blue for today's column */
   }
 
-  /* green for contingency amounts + the 'd' day-unit wherever it appears */
-  .cg { color: var(--contingency); }
+  /* day-unit spans inherit surrounding text colour */
+  .cg { color: inherit; }
 
   body {
     font-family: 'Clash Grotesk', -apple-system, 'Segoe UI', sans-serif;
@@ -125,8 +125,8 @@
   }
 
   .row-header-spacer {
-    width: 160px;
-    min-width: 160px;
+    width: var(--row-header-width);
+    min-width: var(--row-header-width);
     border-right: 1px solid var(--border);
     background: #f2f2f2;
     position: sticky;
@@ -201,6 +201,7 @@
     position: relative;
     width: max-content;
     min-width: 100%;
+    height: var(--cell-size);
   }
   .row-resize {
     position: absolute;
@@ -217,9 +218,27 @@
     border-bottom-color: var(--accent);
   }
 
+  /* Row resize handle */
+  .row-resize-handle {
+    position: absolute;
+    bottom: -3px;
+    left: 0;
+    right: 0;
+    height: 6px;
+    cursor: ns-resize;
+    z-index: 20;
+    opacity: 0;
+    transition: opacity 0.15s;
+  }
+  .row:hover .row-resize-handle,
+  .row.resizing .row-resize-handle {
+    opacity: 1;
+  }
+  .row.resizing { user-select: none; }
+
   .row-header {
-    width: 160px;
-    min-width: 160px;
+    width: var(--row-header-width);
+    min-width: var(--row-header-width);
     padding: 0 0.75rem;
     display: flex;
     align-items: center;
@@ -240,8 +259,29 @@
     color: #555;
     font-family: inherit;
     font-size: 0.95rem;
-    width: 100%;
     outline: none;
+  }
+
+  .row-label-input {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .capacity-control {
+    display: flex;
+    align-items: center;
+    margin-left: 0.4rem;
+    color: var(--dim);
+    font-size: 0.75rem;
+    flex-shrink: 0;
+  }
+
+  .row-header input.capacity-input {
+    width: 42px;
+    text-align: right;
+    font-size: 0.8rem;
+    color: var(--dim);
+    padding: 0 1px;
   }
 
   .row-header input::placeholder { color: #ccc; }
@@ -336,27 +376,77 @@
     width: 8px;
     height: 100%;
     cursor: ew-resize;
+    z-index: 4;
   }
 
   .block .handle-left { left: 0; }
   .block .handle-right { right: 0; }
 
+  .create-preview {
+    position: absolute;
+    top: 3px;
+    height: calc(100% - 6px);
+    border: 2px dotted #777;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.25);
+    pointer-events: none;
+    z-index: 3;
+  }
+
   .block .block-label {
-    flex: 1;
+    flex: 0 1 auto;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     pointer-events: none;
     min-width: 0;
+    position: relative;
+    z-index: 3;
   }
   .block .block-days-badge {
     flex: 0 0 auto;
-    margin-left: 8px;
+    margin-left: 4px;
     font-size: 0.75rem;
     font-weight: 500;
     opacity: 0.85;
     pointer-events: none;
+    position: relative;
+    z-index: 3;
   }
+  .capacity-adjusted {
+    color: #777;
+    opacity: 0.75;
+  }
+  .capacity-block,
+  .contingency-capacity-extension {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    background: rgba(128,128,128,0.18);
+    pointer-events: none;
+    z-index: 1;
+  }
+  .capacity-block {
+    height: calc(100% - 6px);
+    top: 3px;
+    border: 1px dashed #888;
+    border-radius: 2px;
+    user-select: none;
+  }
+  .capacity-block::after,
+  .contingency-capacity-extension::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 4px,
+      rgba(120,120,120,0.22) 4px,
+      rgba(120,120,120,0.22) 8px
+    );
+  }
+
   .block-contingency .contingency-days {
     position: absolute;
     right: 4px;
@@ -364,7 +454,7 @@
     transform: translateY(-50%);
     font-size: 0.75rem;
     font-weight: 500;
-    color: var(--contingency);
+    color: #777;
     z-index: 2;
   }
   .block .block-label-input {
@@ -716,6 +806,7 @@
     display: none !important;
   }
 
+
   /* Context menu */
   .context-menu {
     position: fixed;
@@ -832,7 +923,7 @@ function dayPx() {
 // is only meaningful for day/week.
 function daysPerCell() { return zoom === 'week' ? 5 : 1; }
 function cellVisualW() { return dayPx() * daysPerCell(); }
-const ROW_HEADER_W = 160;
+const ROW_HEADER_W = 220;
 const COLORS = 9;
 const ROW_H_MIN = 30;
 const ROW_H_DEFAULT = 40;
@@ -880,7 +971,7 @@ const TOTAL_COLS = countWeekdaysInclusive(PROJECT_START_DATE, PROJECT_END_DATE);
 const STATE_VERSION = 2; // v2 = weekday-indexed cols (was calendar-day in v1)
 
 // Format: "[base]d + [conting]d ([total]d)" when contingency > 0, else "[base]d".
-// The letter 'd' and any contingency amount are wrapped in .cg (green).
+// The letter 'd' and any contingency amount are wrapped in .cg for styling.
 function fmtDays(base, conting) {
   if (conting > 0) {
     const total = base + conting;
@@ -1019,11 +1110,11 @@ function applyRemoteState(data) {
 
 let zoom = 'day'; // day, week, month
 let rows = [
-  { id: 1, label: '' },
-  { id: 2, label: '' },
-  { id: 3, label: '' },
-  { id: 4, label: '' },
-  { id: 5, label: '' },
+  { id: 1, label: '', height: 0, capacity: 100 },
+  { id: 2, label: '', height: 0, capacity: 100 },
+  { id: 3, label: '', height: 0, capacity: 100 },
+  { id: 4, label: '', height: 0, capacity: 100 },
+  { id: 5, label: '', height: 0, capacity: 100 },
 ];
 let blocks = [];
 let rowHeights = {}; // { rowId: height }
@@ -1063,13 +1154,74 @@ document.addEventListener('mousemove', (e) => {
 
 document.addEventListener('mouseup', endPan);
 
+
+function makeRow(id) { return { id, label: '', height: 0, capacity: 100 }; }
+function getRowCapacity(row) {
+  const cap = Number(row && row.capacity);
+  return Number.isFinite(cap) && cap > 0 ? cap : 100;
+}
+function normalizeRows() {
+  rows.forEach(row => {
+    if (!row || !Number.isFinite(Number(row.capacity)) || Number(row.capacity) <= 0) row.capacity = 100;
+  });
+}
+function getBlockBaseDuration(block) {
+  const base = Number(block && block.baseDuration);
+  return Number.isFinite(base) && base > 0 ? base : (Number(block && block.duration) || 1);
+}
+function fmtBlockDuration(block) {
+  const base = getBlockBaseDuration(block);
+  const scheduled = Number(block.duration) || base;
+  const baseContingency = contingencyPct > 0 ? Math.round(base * contingencyPct / 100) : 0;
+  const scheduledContingency = contingencyPct > 0 ? Math.round(scheduled * contingencyPct / 100) : 0;
+  const baseText = baseContingency > 0 ? `${base}+${baseContingency}<span class="cg">d</span>` : `${base}<span class="cg">d</span>`;
+  if (scheduled !== base || scheduledContingency !== baseContingency) {
+    const scheduledText = scheduledContingency > 0 ? `${scheduled}+${scheduledContingency}d` : `${scheduled}d`;
+    return `${baseText} <span class="capacity-adjusted">(${scheduledText})</span>`;
+  }
+  return baseText;
+}
+function fmtContingencyDuration(baseDays, scheduledDays) {
+  if (scheduledDays !== baseDays) return `+${baseDays}d <span class="capacity-adjusted">(+${scheduledDays}d)</span>`;
+  return `+${baseDays}d`;
+}
+function normalizeBlocks() {
+  blocks.forEach(block => {
+    const row = rows.find(r => r.id === block.rowId);
+    if (!Number.isFinite(Number(block.baseDuration)) || Number(block.baseDuration) <= 0) {
+      block.baseDuration = adjustedDurationForCapacity(block.duration || 1, getRowCapacity(row), 100);
+    }
+    block.duration = adjustedDurationForCapacity(block.baseDuration, 100, getRowCapacity(row));
+  });
+}
+function adjustedDurationForCapacity(duration, oldCapacity, newCapacity) {
+  const oldCap = Math.max(1, Number(oldCapacity) || 100);
+  const newCap = Math.max(1, Number(newCapacity) || 100);
+  return Math.max(1, Math.round(duration * oldCap / newCap));
+}
+function setRowCapacity(row, nextCapacity) {
+  const oldCapacity = getRowCapacity(row);
+  const newCapacity = Math.max(1, Math.min(999, Math.round(Number(nextCapacity) || 100)));
+  if (newCapacity === oldCapacity) { row.capacity = newCapacity; return; }
+  blocks.forEach(block => {
+    if (block.rowId === row.id) {
+      block.baseDuration = getBlockBaseDuration(block);
+      block.duration = adjustedDurationForCapacity(block.baseDuration, 100, newCapacity);
+    }
+  });
+  row.capacity = newCapacity;
+  render();
+}
+
 // Drag state
 let dragState = null; // { type: 'move'|'resize-left'|'resize-right', blockId, startX, origStart, origDuration }
 let createState = null; // { rowId, startCol }
-let rowDragState = null; // { rowId, insertBefore, source: 'grid'|'panel' }
+let rowDragState = null; // { rowId, insertBefore, source: 'grid'|'panel', moved, startX, startY }
 
-// Row drag drop-indicator (created once, appended to body on init)
-let rowDragIndicator = null;
+// Grid wrapper reference (updated on each render)
+let gridWrapper = null;
+
+const ROW_DRAG_THRESHOLD_PX = 4;
 
 // --- Date helpers ---
 // Project timeline is fixed (see PROJECT_START_DATE / PROJECT_END_DATE).
@@ -1138,6 +1290,7 @@ function render() {
 }
 function _render() {
   const wrapper = document.getElementById('grid-wrapper');
+  gridWrapper = wrapper;
   wrapper.innerHTML = '';
 
   // Column headers wrapper
@@ -1277,6 +1430,13 @@ function _render() {
     const rowEl = document.createElement('div');
     rowEl.className = 'row';
     rowEl.dataset.rowId = row.id;
+    // Apply custom height or use CSS variable
+    if (row.height) {
+      rowEl.style.height = row.height + 'px';
+    } else {
+      rowEl.style.height = ''; // use CSS default
+    }
+
 
     // Row resize handle at bottom of row
     const resizeHandle = document.createElement('div');
@@ -1298,10 +1458,27 @@ function _render() {
     header.appendChild(gridHandle);
 
     const input = document.createElement('input');
+    input.className = 'row-label-input';
     input.placeholder = 'Row ' + row.id;
     input.value = row.label;
     input.oninput = (e) => { row.label = e.target.value; renderPanel(); saveState(); };
     header.appendChild(input);
+
+    const capacityWrap = document.createElement('span');
+    capacityWrap.className = 'capacity-control';
+    capacityWrap.title = 'Row capacity: lower capacity makes blocks longer (e.g. 50% doubles duration)';
+    const capacityInput = document.createElement('input');
+    capacityInput.type = 'number';
+    capacityInput.className = 'capacity-input';
+    capacityInput.min = '1';
+    capacityInput.max = '999';
+    capacityInput.value = getRowCapacity(row);
+    capacityInput.addEventListener('mousedown', e => e.stopPropagation());
+    capacityInput.addEventListener('click', e => e.stopPropagation());
+    capacityInput.addEventListener('change', (e) => setRowCapacity(row, e.target.value));
+    capacityWrap.appendChild(capacityInput);
+    capacityWrap.appendChild(document.createTextNode('%'));
+    header.appendChild(capacityWrap);
     rowEl.appendChild(header);
 
     // Cells
@@ -1372,8 +1549,10 @@ function _render() {
     rowBlocks.forEach(block => {
       const bEl = document.createElement('div');
       bEl.className = `block block-color-${block.color}`;
+      const baseDuration = getBlockBaseDuration(block);
+      const capacityDays = Math.max(0, block.duration - baseDuration);
       bEl.style.left = (block.start * dayPx()) + 'px';
-      bEl.style.width = (block.duration * dayPx() - 2) + 'px';
+      bEl.style.width = (baseDuration * dayPx() - 2) + 'px';
       bEl.dataset.blockId = block.id;
 
       // Editable label
@@ -1382,10 +1561,10 @@ function _render() {
       labelEl.textContent = block.label || '';
       bEl.appendChild(labelEl);
 
-      // Right-aligned day count badge
+      // Right-aligned day count badge: base days, then capacity-adjusted schedule in brackets
       const daysBadge = document.createElement('span');
       daysBadge.className = 'block-days-badge';
-      daysBadge.textContent = block.duration + 'd';
+      daysBadge.innerHTML = fmtBlockDuration(block);
       bEl.appendChild(daysBadge);
 
       // Resize handles
@@ -1429,9 +1608,20 @@ function _render() {
 
       cells.appendChild(bEl);
 
-      // Contingency extension — appended inside bEl so it auto-follows during drag
+      // Capacity block — separate locked segment immediately after the original block.
+      if (capacityDays > 0) {
+        const capEl = document.createElement('div');
+        capEl.className = 'capacity-block';
+        capEl.dataset.capacityFor = block.id;
+        capEl.style.left = ((block.start + baseDuration) * dayPx()) + 'px';
+        capEl.style.width = (capacityDays * dayPx() - 2) + 'px';
+        cells.appendChild(capEl);
+      }
+
+      // Contingency extension — appended inside bEl so it is anchored to the block start
       if (contingencyPct > 0) {
         const extraDays = Math.round(block.duration * contingencyPct / 100);
+        const baseExtraDays = Math.round(getBlockBaseDuration(block) * contingencyPct / 100);
         if (extraDays > 0) {
           const cEl = document.createElement('div');
           cEl.className = `block-contingency block-color-${block.color}`;
@@ -1439,10 +1629,13 @@ function _render() {
           // Positioned relative to the block: starts at the block's right edge
           cEl.style.left = (block.duration * dayPx() - 2) + 'px';
           cEl.style.width = (extraDays * dayPx()) + 'px';
-          const cDays = document.createElement('span');
-          cDays.className = 'contingency-days';
-          cDays.textContent = '+' + extraDays + 'd';
-          cEl.appendChild(cDays);
+          if (extraDays > baseExtraDays) {
+            const capContEl = document.createElement('div');
+            capContEl.className = 'contingency-capacity-extension';
+            capContEl.style.left = (baseExtraDays * dayPx()) + 'px';
+            capContEl.style.width = ((extraDays - baseExtraDays) * dayPx()) + 'px';
+            cEl.appendChild(capContEl);
+          }
           bEl.appendChild(cEl);
         }
       }
@@ -1464,7 +1657,12 @@ function _render() {
       const rect = cells.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const col = Math.floor(x / dayPx());
-      createState = { rowId: row.id, startCol: col, currentCol: col };
+      const preview = document.createElement('div');
+      preview.className = 'create-preview';
+      preview.style.left = (col * dayPx()) + 'px';
+      preview.style.width = dayPx() + 'px';
+      cells.appendChild(preview);
+      createState = { rowId: row.id, startCol: col, currentCol: col, preview };
     });
 
     rowEl.appendChild(cells);
@@ -1480,7 +1678,7 @@ function _render() {
   addRowHeader.className = 'row-header add-row-btn';
   addRowHeader.textContent = '+ Add row';
   addRowHeader.onclick = () => {
-    rows.push({ id: nextRowId++, label: '' });
+    rows.push(makeRow(nextRowId++));
     render();
   };
   addRowWrapper.appendChild(addRowHeader);
@@ -1525,7 +1723,7 @@ function startEditingPanelRowLabel(labelSpan, row) {
     if (commit && row.label !== prev) {
       saveState();
       // Sync grid row header input
-      const gridInput = document.querySelector(`.row[data-row-id="${row.id}"] .row-header input`);
+      const gridInput = document.querySelector(`.row[data-row-id="${row.id}"] .row-header .row-label-input`);
       if (gridInput) gridInput.value = row.label;
     }
   };
@@ -1578,14 +1776,18 @@ function renderPanel() {
   const totalBlocks = blocks.length;
   const rowsUsed = new Set(blocks.map(b => b.rowId)).size;
 
-  // Every column is a weekday, so block.duration IS the workday count.
-  const totalDays = blocks.reduce((s, b) => s + b.duration, 0);
+  const totalDays = blocks.reduce((s, b) => s + getBlockBaseDuration(b), 0);
+  const scheduledDays = blocks.reduce((s, b) => s + b.duration, 0);
   const contingencyDays = contingencyPct > 0 ? blocks.reduce((s, b) => s + Math.round(b.duration * contingencyPct / 100), 0) : 0;
+  const scheduledLine = scheduledDays !== totalDays
+    ? `<div class="panel-stat"><span class="label">Capacity-adjusted Days</span><span class="value capacity-adjusted">${scheduledDays}d</span></div>`
+    : '';
 
   stats.innerHTML = `
     <div class="panel-stat"><span class="label">Base Days</span><span class="value" style="color:var(--text)">${totalDays}<span class="cg">d</span></span></div>
-    <div class="panel-stat"><span class="label" style="color:var(--contingency)">Contingency Days @ ${contingencyPct}%</span><span class="value" style="color:var(--contingency)">+${contingencyDays}d</span></div>
-    <div class="panel-stat"><span class="label">Total Days</span><span class="value" style="color:var(--text)">${fmtDays(totalDays, contingencyDays)}</span></div>
+    ${scheduledLine}
+    <div class="panel-stat"><span class="label">Contingency Days @ ${contingencyPct}%</span><span class="value" style="color:var(--text)">+${contingencyDays}d</span></div>
+    <div class="panel-stat"><span class="label">Total Days</span><span class="value" style="color:var(--text)">${fmtDays(scheduledDays, contingencyDays)}</span></div>
     <div class="panel-stat"><span class="label">Active Rows</span><span class="value">${rowsUsed}</span></div>
     <div class="panel-stat"><span class="label">Total Blocks</span><span class="value">${totalBlocks}</span></div>
   `;
@@ -1598,7 +1800,8 @@ function renderPanel() {
     const rowBlocks = blocks.filter(b => b.rowId === row.id);
     if (rowBlocks.length === 0) return;
 
-    const rowDays = rowBlocks.reduce((s, b) => s + b.duration, 0);
+    const rowDays = rowBlocks.reduce((s, b) => s + getBlockBaseDuration(b), 0);
+    const rowScheduledDays = rowBlocks.reduce((s, b) => s + b.duration, 0);
     const rowContingency = contingencyPct > 0 ? rowBlocks.reduce((s, b) => s + Math.round(b.duration * contingencyPct / 100), 0) : 0;
 
     // Section header (collapsible)
@@ -1634,8 +1837,8 @@ function renderPanel() {
 
     const sectionDays = document.createElement('span');
     sectionDays.className = 'section-days-3col';
-    const totalRowDays = rowDays + rowContingency;
-    sectionDays.innerHTML = `<span class="sec-base">${rowDays}d</span><span class="sec-conting">+${rowContingency}d</span><span class="sec-total">${totalRowDays}d</span>`;
+    const totalRowDays = rowScheduledDays + rowContingency;
+    sectionDays.innerHTML = `<span class="sec-base">${getRowCapacity(row)}% · ${rowDays}d${rowScheduledDays !== rowDays ? ` <span class="capacity-adjusted">(${rowScheduledDays}d)</span>` : ''}</span><span class="sec-conting">+${rowContingency}d</span><span class="sec-total">${totalRowDays}d</span>`;
 
     section.appendChild(sectionTitle);
     section.appendChild(sectionDays);
@@ -1687,7 +1890,7 @@ function renderPanel() {
 
       const daysSpan = document.createElement('span');
       daysSpan.className = 'block-days';
-      daysSpan.innerHTML = fmtDays(block.duration, extraDays);
+      daysSpan.innerHTML = fmtBlockDuration(block);
 
       nameRow.appendChild(dot);
       nameRow.appendChild(nameSpan);
@@ -1769,12 +1972,17 @@ function applyRowHeights() {
 }
 
 // --- Block operations ---
-function createBlock(rowId, startCol, duration, label) {
+function createBlock(rowId, startCol, duration, label, durationIsScheduled = false) {
+  const row = rows.find(r => r.id === rowId);
+  const inputDuration = duration || 3;
+  const baseDuration = durationIsScheduled ? adjustedDurationForCapacity(inputDuration, getRowCapacity(row), 100) : inputDuration;
+  const scheduledDuration = adjustedDurationForCapacity(baseDuration, 100, getRowCapacity(row));
   const block = {
     id: nextBlockId++,
     rowId,
     start: startCol,
-    duration: duration || 3,
+    baseDuration,
+    duration: scheduledDuration,
     label: label || '',
     color: (nextBlockId - 2) % COLORS,
   };
@@ -1838,6 +2046,46 @@ function startEditingBlockLabel(bEl, labelEl, block) {
 }
 
 // --- Row drag-to-reorder ---
+function startRowResize(e, rowId) {
+  e.preventDefault();
+  e.stopPropagation();
+  const row = rows.find(r => r.id === rowId);
+  if (!row) return;
+  const rowEl = document.querySelector(`.row[data-row-id="${rowId}"]`);
+  if (!rowEl) return;
+
+  const startY = e.clientY;
+  const startH = rowEl.getBoundingClientRect().height;
+  const isDefault = !row.height;
+  const defaultH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell-size'));
+
+  rowEl.classList.add('resizing');
+  document.body.classList.add('row-resizing');
+
+  function onMove(me) {
+    const dy = me.clientY - startY;
+    let newH = Math.max(30, startH + dy);
+    rowEl.style.height = newH + 'px';
+  }
+
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    rowEl.classList.remove('resizing');
+    document.body.classList.remove('row-resizing');
+
+    const finalH = rowEl.getBoundingClientRect().height;
+    const defaultH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell-size'));
+    // Save as 0 to revert to default, or actual height
+    row.height = Math.abs(finalH - defaultH) < 5 ? 0 : Math.round(finalH);
+    rowEl.style.height = row.height ? row.height + 'px' : '';
+    saveState();
+  }
+
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
 function startRowDrag(e, rowId, source) {
   e.preventDefault();
   e.stopPropagation();
@@ -1910,6 +2158,8 @@ function startResize(e, blockId, side) {
     startY: e.clientY,
     origStart: block.start,
     origDuration: block.duration,
+    origBaseDuration: getBlockBaseDuration(block),
+    origCapacity: getRowCapacity(rows.find(r => r.id === block.rowId)),
     moved: false,
   };
 }
@@ -1938,11 +2188,16 @@ document.addEventListener('mousemove', (e) => {
     const updateContingencyEl = () => {
       if (!cEl) return;
       const extraDays = Math.round(block.duration * contingencyPct / 100);
+      const baseExtraDays = Math.round(getBlockBaseDuration(block) * contingencyPct / 100);
       // Positioned relative to the block: starts at block's right edge
       cEl.style.left = (block.duration * dayPx() - 2) + 'px';
       cEl.style.width = (extraDays * dayPx()) + 'px';
-      const cd = cEl.querySelector('.contingency-days');
-      if (cd) cd.textContent = '+' + extraDays + 'd';
+      const capContEl = cEl.querySelector('.contingency-capacity-extension');
+      if (capContEl) {
+        capContEl.style.left = (baseExtraDays * dayPx()) + 'px';
+        capContEl.style.width = (Math.max(0, extraDays - baseExtraDays) * dayPx()) + 'px';
+      }
+
     };
 
     if (dragState.type === 'move') {
@@ -1956,10 +2211,18 @@ document.addEventListener('mousemove', (e) => {
         if (e.clientY >= rect.top && e.clientY < rect.bottom) {
           const rowId = parseInt(rowEl.dataset.rowId);
           if (rowId && rowId !== block.rowId) {
+            const newRow = rows.find(r => r.id === rowId);
+            block.baseDuration = getBlockBaseDuration(block);
+            block.duration = adjustedDurationForCapacity(block.baseDuration, 100, getRowCapacity(newRow));
             block.rowId = rowId;
             // Move bEl to the new row's cells; contingency auto-follows as a child of bEl
             const newCells = rowEl.querySelector('.row-cells');
             if (newCells && bEl) newCells.appendChild(bEl);
+            if (bEl) {
+              bEl.style.width = (getBlockBaseDuration(block) * dayPx() - 2) + 'px';
+              const badge = bEl.querySelector('.block-days-badge');
+              if (badge) badge.innerHTML = fmtBlockDuration(block);
+            }
           }
           break;
         }
@@ -1973,25 +2236,27 @@ document.addEventListener('mousemove', (e) => {
       updateContingencyEl();
     }
     else if (dragState.type === 'resize-right') {
-      block.duration = Math.max(1, dragState.origDuration + colDelta);
+      block.baseDuration = Math.max(1, dragState.origBaseDuration + colDelta);
+      block.duration = adjustedDurationForCapacity(block.baseDuration, 100, dragState.origCapacity);
       if (bEl) {
-        bEl.style.width = (block.duration * dayPx() - 2) + 'px';
+        bEl.style.width = (getBlockBaseDuration(block) * dayPx() - 2) + 'px';
         const badge = bEl.querySelector('.block-days-badge');
-        if (badge) badge.textContent = block.duration + 'd';
+        if (badge) badge.innerHTML = fmtBlockDuration(block);
       }
       updateContingencyEl();
     }
     else if (dragState.type === 'resize-left') {
       const newStart = dragState.origStart + colDelta;
-      const newDuration = dragState.origDuration - colDelta;
-      if (newDuration >= 1 && newStart >= 0) {
+      const newBaseDuration = dragState.origBaseDuration - colDelta;
+      if (newBaseDuration >= 1 && newStart >= 0) {
         block.start = newStart;
-        block.duration = newDuration;
+        block.baseDuration = newBaseDuration;
+        block.duration = adjustedDurationForCapacity(block.baseDuration, 100, dragState.origCapacity);
         if (bEl) {
           bEl.style.left = (block.start * dayPx()) + 'px';
-          bEl.style.width = (block.duration * dayPx() - 2) + 'px';
+          bEl.style.width = (getBlockBaseDuration(block) * dayPx() - 2) + 'px';
           const badge = bEl.querySelector('.block-days-badge');
-          if (badge) badge.textContent = block.duration + 'd';
+          if (badge) badge.innerHTML = fmtBlockDuration(block);
         }
         updateContingencyEl();
       }
@@ -2007,6 +2272,7 @@ document.addEventListener('mousemove', (e) => {
       : [...document.querySelectorAll('.row[data-row-id]')];
     const dragged = document.querySelector(`.${isPanel ? 'panel-section-header' : 'row'}[data-row-id="${rowId}"]`);
 
+    // Hit-test: panel source → other panel section headers; grid source → other grid rows.
     let insertBefore = null;
     let indicatorY = null;
     let targetEl = null;
@@ -2093,12 +2359,21 @@ document.addEventListener('mousemove', (e) => {
         rowDragIndicator.style.width = ROW_HEADER_W + 'px';
       }
     }
-    rowDragState.insertBefore = insertBefore;
   }
 
-  // Create by drag
+  // Create by drag preview
   if (createState) {
-    // We'll handle this on mouseup
+    const cells = document.querySelector(`.row-cells[data-row-id="${createState.rowId}"]`);
+    if (cells && createState.preview) {
+      const r = cells.getBoundingClientRect();
+      const x = e.clientX - r.left;
+      const endCol = Math.max(0, Math.floor(x / dayPx()));
+      const start = Math.min(createState.startCol, endCol);
+      const end = Math.max(createState.startCol, endCol);
+      createState.currentCol = endCol;
+      createState.preview.style.left = (start * dayPx()) + 'px';
+      createState.preview.style.width = ((end - start + 1) * dayPx()) + 'px';
+    }
   }
 });
 
@@ -2162,7 +2437,7 @@ document.addEventListener('mouseup', (e) => {
       const el = document.querySelector(`[data-block-id="${draggedId}"]`);
       if (el) el.classList.remove('dragging');
       saveState();
-      renderPanel();
+      render();
     }
   }
 
@@ -2171,14 +2446,18 @@ document.addEventListener('mouseup', (e) => {
     if (rect) {
       const r = rect.getBoundingClientRect();
       const x = e.clientX - r.left;
-      const endCol = Math.floor(x / dayPx());
+      const endCol = Math.max(0, Math.floor(x / dayPx()));
       const start = Math.min(createState.startCol, endCol);
       const end = Math.max(createState.startCol, endCol);
       const duration = end - start + 1;
 
       if (duration >= 2) {
         createBlock(createState.rowId, start, duration);
+      } else if (createState.preview) {
+        createState.preview.remove();
       }
+    } else if (createState.preview) {
+      createState.preview.remove();
     }
     createState = null;
   }
@@ -2261,7 +2540,9 @@ function duplicateBlock(id) {
   document.getElementById('context-menu').style.display = 'none';
   const block = blocks.find(b => b.id === id);
   if (!block) return;
-  createBlock(block.rowId, block.start + block.duration + 1, block.duration, block.label);
+  const clone = createBlock(block.rowId, block.start + block.duration + 1, getBlockBaseDuration(block), block.label);
+  clone.color = block.color;
+  render();
 }
 
 // --- Zoom ---
@@ -2334,12 +2615,14 @@ async function init() {
   if (saved) {
     // Restore state (Firestore or IndexedDB)
     rows = saved.rows || rows;
+    normalizeRows();
     blocks = saved.blocks || [];
     // v1 state had no version field and used calendar-day columns.
     if (!saved.version || saved.version < 2) {
       blocks = migrateV1ToV2(blocks);
       console.log('migrated', blocks.length, 'blocks from v1 (calendar) to v2 (weekday)');
     }
+    normalizeBlocks();
     nextBlockId = saved.nextBlockId || (blocks.reduce((m, b) => Math.max(m, b.id), 0) + 1);
     nextRowId = saved.nextRowId || (rows.reduce((m, r) => Math.max(m, r.id), 0) + 1);
     contingencyPct = saved.contingencyPct || 0;
@@ -2352,6 +2635,7 @@ async function init() {
     document.getElementById('btn-week').classList.toggle('active', zoom === 'week');
     document.getElementById('btn-month').classList.toggle('active', zoom === 'month');
   } else {
+    normalizeRows();
     // First run: seed example blocks
     createBlock(1, 0, 5, 'Planning');
     createBlock(1, 6, 8, 'Design');
