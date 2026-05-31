@@ -926,6 +926,16 @@
   }
   .block-table .kind-cell { white-space: nowrap; color: var(--dim); }
   .block-table .danger { color: #dc2626; }
+  .combined-blocks { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: #fff; }
+  .combined-blocks .panel-section-header { cursor: default; }
+  .combined-blocks .panel-section-body { padding: 0; }
+  .combined-blocks .block-table { border: none; border-radius: 0; }
+  .combined-blocks .block-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); }
+  .combined-blocks .block-table tr:last-child td { border-bottom: none; }
+  .combined-name-cell { display: flex; align-items: center; gap: 0.45rem; }
+  .combined-name-cell .block-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+  .combined-meta { color: var(--dim); font-size: 0.74rem; white-space: nowrap; }
+  .combined-empty { padding: 0.9rem 1rem; color: var(--dim); font-size: 0.85rem; border-bottom: 1px solid var(--border); }
 
  /* Header drag-to-pan */
  .grid-area.panning { cursor: grabbing; }
@@ -1598,124 +1608,190 @@ function renderTableDataSection(view) {
         <input type="number" id="contingency" min="0" max="100" value="${contingencyPct}" onchange="updateContingency()" style="width:50px;text-align:right;padding:0.2rem 0.4rem;border:1px solid var(--border);border-radius:4px;font-family:inherit;font-size:0.85rem;background:var(--bg);color:var(--text);">
       </div>
     </div>
-    <div class="panel-header">Blocks</div>
-    <div class="panel-blocks" id="panel-blocks"></div>
   `;
   view.appendChild(data);
+}
+
+function appendBlockEditRow(tbody, block) {
+  const tr = document.createElement('tr');
+
+  const labelTd = document.createElement('td');
+  const nameWrap = document.createElement('div');
+  nameWrap.className = 'combined-name-cell';
+  const dot = document.createElement('span');
+  dot.className = `block-dot block-color-${block.color}`;
+  const labelInput = document.createElement('input');
+  labelInput.value = block.label || '';
+  labelInput.placeholder = 'Untitled';
+  labelInput.onchange = () => { block.label = labelInput.value.trim(); render(); saveState(); };
+  nameWrap.appendChild(dot);
+  nameWrap.appendChild(labelInput);
+  labelTd.appendChild(nameWrap);
+  tr.appendChild(labelTd);
+
+  const rowTd = document.createElement('td');
+  const rowSelect = document.createElement('select');
+  rows.forEach(row => {
+    const opt = document.createElement('option');
+    opt.value = row.id;
+    opt.textContent = row.label || `Row ${row.id}`;
+    opt.selected = row.id === block.rowId;
+    rowSelect.appendChild(opt);
+  });
+  rowSelect.onchange = () => { block.rowId = parseInt(rowSelect.value); normalizeBlocks(); render(); saveState(); };
+  rowTd.appendChild(rowSelect);
+  tr.appendChild(rowTd);
+
+  const startTd = document.createElement('td');
+  const startInput = document.createElement('input');
+  startInput.type = 'date';
+  startInput.value = toDateInputValue(colToDate(block.start));
+  startInput.onchange = () => { block.start = dateInputToCol(startInput.value); render(); saveState(); };
+  startTd.appendChild(startInput);
+  tr.appendChild(startTd);
+
+  const daysTd = document.createElement('td');
+  const daysInput = document.createElement('input');
+  daysInput.type = 'number';
+  daysInput.min = '1';
+  daysInput.value = getBlockBaseDuration(block);
+  daysInput.onchange = () => { setBlockBaseDuration(block, daysInput.value); render(); saveState(); };
+  daysTd.appendChild(daysInput);
+  tr.appendChild(daysTd);
+
+  const scheduledTd = document.createElement('td');
+  scheduledTd.className = 'combined-meta';
+  scheduledTd.innerHTML = fmtBlockDuration(block);
+  tr.appendChild(scheduledTd);
+
+  const colorTd = document.createElement('td');
+  const colorSelect = document.createElement('select');
+  for (let i = 0; i < COLORS; i++) {
+    const opt = document.createElement('option');
+    opt.value = i;
+    opt.textContent = `Colour ${i + 1}`;
+    opt.selected = i === block.color;
+    colorSelect.appendChild(opt);
+  }
+  colorSelect.onchange = () => { block.color = parseInt(colorSelect.value); render(); saveState(); };
+  colorTd.appendChild(colorSelect);
+  tr.appendChild(colorTd);
+
+  const kindTd = document.createElement('td');
+  kindTd.className = 'kind-cell';
+  const kindSelect = document.createElement('select');
+  [{ value: 'grid', label: 'Block-driven' }, { value: 'data', label: 'Data-driven' }].forEach(k => {
+    const opt = document.createElement('option');
+    opt.value = k.value;
+    opt.textContent = k.label;
+    opt.selected = (block.kind || 'grid') === k.value;
+    kindSelect.appendChild(opt);
+  });
+  kindSelect.onchange = () => { block.kind = kindSelect.value; render(); saveState(); };
+  kindTd.appendChild(kindSelect);
+  tr.appendChild(kindTd);
+
+  const datesTd = document.createElement('td');
+  datesTd.className = 'combined-meta';
+  datesTd.textContent = `${formatDate(colToDate(block.start))} → ${formatDate(colToDate(block.start + block.duration - 1))}`;
+  tr.appendChild(datesTd);
+
+  const delTd = document.createElement('td');
+  const delBtn = document.createElement('button');
+  delBtn.className = 'danger';
+  delBtn.textContent = 'Delete';
+  delBtn.onclick = () => { deleteBlock(block.id); saveState(); };
+  delTd.appendChild(delBtn);
+  tr.appendChild(delTd);
+
+  tbody.appendChild(tr);
+}
+
+function renderCombinedBlocksView(view) {
+  const toolbar = document.createElement('div');
+  toolbar.className = 'table-toolbar';
+  const title = document.createElement('h2');
+  title.textContent = 'Blocks';
+  const addBtn = document.createElement('button');
+  addBtn.textContent = '+ Add block';
+  addBtn.onclick = () => {
+    const rowId = rows[0]?.id || 1;
+    createBlock(rowId, Math.max(0, todayWeekdayCol()), 5, 'New block', false, 'data');
+    saveState();
+  };
+  toolbar.appendChild(title);
+  toolbar.appendChild(addBtn);
+  view.appendChild(toolbar);
+
+  const shell = document.createElement('div');
+  shell.className = 'combined-blocks';
+
+  rows.forEach(row => {
+    const rowBlocks = blocks.filter(b => b.rowId === row.id);
+    const rowDays = rowBlocks.reduce((s, b) => s + getBlockBaseDuration(b), 0);
+    const rowScheduledDays = rowBlocks.reduce((s, b) => s + b.duration, 0);
+    const rowContingency = contingencyPct > 0 ? rowBlocks.reduce((s, b) => s + Math.round(b.duration * contingencyPct / 100), 0) : 0;
+    const totalRowDays = rowScheduledDays + rowContingency;
+
+    const section = document.createElement('div');
+    section.className = 'panel-section-header';
+    const sectionTitle = document.createElement('span');
+    sectionTitle.className = 'section-title';
+    sectionTitle.textContent = row.label || `Row ${row.id}`;
+    const sectionDays = document.createElement('span');
+    sectionDays.className = 'section-days-3col';
+    sectionDays.innerHTML = `<span class="sec-base">${getRowCapacity(row)}% · ${rowDays}d${rowScheduledDays !== rowDays ? ` <span class="capacity-adjusted">(${rowScheduledDays}d)</span>` : ''}</span><span class="sec-conting">+${rowContingency}d</span><span class="sec-total">${totalRowDays}d</span>`;
+    section.appendChild(sectionTitle);
+    section.appendChild(sectionDays);
+    shell.appendChild(section);
+
+    const body = document.createElement('div');
+    body.className = 'panel-section-body';
+    if (!rowBlocks.length) {
+      const empty = document.createElement('div');
+      empty.className = 'combined-empty';
+      empty.textContent = 'No blocks in this row';
+      body.appendChild(empty);
+    } else {
+      const table = document.createElement('table');
+      table.className = 'block-table';
+      table.innerHTML = `<thead><tr>
+        <th style="width:22%">Name</th>
+        <th style="width:14%">Resource row</th>
+        <th style="width:12%">Start</th>
+        <th style="width:8%">Base days</th>
+        <th style="width:10%">Shown days</th>
+        <th style="width:10%">Colour</th>
+        <th style="width:11%">Type</th>
+        <th style="width:9%">Dates</th>
+        <th style="width:4%"></th>
+      </tr></thead>`;
+      const tbody = document.createElement('tbody');
+      rowBlocks.forEach(block => appendBlockEditRow(tbody, block));
+      table.appendChild(tbody);
+      body.appendChild(table);
+    }
+
+    const totals = document.createElement('div');
+    totals.className = 'section-totals';
+    totals.innerHTML = `
+      <span class="totals-label">Total</span>
+      <span class="totals-col totals-base">${rowDays}d</span>
+      <span class="totals-col totals-conting">+${rowContingency}d</span>
+      <span class="totals-col totals-total">${totalRowDays}d</span>
+    `;
+    body.appendChild(totals);
+    shell.appendChild(body);
+  });
+
+  view.appendChild(shell);
 }
 
 function renderTableView(wrapper) {
   const view = document.createElement('div');
   view.className = 'table-view';
   renderTableDataSection(view);
-
-  const toolbar = document.createElement('div');
-  toolbar.className = 'table-toolbar';
-  const title = document.createElement('h2');
-  title.textContent = 'Raw block data';
-  const addBtn = document.createElement('button');
-  addBtn.textContent = '+ Add data block';
-  addBtn.onclick = () => {
-    const rowId = rows[0]?.id || 1;
-    createBlock(rowId, Math.max(0, todayWeekdayCol()), 5, 'New data block', false, 'data');
-  };
-  toolbar.appendChild(title);
-  toolbar.appendChild(addBtn);
-  view.appendChild(toolbar);
-
-  const table = document.createElement('table');
-  table.className = 'block-table';
-  table.innerHTML = `<thead><tr>
-    <th style="width:22%">Name</th>
-    <th style="width:18%">Resource row</th>
-    <th style="width:14%">Start</th>
-    <th style="width:10%">Days</th>
-    <th style="width:10%">Colour</th>
-    <th style="width:12%">Type</th>
-    <th style="width:8%"></th>
-  </tr></thead>`;
-  const tbody = document.createElement('tbody');
-
-  blocks.forEach(block => {
-    const tr = document.createElement('tr');
-
-    const labelTd = document.createElement('td');
-    const labelInput = document.createElement('input');
-    labelInput.value = block.label || '';
-    labelInput.onchange = () => { block.label = labelInput.value.trim(); render(); saveState(); };
-    labelTd.appendChild(labelInput);
-    tr.appendChild(labelTd);
-
-    const rowTd = document.createElement('td');
-    const rowSelect = document.createElement('select');
-    rows.forEach(row => {
-      const opt = document.createElement('option');
-      opt.value = row.id;
-      opt.textContent = row.label || `Row ${row.id}`;
-      opt.selected = row.id === block.rowId;
-      rowSelect.appendChild(opt);
-    });
-    rowSelect.onchange = () => { block.rowId = parseInt(rowSelect.value); normalizeBlocks(); render(); saveState(); };
-    rowTd.appendChild(rowSelect);
-    tr.appendChild(rowTd);
-
-    const startTd = document.createElement('td');
-    const startInput = document.createElement('input');
-    startInput.type = 'date';
-    startInput.value = toDateInputValue(colToDate(block.start));
-    startInput.onchange = () => { block.start = dateInputToCol(startInput.value); render(); saveState(); };
-    startTd.appendChild(startInput);
-    tr.appendChild(startTd);
-
-    const daysTd = document.createElement('td');
-    const daysInput = document.createElement('input');
-    daysInput.type = 'number';
-    daysInput.min = '1';
-    daysInput.value = getBlockBaseDuration(block);
-    daysInput.onchange = () => { setBlockBaseDuration(block, daysInput.value); render(); saveState(); };
-    daysTd.appendChild(daysInput);
-    tr.appendChild(daysTd);
-
-    const colorTd = document.createElement('td');
-    const colorSelect = document.createElement('select');
-    for (let i = 0; i < COLORS; i++) {
-      const opt = document.createElement('option');
-      opt.value = i;
-      opt.textContent = `${i + 1}`;
-      opt.selected = i === block.color;
-      colorSelect.appendChild(opt);
-    }
-    colorSelect.onchange = () => { block.color = parseInt(colorSelect.value); render(); saveState(); };
-    colorTd.appendChild(colorSelect);
-    tr.appendChild(colorTd);
-
-    const kindTd = document.createElement('td');
-    kindTd.className = 'kind-cell';
-    const kindSelect = document.createElement('select');
-    [{ value: 'grid', label: 'Block-driven' }, { value: 'data', label: 'Data-driven' }].forEach(k => {
-      const opt = document.createElement('option');
-      opt.value = k.value;
-      opt.textContent = k.label;
-      opt.selected = (block.kind || 'grid') === k.value;
-      kindSelect.appendChild(opt);
-    });
-    kindSelect.onchange = () => { block.kind = kindSelect.value; render(); saveState(); };
-    kindTd.appendChild(kindSelect);
-    tr.appendChild(kindTd);
-
-    const delTd = document.createElement('td');
-    const delBtn = document.createElement('button');
-    delBtn.className = 'danger';
-    delBtn.textContent = 'Delete';
-    delBtn.onclick = () => { deleteBlock(block.id); saveState(); };
-    delTd.appendChild(delBtn);
-    tr.appendChild(delTd);
-
-    tbody.appendChild(tr);
-  });
-
-  table.appendChild(tbody);
-  view.appendChild(table);
+  renderCombinedBlocksView(view);
   wrapper.appendChild(view);
 }
 
@@ -2208,7 +2284,7 @@ function startEditingPanelBlockLabel(nameSpan, block) {
 function renderPanel() {
   const stats = document.getElementById('panel-stats');
   const list = document.getElementById('panel-blocks');
-  if (!stats || !list) return;
+  if (!stats) return;
   const totalBlocks = blocks.length;
   const rowsUsed = new Set(blocks.map(b => b.rowId)).size;
 
@@ -2228,6 +2304,7 @@ function renderPanel() {
     <div class="panel-stat"><span class="label">Total Blocks</span><span class="value">${totalBlocks}</span></div>
   `;
 
+  if (!list) return;
   list.innerHTML = '';
 
   // Group blocks by row
