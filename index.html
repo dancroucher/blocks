@@ -496,15 +496,15 @@
   }
 
   /* Block colours — oranges, browns, greens */
-  .block-color-0 { background: #e8e6e3; border: 1px solid #b4b0ab; color: #4b4a47; } /* gray */
-  .block-color-1 { background: #fdecc8; border: 1px solid #d3a05a; color: #6b4c1f; } /* yellow */
-  .block-color-2 { background: #fadec9; border: 1px solid #d4845a; color: #7a3e1f; } /* orange */
-  .block-color-3 { background: #f7d5d2; border: 1px solid #cf7b7a; color: #803837; } /* red */
-  .block-color-4 { background: #eed7e0; border: 1px solid #c88ba0; color: #693b4a; } /* pink */
-  .block-color-5 { background: #e2d4ee; border: 1px solid #b89acd; color: #5a3f6b; } /* purple */
-  .block-color-6 { background: #d6e4ee; border: 1px solid #8bb4cf; color: #3a5a73; } /* blue */
-  .block-color-7 { background: #d7ece2; border: 1px solid #7dbfa0; color: #2e5e45; } /* green */
-  .block-color-8 { background: #f3e4c7; border: 1px solid #c9a863; color: #6b5220; } /* tan */
+  .block-color-0 { background: #e8e6e3; color: #4b4a47; } /* gray */
+  .block-color-1 { background: #fdecc8; color: #6b4c1f; } /* yellow */
+  .block-color-2 { background: #fadec9; color: #7a3e1f; } /* orange */
+  .block-color-3 { background: #f7d5d2; color: #803837; } /* red */
+  .block-color-4 { background: #eed7e0; color: #693b4a; } /* pink */
+  .block-color-5 { background: #e2d4ee; color: #5a3f6b; } /* purple */
+  .block-color-6 { background: #d6e4ee; color: #3a5a73; } /* blue */
+  .block-color-7 { background: #d7ece2; color: #2e5e45; } /* green */
+  .block-color-8 { background: #f3e4c7; color: #6b5220; } /* tan */
 
   /* Data panel */
   .data-panel {
@@ -1382,6 +1382,13 @@ function applyRemoteState(data) {
   if (data.collapsedRows) collapsedRows = data.collapsedRows;
   if (data.zoom)     zoom = data.zoom;
   if (typeof data.panelWidth === 'number') panelWidth = data.panelWidth;
+  if (data.rowHeights) {
+    rowHeights = data.rowHeights;
+  }
+  // Sync rowHeights with row.height values from rows
+  rows.forEach(row => {
+    if (!rowHeights[row.id] && row.height) rowHeights[row.id] = row.height;
+  });
   normalizeRows();
   normalizeBlocks();
 
