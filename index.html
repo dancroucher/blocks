@@ -15,20 +15,20 @@
   :root {
     --bg: #ffffff;
     --surface: #ffffff;
-    --border: #e8e8e8;
-    --grid-bg: #f0f0f0;     /* solid grey background for the timeline grid */
-    --grid-line: #d4d4d4;   /* darker grey for grid lines */
-    --text: #333333;
-    --dim: #999999;
-    --accent: #f5a623;
-    --accent-dim: rgba(245, 166, 35, 0.1);
-    --contingency: #7a9a7a;
-    --header-bg: #fafafa;
-    --row-alt: #fdfdfd;
+    --border: #e9e5e0;
+    --grid-bg: #f7f6f3;
+    --grid-line: #e3ddd6;
+    --text: #37352f;
+    --dim: #9b9a97;
+    --accent: #d9730d;
+    --accent-dim: rgba(217, 115, 13, 0.08);
+    --contingency: #448361;
+    --header-bg: #f7f6f3;
+    --row-alt: #fcfbf9;
     --cell-size: 40px;
     --row-header-width: 220px;
-    --alt-bg: #eaeaea;    /* slightly darker grey for alternating header banding */
-    --today-bg: #e0f2ff;  /* light sky blue for today's column */
+    --alt-bg: #f1efec;
+    --today-bg: #ddeeff;
   }
 
   /* day-unit spans inherit surrounding text colour */
@@ -494,15 +494,15 @@
   }
 
   /* Block colours — oranges, browns, greens */
-  .block-color-0 { background: rgb(253, 227, 184); border: 1px solid #e8922a; color: #7a3e08; } /* light orange */
-  .block-color-1 { background: rgb(245, 190, 112); border: 1px solid #d4621e; color: #7a3000; } /* mid orange */
-  .block-color-2 { background: rgb(232, 146, 58);  border: 1px solid #a84000; color: #5a2000; } /* burnt orange */
-  .block-color-3 { background: rgb(234, 216, 181); border: 1px solid #c09050; color: #6b4820; } /* light sand */
-  .block-color-4 { background: rgb(207, 170, 118); border: 1px solid #a07040; color: #5a3010; } /* mid brown */
-  .block-color-5 { background: rgb(176, 136, 88);  border: 1px solid #7a5020; color: #3a2008; } /* dark brown */
-  .block-color-6 { background: rgb(190, 224, 186); border: 1px solid #5a9e50; color: #1e4a18; } /* light sage */
-  .block-color-7 { background: rgb(142, 200, 148); border: 1px solid #3a8040; color: #0f3a18; } /* mid green */
-  .block-color-8 { background: rgb(106, 170, 116); border: 1px solid #2a7035; color: #0a3015; } /* deep green */
+  .block-color-0 { background: #e8e6e3; border: 1px solid #b4b0ab; color: #4b4a47; } /* gray */
+  .block-color-1 { background: #fdecc8; border: 1px solid #d3a05a; color: #6b4c1f; } /* yellow */
+  .block-color-2 { background: #fadec9; border: 1px solid #d4845a; color: #7a3e1f; } /* orange */
+  .block-color-3 { background: #f7d5d2; border: 1px solid #cf7b7a; color: #803837; } /* red */
+  .block-color-4 { background: #eed7e0; border: 1px solid #c88ba0; color: #693b4a; } /* pink */
+  .block-color-5 { background: #e2d4ee; border: 1px solid #b89acd; color: #5a3f6b; } /* purple */
+  .block-color-6 { background: #d6e4ee; border: 1px solid #8bb4cf; color: #3a5a73; } /* blue */
+  .block-color-7 { background: #d7ece2; border: 1px solid #7dbfa0; color: #2e5e45; } /* green */
+  .block-color-8 { background: #f3e4c7; border: 1px solid #c9a863; color: #6b5220; } /* tan */
 
   /* Data panel */
   .data-panel {
@@ -735,15 +735,15 @@
     );
   }
 
-  .block-contingency.block-color-0 { background: rgba(232, 146, 42, 0.3);  border-color: #e8922a; }
-  .block-contingency.block-color-1 { background: rgba(212, 98, 30, 0.3);   border-color: #d4621e; }
-  .block-contingency.block-color-2 { background: rgba(168, 64, 0, 0.3);    border-color: #a84000; }
-  .block-contingency.block-color-3 { background: rgba(192, 144, 80, 0.3);  border-color: #c09050; }
-  .block-contingency.block-color-4 { background: rgba(160, 112, 64, 0.3);  border-color: #a07040; }
-  .block-contingency.block-color-5 { background: rgba(122, 80, 32, 0.3);   border-color: #7a5020; }
-  .block-contingency.block-color-6 { background: rgba(90, 158, 80, 0.3);   border-color: #5a9e50; }
-  .block-contingency.block-color-7 { background: rgba(58, 128, 64, 0.3);   border-color: #3a8040; }
-  .block-contingency.block-color-8 { background: rgba(42, 112, 53, 0.3);   border-color: #2a7035; }
+  .block-contingency.block-color-0 { background: rgba(75, 74, 71, 0.18);  border-color: #b4b0ab; }
+  .block-contingency.block-color-1 { background: rgba(107, 76, 31, 0.18);  border-color: #d3a05a; }
+  .block-contingency.block-color-2 { background: rgba(122, 62, 31, 0.18);  border-color: #d4845a; }
+  .block-contingency.block-color-3 { background: rgba(128, 56, 55, 0.18);  border-color: #cf7b7a; }
+  .block-contingency.block-color-4 { background: rgba(105, 59, 74, 0.18);  border-color: #c88ba0; }
+  .block-contingency.block-color-5 { background: rgba(90, 63, 107, 0.18);  border-color: #b89acd; }
+  .block-contingency.block-color-6 { background: rgba(58, 90, 115, 0.18);  border-color: #8bb4cf; }
+  .block-contingency.block-color-7 { background: rgba(46, 94, 69, 0.18);   border-color: #7dbfa0; }
+  .block-contingency.block-color-8 { background: rgba(107, 82, 32, 0.18);  border-color: #c9a863; }
 
   /* Add row button — applied to the sticky row-header of the add-row row */
   .add-row-btn {
