@@ -4,6 +4,10 @@
 A private project timeline app. Authorized browsers stay in sync in real-time.
 Single shared document, Firebase Auth required. Initial deployment supports one approved user email.
 
+## Terminology
+- Map rows are called **resources**.
+- Resources are usually individual people.
+
 ## Architecture
 
 ### Firebase Project
