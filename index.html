@@ -505,6 +505,15 @@
   .block-color-6 { background: #516c7b; color: #f0f3f5; } /* air force blue 600 */
   .block-color-7 { background: #3c515d; color: #f0f3f5; } /* air force blue 700 */
   .block-color-8 { background: #28363e; color: #f0f3f5; } /* air force blue 800 */
+  .block-color-9 { background: #eaf4fa; color: #133a53; } /* yale blue 50 */
+  .block-color-10 { background: #d5e9f6; color: #133a53; } /* yale blue 100 */
+  .block-color-11 { background: #acd3ec; color: #133a53; } /* yale blue 200 */
+  .block-color-12 { background: #82bee3; color: #091d2a; } /* yale blue 300 */
+  .block-color-13 { background: #59a8d9; color: #091d2a; } /* yale blue 400 */
+  .block-color-14 { background: #2f92d0; color: #eaf4fa; } /* yale blue 500 */
+  .block-color-15 { background: #2675a6; color: #eaf4fa; } /* yale blue 600 */
+  .block-color-16 { background: #1c587d; color: #eaf4fa; } /* yale blue 700 */
+  .block-color-17 { background: #133a53; color: #eaf4fa; } /* yale blue 800 */
 
   /* Data panel */
   .data-panel {
@@ -744,6 +753,15 @@
   .block-contingency.block-color-6 { background: rgba(81, 108, 123, 0.5); color: #f0f3f5; }
   .block-contingency.block-color-7 { background: rgba(60, 81, 93, 0.5); color: #f0f3f5; }
   .block-contingency.block-color-8 { background: rgba(40, 54, 62, 0.5); color: #f0f3f5; }
+  .block-contingency.block-color-9 { background: rgba(234, 244, 250, 0.5); color: #133a53; }
+  .block-contingency.block-color-10 { background: rgba(213, 233, 246, 0.5); color: #133a53; }
+  .block-contingency.block-color-11 { background: rgba(172, 211, 236, 0.5); color: #133a53; }
+  .block-contingency.block-color-12 { background: rgba(130, 190, 227, 0.5); color: #091d2a; }
+  .block-contingency.block-color-13 { background: rgba(89, 168, 217, 0.5); color: #091d2a; }
+  .block-contingency.block-color-14 { background: rgba(47, 146, 208, 0.5); color: #eaf4fa; }
+  .block-contingency.block-color-15 { background: rgba(38, 117, 166, 0.5); color: #eaf4fa; }
+  .block-contingency.block-color-16 { background: rgba(28, 88, 125, 0.5); color: #eaf4fa; }
+  .block-contingency.block-color-17 { background: rgba(19, 58, 83, 0.5); color: #eaf4fa; }
 
   /* Add row button — applied to the sticky row-header of the add-row row */
   .add-row-btn {
@@ -869,7 +887,7 @@
   }
   .color-swatch-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: 5px;
     padding: 0.3rem 0.8rem 0.4rem;
   }
@@ -1103,7 +1121,7 @@ function dayPx() {
 function daysPerCell() { return zoom === 'week' ? 5 : 1; }
 function cellVisualW() { return dayPx() * daysPerCell(); }
 const ROW_HEADER_W = 220;
-const COLORS = 9;
+const COLORS = 18;
 const ROW_H_MIN = 30;
 const ROW_H_DEFAULT = 40;
 const ROW_H_MAX = 120;
