@@ -497,6 +497,7 @@
   }
 
   .data-panel.hidden { display: none; }
+  .data-panel { display: none; }
 
   .panel-resize-handle {
     position: absolute;
@@ -979,6 +980,36 @@
   .sync-pill[data-status="saving"] .sync-dot { background: var(--accent); }
   .sync-pill[data-status="offline"] .sync-dot, .sync-pill[data-status="error"] .sync-dot { background: #dc2626; }
   .user-pill button { padding: 0.18rem 0.55rem; background: transparent; color: #666; font-size: 0.78rem; }
+  .map-header-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    width: var(--row-header-width);
+    min-width: var(--row-header-width);
+    padding: 0.25rem 0.45rem;
+    background: var(--header-bg);
+    border-right: 1px solid var(--border);
+  }
+  .map-header-controls button {
+    font-family: inherit;
+    font-size: 0.78rem;
+    padding: 0.22rem 0.45rem;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--dim);
+    cursor: pointer;
+  }
+  .map-header-controls button:hover { color: var(--text); background: #fff; }
+  .map-header-controls button.active { background: var(--accent-dim); color: var(--accent); font-weight: 600; }
+  .table-data-top {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: #fff;
+    padding: 1rem;
+    margin-bottom: 1rem;
+  }
+  .table-data-top .panel-header:first-child { margin-top: 0; }
 </style>
 </head>
 <body>
@@ -997,12 +1028,8 @@
   <div class="sync-pill" id="sync-status" data-status="offline"><span class="sync-dot"></span><span id="sync-status-text">Locked</span></div>
   <div class="user-pill auth-hidden" id="user-pill"><span id="user-email"></span><button id="btn-logout" type="button">Sign out</button></div>
   <div class="topbar-controls">
-    <button id="btn-day" class="active" onclick="setZoom('day')">Day</button>
-    <button id="btn-week" onclick="setZoom('week')">Week</button>
-    <button id="btn-month" onclick="setZoom('month')">Month</button>
     <button id="btn-table" onclick="setZoom('table')">Table</button>
-    <button id="btn-today" onclick="jumpToToday()" title="Jump to today" style="font-size:0.85rem;padding:0.35rem 0.6rem;">&#8595; Today</button>
-    <button id="btn-panel" class="active" onclick="togglePanel()">Data</button>
+    <button id="btn-map" class="active" onclick="setZoom(mapZoom || 'day')">Map</button>
   </div>
 </div>
 
@@ -1010,20 +1037,7 @@
   <div class="grid-area" id="grid-area">
     <div class="grid-wrapper" id="grid-wrapper"></div>
   </div>
-  <div class="data-panel" id="data-panel">
-    <div class="panel-resize-handle" id="panel-resize-handle"></div>
-    <div class="panel-header">Project Data</div>
-    <div class="panel-stats" id="panel-stats"></div>
-    <div class="panel-header">Settings</div>
-    <div class="panel-settings">
-      <div class="setting-row">
-        <span>Contingency %</span>
-        <input type="number" id="contingency" min="0" max="100" value="0" onchange="updateContingency()" style="width:50px;text-align:right;padding:0.2rem 0.4rem;border:1px solid var(--border);border-radius:4px;font-family:inherit;font-size:0.85rem;background:var(--bg);color:var(--text);">
-      </div>
-    </div>
-    <div class="panel-header">Blocks</div>
-    <div class="panel-blocks" id="panel-blocks"></div>
-  </div>
+
 </div>
 
 <div class="context-menu" id="context-menu" style="display:none;"></div>
@@ -1331,11 +1345,9 @@ function applyRemoteState(data) {
   normalizeBlocks();
 
   // Sync UI
-  document.getElementById('contingency').value = contingencyPct;
-  document.getElementById('btn-day').classList.toggle('active', zoom === 'day');
-  document.getElementById('btn-week').classList.toggle('active', zoom === 'week');
-  document.getElementById('btn-month').classList.toggle('active', zoom === 'month');
-  document.getElementById('btn-table').classList.toggle('active', zoom === 'table');
+  const contingencyInput = document.getElementById('contingency');
+  if (contingencyInput) contingencyInput.value = contingencyPct;
+  syncViewButtons();
 
   // Re-render without full state write-back
   _renderScheduled = false;
@@ -1344,6 +1356,7 @@ function applyRemoteState(data) {
 }
 
 let zoom = 'day'; // day, week, month, table
+let mapZoom = 'day'; // last non-table view used by the Map tab
 let rows = [
   { id: 1, label: '', height: 0, capacity: 100 },
   { id: 2, label: '', height: 0, capacity: 100 },
@@ -1556,9 +1569,41 @@ function render() {
     _render();
   });
 }
+function renderMapControls() {
+  const controls = document.createElement('div');
+  controls.className = 'map-header-controls';
+  controls.innerHTML = `
+    <button id="btn-day" class="${zoom === 'day' ? 'active' : ''}" onclick="setZoom('day')">Day</button>
+    <button id="btn-week" class="${zoom === 'week' ? 'active' : ''}" onclick="setZoom('week')">Week</button>
+    <button id="btn-month" class="${zoom === 'month' ? 'active' : ''}" onclick="setZoom('month')">Month</button>
+    <button id="btn-today" onclick="jumpToToday()" title="Jump to today">↓ Today</button>
+  `;
+  return controls;
+}
+
+function renderTableDataSection(view) {
+  const data = document.createElement('div');
+  data.className = 'table-data-top';
+  data.innerHTML = `
+    <div class="panel-header">Project Data</div>
+    <div class="panel-stats" id="panel-stats"></div>
+    <div class="panel-header">Settings</div>
+    <div class="panel-settings">
+      <div class="setting-row">
+        <span>Contingency %</span>
+        <input type="number" id="contingency" min="0" max="100" value="${contingencyPct}" onchange="updateContingency()" style="width:50px;text-align:right;padding:0.2rem 0.4rem;border:1px solid var(--border);border-radius:4px;font-family:inherit;font-size:0.85rem;background:var(--bg);color:var(--text);">
+      </div>
+    </div>
+    <div class="panel-header">Blocks</div>
+    <div class="panel-blocks" id="panel-blocks"></div>
+  `;
+  view.appendChild(data);
+}
+
 function renderTableView(wrapper) {
   const view = document.createElement('div');
   view.className = 'table-view';
+  renderTableDataSection(view);
 
   const toolbar = document.createElement('div');
   toolbar.className = 'table-toolbar';
@@ -1702,8 +1747,7 @@ function _render() {
   // --- Row 1: Months ---
   const monthRow = document.createElement('div');
   monthRow.className = 'col-headers month-header-row';
-  const monthSpacer = document.createElement('div');
-  monthSpacer.className = 'row-header-spacer';
+  const monthSpacer = renderMapControls();
   monthRow.appendChild(monthSpacer);
 
   let c = 0;
@@ -2159,6 +2203,8 @@ function startEditingPanelBlockLabel(nameSpan, block) {
 
 function renderPanel() {
   const stats = document.getElementById('panel-stats');
+  const list = document.getElementById('panel-blocks');
+  if (!stats || !list) return;
   const totalBlocks = blocks.length;
   const rowsUsed = new Set(blocks.map(b => b.rowId)).size;
 
@@ -2178,7 +2224,6 @@ function renderPanel() {
     <div class="panel-stat"><span class="label">Total Blocks</span><span class="value">${totalBlocks}</span></div>
   `;
 
-  const list = document.getElementById('panel-blocks');
   list.innerHTML = '';
 
   // Group blocks by row
@@ -2932,12 +2977,18 @@ function duplicateBlock(id) {
 }
 
 // --- Zoom ---
+function syncViewButtons() {
+  document.getElementById('btn-day')?.classList.toggle('active', zoom === 'day');
+  document.getElementById('btn-week')?.classList.toggle('active', zoom === 'week');
+  document.getElementById('btn-month')?.classList.toggle('active', zoom === 'month');
+  document.getElementById('btn-table')?.classList.toggle('active', zoom === 'table');
+  document.getElementById('btn-map')?.classList.toggle('active', zoom !== 'table');
+}
+
 function setZoom(z) {
   zoom = z;
-  document.getElementById('btn-day').classList.toggle('active', z === 'day');
-  document.getElementById('btn-week').classList.toggle('active', z === 'week');
-  document.getElementById('btn-month').classList.toggle('active', z === 'month');
-  document.getElementById('btn-table').classList.toggle('active', z === 'table');
+  if (z !== 'table') mapZoom = z;
+  syncViewButtons();
   render();
   saveState();
 }
@@ -2952,14 +3003,13 @@ function jumpToToday() {
 }
 
 function togglePanel() {
-  const panel = document.getElementById('data-panel');
-  panel.classList.toggle('hidden');
-  document.getElementById('btn-panel').classList.toggle('active');
+  setZoom('table');
 }
 
 // --- Settings ---
 function updateContingency() {
-  contingencyPct = parseInt(document.getElementById('contingency').value) || 0;
+  const input = document.getElementById('contingency');
+  contingencyPct = parseInt(input ? input.value : contingencyPct) || 0;
   contingencyPct = Math.max(0, Math.min(100, contingencyPct));
   render();
 }
@@ -3037,11 +3087,9 @@ async function init() {
     if (typeof saved.panelWidth === 'number') panelWidth = saved.panelWidth;
     if (saved.collapsedRows && typeof saved.collapsedRows === 'object') collapsedRows = saved.collapsedRows;
     // projectStart is now fixed (Jan 1 2026); intentionally ignore saved.projectStart.
-    document.getElementById('contingency').value = contingencyPct;
-    document.getElementById('btn-day').classList.toggle('active', zoom === 'day');
-    document.getElementById('btn-week').classList.toggle('active', zoom === 'week');
-    document.getElementById('btn-month').classList.toggle('active', zoom === 'month');
-    document.getElementById('btn-table').classList.toggle('active', zoom === 'table');
+    const contingencyInput = document.getElementById('contingency');
+    if (contingencyInput) contingencyInput.value = contingencyPct;
+    syncViewButtons();
   } else {
     normalizeRows();
     // First run: seed example blocks
@@ -3052,8 +3100,7 @@ async function init() {
     createBlock(2, 14, 6, 'Testing');
     saveState(); // write seed data to Firestore immediately
   }
-  applyPanelWidth();
-  setupPanelResize();
+
   rowDragIndicator = document.createElement('div');
   rowDragIndicator.className = 'row-reordering-indicator';
   document.body.appendChild(rowDragIndicator);
@@ -3063,46 +3110,8 @@ async function init() {
   document.getElementById('grid-area').addEventListener('mousedown', startPan);
 }
 
-function applyPanelWidth() {
-  const panel = document.getElementById('data-panel');
-  panel.style.width = panelWidth + 'px';
-}
-
-function setupPanelResize() {
-  const handle = document.getElementById('panel-resize-handle');
-  const panel = document.getElementById('data-panel');
-  let dragging = false;
-  let startX = 0;
-  let startW = 0;
-
-  handle.addEventListener('mousedown', (e) => {
-    e.preventDefault();
-    dragging = true;
-    startX = e.clientX;
-    startW = panel.getBoundingClientRect().width;
-    handle.classList.add('dragging');
-    document.body.classList.add('panel-resizing');
-  });
-
-  document.addEventListener('mousemove', (e) => {
-    if (!dragging) return;
-    // Panel sits on the right; dragging left increases width.
-    const dx = startX - e.clientX;
-    let w = Math.round(startW + dx);
-    if (w < 200) w = 200;
-    if (w > 800) w = 800;
-    panel.style.width = w + 'px';
-    panelWidth = w;
-  });
-
-  document.addEventListener('mouseup', () => {
-    if (!dragging) return;
-    dragging = false;
-    handle.classList.remove('dragging');
-    document.body.classList.remove('panel-resizing');
-    saveState();
-  });
-}
+function applyPanelWidth() {}
+function setupPanelResize() {}
 
 init();
 </script>
