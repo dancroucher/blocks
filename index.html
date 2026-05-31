@@ -1152,6 +1152,17 @@ function requireAuth() {
   });
 }
 
+function authErrorMessage(e) {
+  const code = e && e.code;
+  if (code === 'auth/configuration-not-found') {
+    return 'Firebase Auth is not enabled/configured for this project. In Firebase Console, enable Authentication → Google provider, then add this site domain under Authorized domains.';
+  }
+  if (code === 'auth/unauthorized-domain') {
+    return 'This site domain is not authorized in Firebase Auth. Add the deployed domain in Authentication → Settings → Authorized domains.';
+  }
+  return (e && e.message) || String(e);
+}
+
 function setupAuthUI() {
   const login = document.getElementById('btn-login');
   const logout = document.getElementById('btn-logout');
@@ -1162,7 +1173,7 @@ function setupAuthUI() {
       await _auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
       location.reload();
     } catch (e) {
-      if (error) error.textContent = e.message || String(e);
+      if (error) error.textContent = authErrorMessage(e);
     }
   };
   if (logout) logout.onclick = async () => {
