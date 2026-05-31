@@ -67,7 +67,15 @@
   .topbar-controls {
     display: flex;
     gap: 0.4rem;
+    margin-left: 0;
+  }
+
+  .topbar-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
     margin-left: auto;
+    justify-content: flex-end;
   }
 
   .topbar button {
@@ -1054,11 +1062,13 @@
 
 <div class="topbar">
   <h1>BLOCKS</h1>
-  <div class="sync-pill" id="sync-status" data-status="offline"><span class="sync-dot"></span><span id="sync-status-text">Locked</span></div>
-  <div class="user-pill auth-hidden" id="user-pill"><span id="user-email"></span><button id="btn-logout" type="button">Sign out</button></div>
   <div class="topbar-controls">
     <button id="btn-table" onclick="setZoom('table')">Table</button>
     <button id="btn-map" class="active" onclick="setZoom(mapZoom || 'day')">Map</button>
+  </div>
+  <div class="topbar-status">
+    <div class="sync-pill" id="sync-status" data-status="offline"><span class="sync-dot"></span><span id="sync-status-text">Locked</span></div>
+    <div class="user-pill auth-hidden" id="user-pill"><span id="user-email"></span><button id="btn-logout" type="button">Sign out</button></div>
   </div>
 </div>
 
