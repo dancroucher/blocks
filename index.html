@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 <title>Blocks</title>
 <style>
@@ -861,19 +862,145 @@
   .color-swatch:hover { transform: scale(1.15); box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
   .color-swatch.selected { outline: 2px solid var(--text); outline-offset: 2px; }
 
+  .block.block-data {
+    cursor: default;
+    border-style: dashed;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.55);
+  }
+  .block.block-data::before {
+    content: '🔒';
+    flex: 0 0 auto;
+    margin-right: 6px;
+    opacity: 0.7;
+    font-size: 0.75rem;
+  }
+
+  /* Raw table/data-entry view */
+  .table-view {
+    min-width: 900px;
+    padding: 1rem;
+  }
+  .table-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 0.75rem;
+  }
+  .table-toolbar h2 { font-size: 1rem; font-weight: 600; margin: 0; }
+  .table-toolbar button,
+  .block-table button {
+    border: 1px solid var(--border);
+    background: var(--surface);
+    border-radius: 6px;
+    padding: 0.35rem 0.6rem;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .block-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg);
+    border: 1px solid var(--border);
+  }
+  .block-table th,
+  .block-table td {
+    border-bottom: 1px solid var(--border);
+    padding: 0.45rem;
+    font-size: 0.85rem;
+    text-align: left;
+    vertical-align: middle;
+  }
+  .block-table th { background: #f5f5f5; color: #555; font-weight: 600; }
+  .block-table input,
+  .block-table select {
+    width: 100%;
+    box-sizing: border-box;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 0.28rem 0.35rem;
+    font-family: inherit;
+    font-size: 0.85rem;
+    background: var(--bg);
+    color: var(--text);
+  }
+  .block-table .kind-cell { white-space: nowrap; color: var(--dim); }
+  .block-table .danger { color: #dc2626; }
+
  /* Header drag-to-pan */
  .grid-area.panning { cursor: grabbing; }
  .col-headers.panning { cursor: grabbing; }
+
+  .auth-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    background: radial-gradient(circle at top left, rgba(245,166,35,0.16), transparent 36%), #fbfbfb;
+  }
+  .auth-card {
+    width: min(420px, 100%);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    background: rgba(255,255,255,0.92);
+    box-shadow: 0 24px 80px rgba(0,0,0,0.10);
+    padding: 1.5rem;
+  }
+  .auth-card h2 { font-size: 1.5rem; font-weight: 600; margin-bottom: 0.45rem; }
+  .auth-card p { color: #666; line-height: 1.45; margin-bottom: 1rem; }
+  .auth-card button, .user-pill button {
+    font-family: inherit;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: #111;
+    color: #fff;
+    cursor: pointer;
+    padding: 0.65rem 1rem;
+    font-size: 0.95rem;
+  }
+  .auth-card .auth-error { min-height: 1.2rem; color: #dc2626; font-size: 0.9rem; margin-top: 0.85rem; }
+  .auth-hidden { display: none !important; }
+  .sync-pill, .user-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 0.28rem 0.65rem;
+    color: #666;
+    background: #fff;
+    font-size: 0.82rem;
+    white-space: nowrap;
+  }
+  .sync-dot { width: 0.55rem; height: 0.55rem; border-radius: 50%; background: #999; }
+  .sync-pill[data-status="saved"] .sync-dot { background: #16a34a; }
+  .sync-pill[data-status="saving"] .sync-dot { background: var(--accent); }
+  .sync-pill[data-status="offline"] .sync-dot, .sync-pill[data-status="error"] .sync-dot { background: #dc2626; }
+  .user-pill button { padding: 0.18rem 0.55rem; background: transparent; color: #666; font-size: 0.78rem; }
 </style>
 </head>
 <body>
 
+<div class="auth-screen" id="auth-screen">
+  <div class="auth-card">
+    <h2>Private Blocks</h2>
+    <p>Sign in to unlock this confidential project timeline. Data is stored in your private Firestore project and protected by Firebase Auth rules.</p>
+    <button id="btn-login" type="button">Sign in with Google</button>
+    <div class="auth-error" id="auth-error"></div>
+  </div>
+</div>
+
 <div class="topbar">
   <h1>BLOCKS</h1>
+  <div class="sync-pill" id="sync-status" data-status="offline"><span class="sync-dot"></span><span id="sync-status-text">Locked</span></div>
+  <div class="user-pill auth-hidden" id="user-pill"><span id="user-email"></span><button id="btn-logout" type="button">Sign out</button></div>
   <div class="topbar-controls">
     <button id="btn-day" class="active" onclick="setZoom('day')">Day</button>
     <button id="btn-week" onclick="setZoom('week')">Week</button>
     <button id="btn-month" onclick="setZoom('month')">Month</button>
+    <button id="btn-table" onclick="setZoom('table')">Table</button>
     <button id="btn-today" onclick="jumpToToday()" title="Jump to today" style="font-size:0.85rem;padding:0.35rem 0.6rem;">&#8595; Today</button>
     <button id="btn-panel" class="active" onclick="togglePanel()">Data</button>
   </div>
@@ -931,10 +1058,18 @@ const ROW_H_MAX = 120;
 // --- Firebase shared state ---
 // Replace with your actual Firebase project config from:
 // https://console.firebase.google.com → Project Settings → Your apps → SDK setup
-let _db = null; // Firestore ref (set by firebaseInit below)
+let _db = null;   // Firestore ref (set by firebaseInit below)
+let _auth = null; // Firebase Auth ref
+let _currentUser = null;
 const FIREBASE_API_KEY     = 'AIzaSyDWANMFaYLy54EYudU4S5svY_0F1uLDaFs';
 const FIREBASE_AUTH_DOMAIN = 'blocks-shared.firebaseapp.com';
 const FIREBASE_PROJECT_ID  = 'blocks-shared';
+
+// SECURITY: set this to the single account allowed to open/write this app.
+// Firestore rules must enforce the same email or uid; UI checks are convenience only.
+const ALLOWED_EMAILS = [
+  'dan.croucher@gmail.com',
+];
 
 function firebaseInit() {
   if (typeof firebase === 'undefined') {
@@ -948,6 +1083,7 @@ function firebaseInit() {
     messagingSenderId:  '322779812327',
     appId:              '1:322779812327:web:4655738cad49855915ed42',
   });
+  _auth = firebase.auth();
   _db = firebase.firestore();
 }
 firebaseInit();
@@ -967,7 +1103,7 @@ function countWeekdaysInclusive(from, to) {
   return n;
 }
 const TOTAL_COLS = countWeekdaysInclusive(PROJECT_START_DATE, PROJECT_END_DATE);
-const STATE_VERSION = 2; // v2 = weekday-indexed cols (was calendar-day in v1)
+const STATE_VERSION = 3; // v2 = weekday-indexed cols; v3 = grid/data block kinds
 
 // Format: "[base]d + [conting]d ([total]d)" when contingency > 0, else "[base]d".
 // The letter 'd' and any contingency amount are wrapped in .cg for styling.
@@ -984,8 +1120,100 @@ const DB_NAME = 'blocks-db';
 const STORE = 'state';
 const STATE_KEY = 'app';
 const DOC_PATH = 'projects/blocks';
+const BACKUPS_PATH = `${DOC_PATH}/backups`;
+const AUTO_BACKUP_MIN_INTERVAL_MS = 5 * 60 * 1000;
 let _dbPromise = null;
 let _unsub = null; // Firestore listener unsubscribe
+let _lastBackupAt = 0;
+const CLIENT_ID = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+function setSyncStatus(status, text) {
+  const pill = document.getElementById('sync-status');
+  const label = document.getElementById('sync-status-text');
+  if (pill) pill.dataset.status = status;
+  if (label) label.textContent = text;
+}
+
+function isAllowedUser(user) {
+  if (!user || !user.email) return false;
+  return ALLOWED_EMAILS.map(e => e.toLowerCase()).includes(user.email.toLowerCase());
+}
+
+function requireAuth() {
+  return new Promise((resolve, reject) => {
+    if (!_auth) return reject(new Error('Firebase Auth not available'));
+    const unsub = _auth.onAuthStateChanged((user) => {
+      unsub();
+      if (!user) return resolve(null);
+      if (!isAllowedUser(user)) return reject(new Error(`Unauthorized account: ${user.email}`));
+      _currentUser = user;
+      resolve(user);
+    }, reject);
+  });
+}
+
+function setupAuthUI() {
+  const login = document.getElementById('btn-login');
+  const logout = document.getElementById('btn-logout');
+  if (login) login.onclick = async () => {
+    const error = document.getElementById('auth-error');
+    if (error) error.textContent = '';
+    try {
+      await _auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+      location.reload();
+    } catch (e) {
+      if (error) error.textContent = e.message || String(e);
+    }
+  };
+  if (logout) logout.onclick = async () => {
+    if (_unsub) _unsub();
+    await _auth.signOut();
+    location.reload();
+  };
+}
+
+function showSignedIn(user) {
+  document.getElementById('auth-screen')?.classList.add('auth-hidden');
+  const pill = document.getElementById('user-pill');
+  const email = document.getElementById('user-email');
+  if (email) email.textContent = user.email || 'Signed in';
+  if (pill) pill.classList.remove('auth-hidden');
+  setSyncStatus('saving', 'Loading');
+}
+
+function sanitizeState(data) {
+  if (!data || typeof data !== 'object') return null;
+  if (!Array.isArray(data.rows) || !Array.isArray(data.blocks)) return null;
+  return data;
+}
+
+function snapshotState() {
+  return {
+    version: STATE_VERSION,
+    rows, blocks, rowHeights, nextBlockId, nextRowId,
+    contingencyPct, zoom, panelWidth, collapsedRows,
+    projectStart: projectStart.toISOString(),
+    savedAt: Date.now(),
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    updatedBy: _currentUser ? { uid: _currentUser.uid, email: _currentUser.email } : null,
+  };
+}
+
+async function writeBackup(snapshot, reason = 'auto') {
+  if (!_db || !_currentUser) return;
+  const now = Date.now();
+  if (reason === 'auto' && now - _lastBackupAt < AUTO_BACKUP_MIN_INTERVAL_MS) return;
+  _lastBackupAt = now;
+  try {
+    await _db.collection(BACKUPS_PATH).doc(String(now)).set({
+      ...snapshot,
+      backupReason: reason,
+      backupCreatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    });
+  } catch (e) {
+    console.warn('Firestore backup failed:', e);
+  }
+}
 
 function openDB() {
   if (_dbPromise) return _dbPromise;
@@ -1006,7 +1234,7 @@ async function loadState() {
       const snap = await _db.doc(DOC_PATH).get();
       if (snap.exists) {
         console.log('State loaded from Firestore');
-        return snap.data();
+        return sanitizeState(snap.data());
       }
     } catch (e) {
       console.warn('Firestore load failed, falling back to IndexedDB:', e);
@@ -1017,7 +1245,7 @@ async function loadState() {
     const db = await openDB();
     return await new Promise((resolve, reject) => {
       const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(STATE_KEY);
-      req.onsuccess = () => resolve(req.result || null);
+      req.onsuccess = () => resolve(sanitizeState(req.result) || null);
       req.onerror = () => reject(req.error);
     });
   } catch (e) {
@@ -1033,23 +1261,17 @@ function saveState() {
   if (!_saveReady) return;
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async () => {
-    const snapshot = {
-      version: STATE_VERSION,
-      rows, blocks, rowHeights, nextBlockId, nextRowId,
-      contingencyPct, zoom, panelWidth, collapsedRows,
-      projectStart: projectStart.toISOString(),
-      savedAt: Date.now(),
-    };
+    const snapshot = snapshotState();
 
     // Firestore — ignore failure (offline etc.), fallback persists locally
-    if (_db) {
+    if (_db && _currentUser) {
       try {
-        await _db.doc(DOC_PATH).set({ ...snapshot, _source: 'local' }, { merge: true });
-        // Clear local flag on next clean write
-        setTimeout(() => {
-          _db.doc(DOC_PATH).set({ _source: null, _cleared: true }, { merge: true }).catch(() => {});
-        }, 500);
+        setSyncStatus('saving', 'Saving');
+        await writeBackup(snapshot, 'auto');
+        await _db.doc(DOC_PATH).set({ ...snapshot, _clientId: CLIENT_ID }, { merge: false });
+        setSyncStatus('saved', 'Saved');
       } catch (e) {
+        setSyncStatus('error', 'Save failed');
         console.warn('Firestore save failed:', e);
       }
     }
@@ -1071,13 +1293,13 @@ function listenForChanges() {
     const data = snap.data();
     if (!data) return;
     // Ignore our own writes (echo prevention)
-    if (data._source === 'local') return;
-    // Ignore null-cleared fields
-    if (data._cleared) return;
-    // Apply remote state (merge to avoid overwriting _source)
-    const remote = { ...data };
-    delete remote._source; delete remote._cleared;
+    if (data._clientId === CLIENT_ID) return;
+    const remote = sanitizeState({ ...data });
+    if (!remote) return;
+    delete remote._clientId;
+    setSyncStatus('saving', 'Syncing');
     applyRemoteState(remote);
+    setSyncStatus('saved', 'Synced');
   }, (err) => {
     console.warn('Firestore listener error:', err);
   });
@@ -1094,12 +1316,15 @@ function applyRemoteState(data) {
   if (data.collapsedRows) collapsedRows = data.collapsedRows;
   if (data.zoom)     zoom = data.zoom;
   if (typeof data.panelWidth === 'number') panelWidth = data.panelWidth;
+  normalizeRows();
+  normalizeBlocks();
 
   // Sync UI
   document.getElementById('contingency').value = contingencyPct;
   document.getElementById('btn-day').classList.toggle('active', zoom === 'day');
   document.getElementById('btn-week').classList.toggle('active', zoom === 'week');
   document.getElementById('btn-month').classList.toggle('active', zoom === 'month');
+  document.getElementById('btn-table').classList.toggle('active', zoom === 'table');
 
   // Re-render without full state write-back
   _renderScheduled = false;
@@ -1107,7 +1332,7 @@ function applyRemoteState(data) {
   renderPanel();
 }
 
-let zoom = 'day'; // day, week, month
+let zoom = 'day'; // day, week, month, table
 let rows = [
   { id: 1, label: '', height: 0, capacity: 100 },
   { id: 2, label: '', height: 0, capacity: 100 },
@@ -1127,6 +1352,8 @@ let collapsedRows = {}; // { [rowId]: true } — sections collapsed in the data 
 let panState = null; // { startX, startScrollLeft }
 
 function startPan(e) {
+ if (zoom === 'table') return;
+ if (e.target.closest('input, select, button, textarea')) return;
  if (e.target.closest('.block') || e.target.closest('.handle-left') || e.target.closest('.handle-right')) return;
  const gridEl = document.getElementById('grid-area');
  panState = {
@@ -1187,11 +1414,18 @@ function fmtContingencyDuration(baseDays, scheduledDays) {
 function normalizeBlocks() {
   blocks.forEach(block => {
     const row = rows.find(r => r.id === block.rowId);
+    if (block.kind !== 'data') block.kind = 'grid';
     if (!Number.isFinite(Number(block.baseDuration)) || Number(block.baseDuration) <= 0) {
       block.baseDuration = adjustedDurationForCapacity(block.duration || 1, getRowCapacity(row), 100);
     }
     block.duration = adjustedDurationForCapacity(block.baseDuration, 100, getRowCapacity(row));
   });
+}
+function isDataBlock(block) { return block && block.kind === 'data'; }
+function setBlockBaseDuration(block, baseDuration) {
+  const row = rows.find(r => r.id === block.rowId);
+  block.baseDuration = Math.max(1, Math.round(Number(baseDuration) || 1));
+  block.duration = adjustedDurationForCapacity(block.baseDuration, 100, getRowCapacity(row));
 }
 function adjustedDurationForCapacity(duration, oldCapacity, newCapacity) {
   const oldCap = Math.max(1, Number(oldCapacity) || 100);
@@ -1275,6 +1509,30 @@ function formatDateFull(d) {
   return `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
 }
 
+function toDateInputValue(d) {
+  const yyyy = d.getFullYear();
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const dd = String(d.getDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+function dateInputToCol(value) {
+  const d = new Date(value + 'T00:00:00');
+  if (Number.isNaN(d.getTime())) return 0;
+  d.setHours(0,0,0,0);
+  // Snap weekends forward to Monday.
+  while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+  if (d < projectStart) return 0;
+  let col = 0;
+  const cursor = new Date(projectStart);
+  while (cursor < d && col < TOTAL_COLS - 1) {
+    cursor.setDate(cursor.getDate() + 1);
+    const day = cursor.getDay();
+    if (day !== 0 && day !== 6) col++;
+  }
+  return Math.max(0, Math.min(TOTAL_COLS - 1, col));
+}
+
 // --- Render ---
 // rAF-batched render: multiple synchronous render() calls collapse into a
 // single actual render in the next animation frame.
@@ -1287,10 +1545,130 @@ function render() {
     _render();
   });
 }
+function renderTableView(wrapper) {
+  const view = document.createElement('div');
+  view.className = 'table-view';
+
+  const toolbar = document.createElement('div');
+  toolbar.className = 'table-toolbar';
+  const title = document.createElement('h2');
+  title.textContent = 'Raw block data';
+  const addBtn = document.createElement('button');
+  addBtn.textContent = '+ Add data block';
+  addBtn.onclick = () => {
+    const rowId = rows[0]?.id || 1;
+    createBlock(rowId, Math.max(0, todayWeekdayCol()), 5, 'New data block', false, 'data');
+  };
+  toolbar.appendChild(title);
+  toolbar.appendChild(addBtn);
+  view.appendChild(toolbar);
+
+  const table = document.createElement('table');
+  table.className = 'block-table';
+  table.innerHTML = `<thead><tr>
+    <th style="width:22%">Name</th>
+    <th style="width:18%">Resource row</th>
+    <th style="width:14%">Start</th>
+    <th style="width:10%">Days</th>
+    <th style="width:10%">Colour</th>
+    <th style="width:12%">Type</th>
+    <th style="width:8%"></th>
+  </tr></thead>`;
+  const tbody = document.createElement('tbody');
+
+  blocks.forEach(block => {
+    const tr = document.createElement('tr');
+
+    const labelTd = document.createElement('td');
+    const labelInput = document.createElement('input');
+    labelInput.value = block.label || '';
+    labelInput.onchange = () => { block.label = labelInput.value.trim(); render(); saveState(); };
+    labelTd.appendChild(labelInput);
+    tr.appendChild(labelTd);
+
+    const rowTd = document.createElement('td');
+    const rowSelect = document.createElement('select');
+    rows.forEach(row => {
+      const opt = document.createElement('option');
+      opt.value = row.id;
+      opt.textContent = row.label || `Row ${row.id}`;
+      opt.selected = row.id === block.rowId;
+      rowSelect.appendChild(opt);
+    });
+    rowSelect.onchange = () => { block.rowId = parseInt(rowSelect.value); normalizeBlocks(); render(); saveState(); };
+    rowTd.appendChild(rowSelect);
+    tr.appendChild(rowTd);
+
+    const startTd = document.createElement('td');
+    const startInput = document.createElement('input');
+    startInput.type = 'date';
+    startInput.value = toDateInputValue(colToDate(block.start));
+    startInput.onchange = () => { block.start = dateInputToCol(startInput.value); render(); saveState(); };
+    startTd.appendChild(startInput);
+    tr.appendChild(startTd);
+
+    const daysTd = document.createElement('td');
+    const daysInput = document.createElement('input');
+    daysInput.type = 'number';
+    daysInput.min = '1';
+    daysInput.value = getBlockBaseDuration(block);
+    daysInput.onchange = () => { setBlockBaseDuration(block, daysInput.value); render(); saveState(); };
+    daysTd.appendChild(daysInput);
+    tr.appendChild(daysTd);
+
+    const colorTd = document.createElement('td');
+    const colorSelect = document.createElement('select');
+    for (let i = 0; i < COLORS; i++) {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = `${i + 1}`;
+      opt.selected = i === block.color;
+      colorSelect.appendChild(opt);
+    }
+    colorSelect.onchange = () => { block.color = parseInt(colorSelect.value); render(); saveState(); };
+    colorTd.appendChild(colorSelect);
+    tr.appendChild(colorTd);
+
+    const kindTd = document.createElement('td');
+    kindTd.className = 'kind-cell';
+    const kindSelect = document.createElement('select');
+    [{ value: 'grid', label: 'Block-driven' }, { value: 'data', label: 'Data-driven' }].forEach(k => {
+      const opt = document.createElement('option');
+      opt.value = k.value;
+      opt.textContent = k.label;
+      opt.selected = (block.kind || 'grid') === k.value;
+      kindSelect.appendChild(opt);
+    });
+    kindSelect.onchange = () => { block.kind = kindSelect.value; render(); saveState(); };
+    kindTd.appendChild(kindSelect);
+    tr.appendChild(kindTd);
+
+    const delTd = document.createElement('td');
+    const delBtn = document.createElement('button');
+    delBtn.className = 'danger';
+    delBtn.textContent = 'Delete';
+    delBtn.onclick = () => { deleteBlock(block.id); saveState(); };
+    delTd.appendChild(delBtn);
+    tr.appendChild(delTd);
+
+    tbody.appendChild(tr);
+  });
+
+  table.appendChild(tbody);
+  view.appendChild(table);
+  wrapper.appendChild(view);
+}
+
 function _render() {
   const wrapper = document.getElementById('grid-wrapper');
   gridWrapper = wrapper;
   wrapper.innerHTML = '';
+  if (zoom === 'table') {
+    renderTableView(wrapper);
+    renderPanel();
+    saveState();
+    return;
+  }
 
   // Column headers wrapper
   const headersWrap = document.createElement('div');
@@ -1541,7 +1919,7 @@ function _render() {
     const rowBlocks = blocks.filter(b => b.rowId === row.id);
     rowBlocks.forEach(block => {
       const bEl = document.createElement('div');
-      bEl.className = `block block-color-${block.color}`;
+      bEl.className = `block block-color-${block.color}${isDataBlock(block) ? ' block-data' : ''}`;
       const baseDuration = getBlockBaseDuration(block);
       const capacityDays = Math.max(0, block.duration - baseDuration);
       bEl.style.left = (block.start * dayPx()) + 'px';
@@ -1560,33 +1938,37 @@ function _render() {
       daysBadge.innerHTML = fmtBlockDuration(block);
       bEl.appendChild(daysBadge);
 
-      // Resize handles
-      const hl = document.createElement('div');
-      hl.className = 'handle-left';
-      hl.addEventListener('mousedown', (e) => startResize(e, block.id, 'left'));
-      bEl.appendChild(hl);
+      if (!isDataBlock(block)) {
+        // Resize handles
+        const hl = document.createElement('div');
+        hl.className = 'handle-left';
+        hl.addEventListener('mousedown', (e) => startResize(e, block.id, 'left'));
+        bEl.appendChild(hl);
 
-      const hr = document.createElement('div');
-      hr.className = 'handle-right';
-      hr.addEventListener('mousedown', (e) => startResize(e, block.id, 'right'));
-      bEl.appendChild(hr);
+        const hr = document.createElement('div');
+        hr.className = 'handle-right';
+        hr.addEventListener('mousedown', (e) => startResize(e, block.id, 'right'));
+        bEl.appendChild(hr);
 
-      // Move
-      bEl.addEventListener('mousedown', (e) => {
-        if (e.target.classList.contains('handle-left') || e.target.classList.contains('handle-right')) return;
-        if (e.target.classList.contains('block-label-input')) return;
-        startMove(e, block.id);
-      });
+        // Move
+        bEl.addEventListener('mousedown', (e) => {
+          if (e.target.classList.contains('handle-left') || e.target.classList.contains('handle-right')) return;
+          if (e.target.classList.contains('block-label-input')) return;
+          startMove(e, block.id);
+        });
+      }
 
       // Context menu
       bEl.addEventListener('contextmenu', (e) => {
         e.preventDefault();
+        if (isDataBlock(block)) return;
         showBlockContextMenu(e, block.id);
       });
 
       // Click-timing double-click detection — more reliable than native dblclick
       // (which can be lost when render() rebuilds DOM between clicks).
       bEl.addEventListener('click', (e) => {
+        if (isDataBlock(block)) return;
         if (e.target.classList.contains('handle-left') || e.target.classList.contains('handle-right')) return;
         if (e.target.classList.contains('block-label-input')) return;
         const now = Date.now();
@@ -1964,7 +2346,7 @@ function applyRowHeights() {
 }
 
 // --- Block operations ---
-function createBlock(rowId, startCol, duration, label, durationIsScheduled = false) {
+function createBlock(rowId, startCol, duration, label, durationIsScheduled = false, kind = 'grid') {
   const row = rows.find(r => r.id === rowId);
   const inputDuration = duration || 3;
   const baseDuration = durationIsScheduled ? adjustedDurationForCapacity(inputDuration, getRowCapacity(row), 100) : inputDuration;
@@ -1976,6 +2358,7 @@ function createBlock(rowId, startCol, duration, label, durationIsScheduled = fal
     baseDuration,
     duration: scheduledDuration,
     label: label || '',
+    kind: kind === 'data' ? 'data' : 'grid',
     color: (nextBlockId - 2) % COLORS,
   };
   blocks.push(block);
@@ -2121,7 +2504,7 @@ function startRowDrag(e, rowId, source) {
 function startMove(e, blockId) {
   e.preventDefault();
   const block = blocks.find(b => b.id === blockId);
-  if (!block) return;
+  if (!block || isDataBlock(block)) return;
 
   dragState = {
     type: 'move',
@@ -2141,7 +2524,7 @@ function startResize(e, blockId, side) {
   e.preventDefault();
   e.stopPropagation();
   const block = blocks.find(b => b.id === blockId);
-  if (!block) return;
+  if (!block || isDataBlock(block)) return;
 
   dragState = {
     type: side === 'left' ? 'resize-left' : 'resize-right',
@@ -2532,7 +2915,7 @@ function duplicateBlock(id) {
   document.getElementById('context-menu').style.display = 'none';
   const block = blocks.find(b => b.id === id);
   if (!block) return;
-  const clone = createBlock(block.rowId, block.start + block.duration + 1, getBlockBaseDuration(block), block.label);
+  const clone = createBlock(block.rowId, block.start + block.duration + 1, getBlockBaseDuration(block), block.label, false, block.kind || 'grid');
   clone.color = block.color;
   render();
 }
@@ -2543,7 +2926,9 @@ function setZoom(z) {
   document.getElementById('btn-day').classList.toggle('active', z === 'day');
   document.getElementById('btn-week').classList.toggle('active', z === 'week');
   document.getElementById('btn-month').classList.toggle('active', z === 'month');
+  document.getElementById('btn-table').classList.toggle('active', z === 'table');
   render();
+  saveState();
 }
 
 // --- Panel toggle ---
@@ -2603,7 +2988,22 @@ function migrateV1ToV2(savedBlocks) {
 
 // --- Init ---
 async function init() {
+  setupAuthUI();
+  let user = null;
+  try {
+    user = await requireAuth();
+  } catch (e) {
+    document.getElementById('auth-error').textContent = e.message || String(e);
+    setSyncStatus('error', 'Unauthorized');
+    return;
+  }
+  if (!user) {
+    setSyncStatus('offline', 'Locked');
+    return;
+  }
+  showSignedIn(user);
   const saved = await loadState();
+  _saveReady = true;
   if (saved) {
     // Restore state (Firestore or IndexedDB)
     rows = saved.rows || rows;
@@ -2630,6 +3030,7 @@ async function init() {
     document.getElementById('btn-day').classList.toggle('active', zoom === 'day');
     document.getElementById('btn-week').classList.toggle('active', zoom === 'week');
     document.getElementById('btn-month').classList.toggle('active', zoom === 'month');
+    document.getElementById('btn-table').classList.toggle('active', zoom === 'table');
   } else {
     normalizeRows();
     // First run: seed example blocks
@@ -2645,7 +3046,6 @@ async function init() {
   rowDragIndicator = document.createElement('div');
   rowDragIndicator.className = 'row-reordering-indicator';
   document.body.appendChild(rowDragIndicator);
-  _saveReady = true;
   listenForChanges(); // start real-time sync
   applyRowHeights(); // apply saved row heights before first render
   render();

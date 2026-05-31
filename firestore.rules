@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAllowedUser() {
+      return request.auth != null
+        && request.auth.token.email in [
+          'dan.croucher@gmail.com'
+        ];
+    }
+
+    match /projects/blocks {
+      allow read: if isAllowedUser();
+      allow create, update: if isAllowedUser()
+        && request.resource.data.version is int
+        && request.resource.data.rows is list
+        && request.resource.data.blocks is list;
+      allow delete: if false;
+
+      match /backups/{backupId} {
+        allow read: if isAllowedUser();
+        allow create: if isAllowedUser()
+          && request.resource.data.version is int
+          && request.resource.data.rows is list
+          && request.resource.data.blocks is list;
+        allow update, delete: if false;
+      }
+    }
+  }
+}
