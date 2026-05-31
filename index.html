@@ -285,6 +285,20 @@
   }
 
   .row-header input::placeholder { color: #ccc; }
+  .resource-delete-btn {
+    border: none;
+    background: transparent;
+    color: #aaa;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0.1rem 0.25rem;
+    border-radius: 4px;
+    margin-left: 0.25rem;
+    flex-shrink: 0;
+  }
+  .resource-delete-btn:hover { color: #dc2626; background: rgba(220,38,38,0.08); }
 
   .row-cells {
     display: flex;
@@ -928,6 +942,7 @@
   .block-table .danger { color: #dc2626; }
   .combined-blocks { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: #fff; }
   .combined-blocks .panel-section-header { cursor: default; }
+  .combined-blocks .resource-delete-btn { margin-left: 0.5rem; }
   .combined-blocks .panel-section-body { padding: 0; }
   .combined-blocks .block-table { border: none; border-radius: 0; }
   .combined-blocks .block-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); }
@@ -1737,12 +1752,19 @@ function renderCombinedBlocksView(view) {
     section.className = 'panel-section-header';
     const sectionTitle = document.createElement('span');
     sectionTitle.className = 'section-title';
-    sectionTitle.textContent = row.label || `Row ${row.id}`;
+    sectionTitle.textContent = row.label || `Resource ${row.id}`;
     const sectionDays = document.createElement('span');
     sectionDays.className = 'section-days-3col';
     sectionDays.innerHTML = `<span class="sec-base">${getRowCapacity(row)}% · ${rowDays}d${rowScheduledDays !== rowDays ? ` <span class="capacity-adjusted">(${rowScheduledDays}d)</span>` : ''}</span><span class="sec-conting">+${rowContingency}d</span><span class="sec-total">${totalRowDays}d</span>`;
+    const deleteBtn = document.createElement('button');
+    deleteBtn.className = 'resource-delete-btn';
+    deleteBtn.type = 'button';
+    deleteBtn.title = 'Delete resource';
+    deleteBtn.textContent = '×';
+    deleteBtn.onclick = (e) => { e.stopPropagation(); deleteResource(row.id); };
     section.appendChild(sectionTitle);
     section.appendChild(sectionDays);
+    section.appendChild(deleteBtn);
     shell.appendChild(section);
 
     const body = document.createElement('div');
@@ -1966,7 +1988,7 @@ function _render() {
 
     const input = document.createElement('input');
     input.className = 'row-label-input';
-    input.placeholder = 'Row ' + row.id;
+    input.placeholder = 'Resource ' + row.id;
     input.value = row.label;
     input.oninput = (e) => { row.label = e.target.value; renderPanel(); saveState(); };
     header.appendChild(input);
@@ -1986,6 +2008,15 @@ function _render() {
     capacityWrap.appendChild(capacityInput);
     capacityWrap.appendChild(document.createTextNode('%'));
     header.appendChild(capacityWrap);
+
+    const deleteResourceBtn = document.createElement('button');
+    deleteResourceBtn.className = 'resource-delete-btn';
+    deleteResourceBtn.type = 'button';
+    deleteResourceBtn.title = 'Delete resource';
+    deleteResourceBtn.textContent = '×';
+    deleteResourceBtn.addEventListener('mousedown', e => e.stopPropagation());
+    deleteResourceBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteResource(row.id); });
+    header.appendChild(deleteResourceBtn);
     rowEl.appendChild(header);
 
     // Cells
@@ -2506,6 +2537,23 @@ function createBlock(rowId, startCol, duration, label, durationIsScheduled = fal
 function deleteBlock(id) {
   blocks = blocks.filter(b => b.id !== id);
   render();
+}
+
+function deleteResource(rowId) {
+  const row = rows.find(r => r.id === rowId);
+  if (!row) return;
+  const resourceName = row.label || `Resource ${row.id}`;
+  const blockCount = blocks.filter(b => b.rowId === rowId).length;
+  const detail = blockCount ? ` This will also delete ${blockCount} block${blockCount === 1 ? '' : 's'} assigned to it.` : '';
+  if (!confirm(`Delete resource "${resourceName}"?${detail}`)) return;
+  rows = rows.filter(r => r.id !== rowId);
+  blocks = blocks.filter(b => b.rowId !== rowId);
+  delete rowHeights[rowId];
+  delete collapsedRows[rowId];
+  if (!rows.length) rows.push(makeRow(nextRowId++));
+  render();
+  renderPanel();
+  saveState();
 }
 
 // --- Inline block label edit (real <input> swap, autosaves on commit) ---
