@@ -370,7 +370,9 @@
     border-radius: 2px;
     cursor: grab;
     display: flex;
-    align-items: center;
+    flex-direction: column;
+    justify-content: center;
+    align-items: flex-start;
     padding: 0 10px;
     font-size: 0.85rem;
     font-weight: 500;
@@ -424,18 +426,20 @@
     white-space: nowrap;
     pointer-events: none;
     min-width: 0;
+    max-width: 100%;
     position: relative;
     z-index: 3;
+    line-height: 1.2;
   }
   .block .block-days-badge {
     flex: 0 0 auto;
-    margin-left: 4px;
-    font-size: 0.75rem;
+    font-size: 0.7rem;
     font-weight: 500;
-    opacity: 0.85;
+    opacity: 0.75;
     pointer-events: none;
     position: relative;
     z-index: 3;
+    line-height: 1.2;
   }
   .capacity-adjusted {
     color: #777;
