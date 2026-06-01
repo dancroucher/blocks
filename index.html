@@ -29,7 +29,6 @@
     --cell-size: 40px;
     --row-header-width: 220px;
     --alt-bg: #f8f8f8;
-    --today-bg: #ddeeff;
   }
 
   /* day-unit spans inherit surrounding text colour */
@@ -166,13 +165,16 @@
   .month-span:nth-child(even) { background: var(--alt-bg); }
   .week-span:nth-child(even)  { background: var(--alt-bg); }
 
-  /* Today's column — sky blue. Declared AFTER the alt-bg rules so same-
-     specificity selectors win here. */
-  .col-header.today,
-  .cell-line.today,
-  .month-span.today,
-  .week-span.today {
-    background: var(--today-bg);
+  .today-bubble {
+    display: inline-block;
+    background: rgba(40, 54, 62, 0.92);
+    color: #fff;
+    border-radius: 5px;
+    padding: 0.1rem 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
   }
 
 
@@ -343,25 +345,12 @@
     background-color: var(--grid-bg);
   }
 
-  /* Today overlay — single absolute div per row, painted on top of gradient */
-  .today-overlay {
-    position: absolute;
-    top: 0;
-    height: 100%;
-    background: var(--today-bg);
-    pointer-events: none;
-    z-index: 0;
-  }
-
   /* Month-view body cells (kept as DOM since month widths are variable). */
   .cell-line {
     height: 100%;
     border-right: 1px solid var(--border);
   }
   .row-cells .cell-line:nth-child(even) { background: var(--alt-bg); }
-  /* today bg must override nth-child(even) for both even and odd cells */
-  .row-cells .cell-line.today,
-  .row-cells .cell-line:nth-child(even).today { background: var(--today-bg); }
 
   /* Blocks */
   .block {
@@ -1939,10 +1928,15 @@ function _render() {
       if (isToday(colToDate(c + k))) { monthHasToday = true; break; }
     }
     const monthEl = document.createElement('div');
-    monthEl.className = 'month-span' + (monthHasToday ? ' today' : '');
+    monthEl.className = 'month-span';
     monthEl.style.width = (span * dayPx()) + 'px';
     monthEl.style.minWidth = (span * dayPx()) + 'px';
-    monthEl.textContent = monthNames[thisMonth] + ' ' + thisYear;
+    const monthLabel = monthNames[thisMonth] + ' ' + thisYear;
+    if (monthHasToday) {
+      monthEl.innerHTML = `<span class="today-bubble">${monthLabel}</span>`;
+    } else {
+      monthEl.textContent = monthLabel;
+    }
     monthRow.appendChild(monthEl);
     c += span;
   }
@@ -1974,13 +1968,18 @@ function _render() {
         if (isToday(colToDate(c + k))) { weekHasToday = true; break; }
       }
       const weekEl = document.createElement('div');
-      weekEl.className = 'week-span' + (weekHasToday ? ' today' : '');
+      weekEl.className = 'week-span';
       weekEl.style.width = (span * dayPx()) + 'px';
       weekEl.style.minWidth = (span * dayPx()) + 'px';
       // Find the Monday of this week
       const monday = new Date(d);
       monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-      weekEl.textContent = 'w/c ' + formatDate(monday);
+      const weekLabel = 'w/c ' + formatDate(monday);
+      if (weekHasToday) {
+        weekEl.innerHTML = `<span class="today-bubble">${weekLabel}</span>`;
+      } else {
+        weekEl.textContent = weekLabel;
+      }
       weekRow.appendChild(weekEl);
       c += span;
     }
@@ -2010,17 +2009,21 @@ function _render() {
       while (walker.getDay() === 0 || walker.getDay() === 6) walker.setDate(walker.getDate() + 1);
       const today = isToday(walker);
       const dayCh = document.createElement('div');
-      dayCh.className = today ? 'col-header today' : 'col-header';
+      dayCh.className = 'col-header';
       dayCh.style.width = dayPx() + 'px';
       dayCh.style.minWidth = dayPx() + 'px';
       dayCh.textContent = dayLetters[walker.getDay()];
       dayFrag.appendChild(dayCh);
 
       const dateCh = document.createElement('div');
-      dateCh.className = today ? 'col-header today' : 'col-header';
+      dateCh.className = 'col-header';
       dateCh.style.width = dayPx() + 'px';
       dateCh.style.minWidth = dayPx() + 'px';
-      dateCh.textContent = walker.getDate();
+      if (today) {
+        dateCh.innerHTML = `<span class="today-bubble">${walker.getDate()}</span>`;
+      } else {
+        dateCh.textContent = walker.getDate();
+      }
       dateFrag.appendChild(dateCh);
 
       walker.setDate(walker.getDate() + 1);
@@ -2131,17 +2134,14 @@ function _render() {
         const m = d0.getMonth();
         const y = d0.getFullYear();
         let span = 0;
-        let hasToday = false;
         while (mc + span < TOTAL_COLS) {
           const d2 = colToDate(mc + span);
           if (d2.getMonth() !== m || d2.getFullYear() !== y) break;
-          if (isToday(d2)) hasToday = true;
           span++;
         }
         const w = span * dayPx();
         const line = document.createElement('div');
         line.className = 'cell-line';
-        if (hasToday) line.classList.add('today');
         line.style.width = w + 'px';
         line.style.minWidth = w + 'px';
         cells.appendChild(line);
@@ -2170,15 +2170,6 @@ function _render() {
         // Gradient line (left edge) is at 79px within each 80px tile.
         // Shift origin so first line falls at firstWeekDays * WEEK_DAY_PX.
         cells.style.backgroundPositionX = (firstWeekDays * WEEK_DAY_PX - 79) + 'px';
-      }
-      // Today overlay (single absolute div) — covers today's day column
-      const todayCol = todayWeekdayCol();
-      if (todayCol !== -1) {
-        const ov = document.createElement('div');
-        ov.className = 'today-overlay';
-        ov.style.left = (todayCol * dayPx()) + 'px';
-        ov.style.width = dayPx() + 'px';
-        cells.appendChild(ov);
       }
     }
 
