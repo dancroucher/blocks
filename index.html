@@ -1996,7 +1996,7 @@ function _render() {
     // Row resize handle at bottom of row
     const resizeHandle = document.createElement('div');
     resizeHandle.className = 'row-resize';
-    resizeHandle.title = 'Drag to resize';
+    resizeHandle.title = 'Drag to resize. Hold Ctrl to apply final height to all rows.';
     resizeHandle.addEventListener('mousedown', (e) => startRowResize(e, row.id));
     rowEl.appendChild(resizeHandle);
 
@@ -2494,42 +2494,6 @@ function renderPanel() {
 }
 
 // --- Row vertical resize ---
-let _rowResize = null; // { rowId, startY, startH }
-
-function startRowResize(e, rowId) {
-  e.preventDefault();
-  e.stopPropagation();
-  const row = rows.find(r => r.id === rowId);
-  const startH = rowHeights[rowId] || (row && row.height) || ROW_H_DEFAULT;
-  _rowResize = { rowId, startY: e.clientY, startH };
-  document.addEventListener('mousemove', onRowResizeMove);
-  document.addEventListener('mouseup', endRowResize);
-  document.body.style.cursor = 'row-resize';
-  document.body.style.userSelect = 'none';
-}
-
-function onRowResizeMove(e) {
-  if (!_rowResize) return;
-  const { rowId, startY, startH } = _rowResize;
-  const dy = e.clientY - startY;
-  const newH = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, startH + dy));
-  rowHeights[rowId] = newH;
-  const row = rows.find(r => r.id === rowId);
-  if (row) row.height = newH;
-  applyRowHeights();
-}
-
-function endRowResize() {
-  if (!_rowResize) return;
-  const rowId = _rowResize.rowId;
-  _rowResize = null;
-  document.removeEventListener('mousemove', onRowResizeMove);
-  document.removeEventListener('mouseup', endRowResize);
-  document.body.style.cursor = '';
-  document.body.style.userSelect = '';
-  saveState();
-}
-
 function applyRowHeights() {
   rows.forEach(row => {
     const h = rowHeights[row.id] || row.height || ROW_H_DEFAULT;
@@ -2641,30 +2605,51 @@ function startRowResize(e, rowId) {
   if (!rowEl) return;
 
   const startY = e.clientY;
-  const startH = rowEl.getBoundingClientRect().height;
-  const isDefault = !row.height;
-  const defaultH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell-size'));
+  const startH = rowHeights[rowId] || row.height || rowEl.getBoundingClientRect().height || ROW_H_DEFAULT;
+  const defaultH = ROW_H_DEFAULT;
+  let resizeAllOnRelease = e.ctrlKey;
 
   rowEl.classList.add('resizing');
   document.body.classList.add('row-resizing');
 
-  function onMove(me) {
-    const dy = me.clientY - startY;
-    let newH = Math.max(30, startH + dy);
-    rowEl.style.height = newH + 'px';
+  function applyPersistedHeight(targetRow, h) {
+    const targetEl = document.querySelector(`.row[data-row-id="${targetRow.id}"]`);
+    if (Math.abs(h - defaultH) < 5) {
+      targetRow.height = 0;
+      delete rowHeights[targetRow.id];
+      if (targetEl) targetEl.style.setProperty('--row-h', ROW_H_DEFAULT + 'px');
+    } else {
+      const persistedH = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round(h)));
+      targetRow.height = persistedH;
+      rowHeights[targetRow.id] = persistedH;
+      if (targetEl) targetEl.style.setProperty('--row-h', persistedH + 'px');
+    }
   }
 
-  function onUp() {
+  function setPreviewHeight(h) {
+    const nextH = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round(h)));
+    rowHeights[rowId] = nextH;
+    row.height = nextH;
+    rowEl.style.setProperty('--row-h', nextH + 'px');
+  }
+
+  function onMove(me) {
+    if (me.ctrlKey) resizeAllOnRelease = true;
+    setPreviewHeight(startH + (me.clientY - startY));
+  }
+
+  function onUp(upEvent) {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
     rowEl.classList.remove('resizing');
     document.body.classList.remove('row-resizing');
 
-    const finalH = rowEl.getBoundingClientRect().height;
-    const defaultH = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--cell-size'));
-    // Save as 0 to revert to default, or actual height
-    row.height = Math.abs(finalH - defaultH) < 5 ? 0 : Math.round(finalH);
-    rowEl.style.height = row.height ? row.height + 'px' : '';
+    const finalH = rowHeights[rowId] || row.height || rowEl.getBoundingClientRect().height;
+    if (resizeAllOnRelease || (upEvent && upEvent.ctrlKey)) {
+      rows.forEach(targetRow => applyPersistedHeight(targetRow, finalH));
+    } else {
+      applyPersistedHeight(row, finalH);
+    }
     saveState();
   }
 
