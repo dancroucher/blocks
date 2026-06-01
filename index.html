@@ -1651,7 +1651,14 @@ function buildTagInput(row) {
   // Ensure datalist exists
   let dl = document.getElementById('tag-datalist');
   if (!dl) { dl = document.createElement('datalist'); dl.id = 'tag-datalist'; document.body.appendChild(dl); }
-  dl.innerHTML = existing.map(t => `<option value="${t}">`).join('');
+  // Build options safely — tag strings are user-controlled and may contain
+  // quotes/HTML, so avoid innerHTML interpolation. (XSS fix.)
+  dl.replaceChildren();
+  for (const t of existing) {
+    const opt = document.createElement('option');
+    opt.value = t;
+    dl.appendChild(opt);
+  }
   inp.addEventListener('mousedown', e => e.stopPropagation());
   inp.addEventListener('keydown', e => {
     if (e.key === 'Enter') { addTagToRow(row.id, inp.value); }
