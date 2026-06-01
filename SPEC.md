@@ -31,7 +31,7 @@ Single shared document, Firebase Auth required. Initial deployment supports one 
   "zoom": "day",
   "panelWidth": 280,
   "collapsedRows": {},
-  "projectStart": "2026-01-01T00:00:00.000Z",
+  "projectStart": "dynamic-year-start",
   "savedAt": 1740000000000,
   "updatedAt": 1740000000000,
   "updatedBy": { "uid": "...", "email": "owner@example.com" },
@@ -139,5 +139,6 @@ firebase.initializeApp({
 ```
 
 ## Changelog
+- 2026-06-01 — Timeline window now generates dynamically from the current year through two years ahead; Ctrl/Cmd wheel and Ctrl/Cmd +/- zoom the map around the pointer/viewport center
 - 2026-05-31 — Added Firebase Auth gate, single-user allowlist, immutable backups, safer Firestore rules
 - 2026-04-12 — Firebase real-time sync added (Firestore primary + IndexedDB fallback)
