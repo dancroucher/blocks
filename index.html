@@ -987,14 +987,20 @@
   .block-table .kind-cell { white-space: nowrap; color: var(--dim); }
   .block-table .danger { color: #dc2626; }
   .combined-blocks { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: #fff; }
-  .combined-blocks .panel-section-header { cursor: default; }
+  .combined-blocks .panel-section-header { cursor: default; border-top: 8px solid var(--bg); }
+  .combined-blocks .panel-section-header:first-child { border-top: none; }
+  .combined-blocks .section-days-3col .sec-conting,
+  .combined-blocks .section-days-3col .sec-total { display: none; }
   .combined-blocks .resource-delete-btn { margin-left: 0.5rem; }
-  .combined-blocks .panel-section-body { padding: 0; }
+  .combined-blocks .panel-section-body { padding: 0; border-bottom: 1px solid var(--border); }
+  .combined-blocks .panel-section-body:last-child { border-bottom: none; }
   .combined-blocks .block-table { border: none; border-radius: 0; }
   .combined-blocks .block-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); }
   .combined-blocks .block-table tr:last-child td { border-bottom: none; }
   .combined-name-cell { display: flex; align-items: center; gap: 0.45rem; }
   .combined-name-cell .block-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
+  .combined-name-cell .block-dot.color-dot-button { cursor: pointer; box-shadow: 0 0 0 1px rgba(0,0,0,0.12); }
+  .combined-name-cell .block-dot.color-dot-button:hover { transform: scale(1.25); box-shadow: 0 0 0 2px var(--accent-dim); }
   .combined-meta { color: var(--dim); font-size: 0.74rem; white-space: nowrap; }
   .combined-empty { padding: 0.9rem 1rem; color: var(--dim); font-size: 0.85rem; border-bottom: 1px solid var(--border); }
 
@@ -1689,7 +1695,9 @@ function appendBlockEditRow(tbody, block) {
   const nameWrap = document.createElement('div');
   nameWrap.className = 'combined-name-cell';
   const dot = document.createElement('span');
-  dot.className = `block-dot block-color-${block.color}`;
+  dot.className = `block-dot color-dot-button block-color-${block.color}`;
+  dot.title = 'Change colour';
+  dot.addEventListener('click', (e) => showBlockColorMenu(e, block.id));
   const labelInput = document.createElement('input');
   labelInput.value = block.label || '';
   labelInput.placeholder = 'Untitled';
@@ -1699,19 +1707,6 @@ function appendBlockEditRow(tbody, block) {
   labelTd.appendChild(nameWrap);
   tr.appendChild(labelTd);
 
-  const rowTd = document.createElement('td');
-  const rowSelect = document.createElement('select');
-  rows.forEach(row => {
-    const opt = document.createElement('option');
-    opt.value = row.id;
-    opt.textContent = row.label || `Row ${row.id}`;
-    opt.selected = row.id === block.rowId;
-    rowSelect.appendChild(opt);
-  });
-  rowSelect.onchange = () => { block.rowId = parseInt(rowSelect.value); normalizeBlocks(); render(); saveState(); };
-  rowTd.appendChild(rowSelect);
-  tr.appendChild(rowTd);
-
   const startTd = document.createElement('td');
   const startInput = document.createElement('input');
   startInput.type = 'date';
@@ -1719,6 +1714,19 @@ function appendBlockEditRow(tbody, block) {
   startInput.onchange = () => { block.start = dateInputToCol(startInput.value); render(); saveState(); };
   startTd.appendChild(startInput);
   tr.appendChild(startTd);
+
+  const endTd = document.createElement('td');
+  const endInput = document.createElement('input');
+  endInput.type = 'date';
+  endInput.value = toDateInputValue(colToDate(block.start + getBlockBaseDuration(block) - 1));
+  endInput.onchange = () => {
+    const endCol = dateInputToCol(endInput.value);
+    setBlockBaseDuration(block, Math.max(1, endCol - block.start + 1));
+    render();
+    saveState();
+  };
+  endTd.appendChild(endInput);
+  tr.appendChild(endTd);
 
   const daysTd = document.createElement('td');
   const daysInput = document.createElement('input');
@@ -1734,19 +1742,6 @@ function appendBlockEditRow(tbody, block) {
   scheduledTd.innerHTML = fmtBlockDuration(block);
   tr.appendChild(scheduledTd);
 
-  const colorTd = document.createElement('td');
-  const colorSelect = document.createElement('select');
-  for (let i = 0; i < COLORS; i++) {
-    const opt = document.createElement('option');
-    opt.value = i;
-    opt.textContent = `Colour ${i + 1}`;
-    opt.selected = i === block.color;
-    colorSelect.appendChild(opt);
-  }
-  colorSelect.onchange = () => { block.color = parseInt(colorSelect.value); render(); saveState(); };
-  colorTd.appendChild(colorSelect);
-  tr.appendChild(colorTd);
-
   const kindTd = document.createElement('td');
   kindTd.className = 'kind-cell';
   const kindSelect = document.createElement('select');
@@ -1760,11 +1755,6 @@ function appendBlockEditRow(tbody, block) {
   kindSelect.onchange = () => { block.kind = kindSelect.value; render(); saveState(); };
   kindTd.appendChild(kindSelect);
   tr.appendChild(kindTd);
-
-  const datesTd = document.createElement('td');
-  datesTd.className = 'combined-meta';
-  datesTd.textContent = `${formatDate(colToDate(block.start))} → ${formatDate(colToDate(block.start + block.duration - 1))}`;
-  tr.appendChild(datesTd);
 
   const delTd = document.createElement('td');
   const delBtn = document.createElement('button');
@@ -1797,7 +1787,10 @@ function renderCombinedBlocksView(view) {
   shell.className = 'combined-blocks';
 
   rows.forEach(row => {
-    const rowBlocks = blocks.filter(b => b.rowId === row.id);
+    const rowBlocks = blocks
+      .filter(b => b.rowId === row.id)
+      .slice()
+      .sort((a, b) => (a.start - b.start) || (a.id - b.id));
     const rowDays = rowBlocks.reduce((s, b) => s + getBlockBaseDuration(b), 0);
     const rowScheduledDays = rowBlocks.reduce((s, b) => s + b.duration, 0);
     const rowContingency = contingencyPct > 0 ? rowBlocks.reduce((s, b) => s + Math.round(b.duration * contingencyPct / 100), 0) : 0;
@@ -1810,7 +1803,7 @@ function renderCombinedBlocksView(view) {
     sectionTitle.textContent = row.label || `Resource ${row.id}`;
     const sectionDays = document.createElement('span');
     sectionDays.className = 'section-days-3col';
-    sectionDays.innerHTML = `<span class="sec-base">${getRowCapacity(row)}% · ${rowDays}d${rowScheduledDays !== rowDays ? ` <span class="capacity-adjusted">(${rowScheduledDays}d)</span>` : ''}</span><span class="sec-conting">+${rowContingency}d</span><span class="sec-total">${totalRowDays}d</span>`;
+    sectionDays.innerHTML = `<span class="sec-base">Capacity ${getRowCapacity(row)}%</span><span class="sec-conting">+${rowContingency}d</span><span class="sec-total">${totalRowDays}d</span>`;
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'resource-delete-btn';
     deleteBtn.type = 'button';
@@ -1833,15 +1826,13 @@ function renderCombinedBlocksView(view) {
       const table = document.createElement('table');
       table.className = 'block-table';
       table.innerHTML = `<thead><tr>
-        <th style="width:22%">Name</th>
-        <th style="width:14%">Resource row</th>
-        <th style="width:12%">Start</th>
-        <th style="width:8%">Base days</th>
-        <th style="width:10%">Shown days</th>
-        <th style="width:10%">Colour</th>
-        <th style="width:11%">Type</th>
-        <th style="width:9%">Dates</th>
-        <th style="width:4%"></th>
+        <th style="width:28%">Name</th>
+        <th style="width:13%">Start</th>
+        <th style="width:13%">End</th>
+        <th style="width:10%">Base days</th>
+        <th style="width:12%">Shown days</th>
+        <th style="width:16%">Type</th>
+        <th style="width:8%"></th>
       </tr></thead>`;
       const tbody = document.createElement('tbody');
       rowBlocks.forEach(block => appendBlockEditRow(tbody, block));
@@ -3082,6 +3073,43 @@ document.addEventListener('mouseup', (e) => {
 });
 
 // --- Context menu ---
+function showBlockColorMenu(e, blockId) {
+  e.preventDefault();
+  e.stopPropagation();
+  const menu = document.getElementById('context-menu');
+  const block = blocks.find(b => b.id === blockId);
+  if (!block) return;
+
+  const menuW = 180, menuH = 120;
+  const left = Math.min(e.clientX, window.innerWidth - menuW - 8);
+  const top  = Math.min(e.clientY, window.innerHeight - menuH - 8);
+  menu.style.display = 'block';
+  menu.style.left = left + 'px';
+  menu.style.top  = top  + 'px';
+  menu.innerHTML = '';
+
+  const label = document.createElement('div');
+  label.className = 'context-menu-label';
+  label.textContent = 'Colour';
+  menu.appendChild(label);
+
+  const grid = document.createElement('div');
+  grid.className = 'color-swatch-grid';
+  for (let i = 0; i < COLORS; i++) {
+    const sw = document.createElement('div');
+    sw.className = `color-swatch block-color-${i}`;
+    if (i === block.color) sw.classList.add('selected');
+    sw.addEventListener('click', () => {
+      block.color = i;
+      render();
+      saveState();
+      menu.style.display = 'none';
+    });
+    grid.appendChild(sw);
+  }
+  menu.appendChild(grid);
+}
+
 function showBlockContextMenu(e, blockId) {
   const menu = document.getElementById('context-menu');
   const block = blocks.find(b => b.id === blockId);
@@ -3113,6 +3141,7 @@ function showBlockContextMenu(e, blockId) {
     sw.addEventListener('click', () => {
       block.color = i;
       render();
+      saveState();
       menu.style.display = 'none';
     });
     grid.appendChild(sw);
@@ -3128,7 +3157,7 @@ function showBlockContextMenu(e, blockId) {
   const del = document.createElement('div');
   del.className = 'context-menu-item danger';
   del.textContent = 'Delete';
-  del.addEventListener('click', () => deleteBlock(blockId));
+  del.addEventListener('click', () => { deleteBlock(blockId); saveState(); });
   menu.appendChild(del);
 }
 
