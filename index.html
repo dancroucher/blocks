@@ -395,6 +395,35 @@
     z-index: 10;
   }
 
+  .block-start-tooltip {
+    position: absolute;
+    left: -8px;
+    top: 50%;
+    transform: translate(-100%, -50%);
+    background: rgba(40, 54, 62, 0.96);
+    color: #fff;
+    border-radius: 6px;
+    padding: 0.25rem 0.45rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.18);
+    z-index: 20;
+  }
+
+  .block-start-tooltip::after {
+    content: '';
+    position: absolute;
+    right: -5px;
+    top: 50%;
+    transform: translateY(-50%);
+    border-width: 5px 0 5px 5px;
+    border-style: solid;
+    border-color: transparent transparent transparent rgba(40, 54, 62, 0.96);
+  }
+
   .block .handle-left,
   .block .handle-right {
     position: absolute;
@@ -1115,7 +1144,7 @@ const ROW_HEADER_W = 220;
 const COLORS = 18;
 const ROW_H_MIN = 30;
 const ROW_H_DEFAULT = 40;
-const ROW_H_MAX = 120;
+const ROW_H_MAX = 360;
 
 // --- Firebase shared state ---
 // Replace with your actual Firebase project config from:
@@ -1996,7 +2025,7 @@ function _render() {
     // Row resize handle at bottom of row
     const resizeHandle = document.createElement('div');
     resizeHandle.className = 'row-resize';
-    resizeHandle.title = 'Drag to resize. Hold Ctrl to apply final height to all rows.';
+    resizeHandle.title = 'Drag to resize. Hold Shift to apply final height to all rows.';
     resizeHandle.addEventListener('mousedown', (e) => startRowResize(e, row.id));
     rowEl.appendChild(resizeHandle);
 
@@ -2175,36 +2204,29 @@ function _render() {
 
       cells.appendChild(bEl);
 
-      // Capacity block — separate locked segment immediately after the original block.
-      if (capacityDays > 0) {
+      const extraDays = contingencyPct > 0 ? Math.round(block.duration * contingencyPct / 100) : 0;
+      const baseExtraDays = contingencyPct > 0 ? Math.round(baseDuration * contingencyPct / 100) : 0;
+      const capacityExtraDays = Math.max(0, extraDays - baseExtraDays);
+
+      // Contingency extension — the non-hatched contingency sits immediately after the base block.
+      if (baseExtraDays > 0) {
+        const cEl = document.createElement('div');
+        cEl.className = `block-contingency block-color-${block.color}`;
+        cEl.dataset.contingencyFor = block.id;
+        cEl.style.left = (baseDuration * dayPx() - 2) + 'px';
+        cEl.style.width = (baseExtraDays * dayPx()) + 'px';
+        bEl.appendChild(cEl);
+      }
+
+      // Capacity block — hatched capacity adjustment appears after the contingency section.
+      const capacityVisualDays = capacityDays + capacityExtraDays;
+      if (capacityVisualDays > 0) {
         const capEl = document.createElement('div');
         capEl.className = 'capacity-block';
         capEl.dataset.capacityFor = block.id;
-        capEl.style.left = ((block.start + baseDuration) * dayPx()) + 'px';
-        capEl.style.width = (capacityDays * dayPx() - 2) + 'px';
+        capEl.style.left = ((block.start + baseDuration + baseExtraDays) * dayPx()) + 'px';
+        capEl.style.width = (capacityVisualDays * dayPx() - 2) + 'px';
         cells.appendChild(capEl);
-      }
-
-      // Contingency extension — appended inside bEl so it is anchored to the block start
-      if (contingencyPct > 0) {
-        const extraDays = Math.round(block.duration * contingencyPct / 100);
-        const baseExtraDays = Math.round(getBlockBaseDuration(block) * contingencyPct / 100);
-        if (extraDays > 0) {
-          const cEl = document.createElement('div');
-          cEl.className = `block-contingency block-color-${block.color}`;
-          cEl.dataset.contingencyFor = block.id;
-          // Positioned relative to the block: starts at the block's right edge
-          cEl.style.left = (block.duration * dayPx() - 2) + 'px';
-          cEl.style.width = (extraDays * dayPx()) + 'px';
-          if (extraDays > baseExtraDays) {
-            const capContEl = document.createElement('div');
-            capContEl.className = 'contingency-capacity-extension';
-            capContEl.style.left = (baseExtraDays * dayPx()) + 'px';
-            capContEl.style.width = ((extraDays - baseExtraDays) * dayPx()) + 'px';
-            cEl.appendChild(capContEl);
-          }
-          bEl.appendChild(cEl);
-        }
       }
     });
 
@@ -2607,7 +2629,7 @@ function startRowResize(e, rowId) {
   const startY = e.clientY;
   const startH = rowHeights[rowId] || row.height || rowEl.getBoundingClientRect().height || ROW_H_DEFAULT;
   const defaultH = ROW_H_DEFAULT;
-  let resizeAllOnRelease = e.ctrlKey;
+  let resizeAllOnRelease = e.shiftKey;
 
   rowEl.classList.add('resizing');
   document.body.classList.add('row-resizing');
@@ -2634,7 +2656,7 @@ function startRowResize(e, rowId) {
   }
 
   function onMove(me) {
-    if (me.ctrlKey) resizeAllOnRelease = true;
+    if (me.shiftKey) resizeAllOnRelease = true;
     setPreviewHeight(startH + (me.clientY - startY));
   }
 
@@ -2645,7 +2667,7 @@ function startRowResize(e, rowId) {
     document.body.classList.remove('row-resizing');
 
     const finalH = rowHeights[rowId] || row.height || rowEl.getBoundingClientRect().height;
-    if (resizeAllOnRelease || (upEvent && upEvent.ctrlKey)) {
+    if (resizeAllOnRelease || (upEvent && upEvent.shiftKey)) {
       rows.forEach(targetRow => applyPersistedHeight(targetRow, finalH));
     } else {
       applyPersistedHeight(row, finalH);
@@ -2737,6 +2759,22 @@ function startResize(e, blockId, side) {
 
 const DRAG_THRESHOLD_PX = 4;
 
+function updateBlockStartTooltip(bEl, block) {
+  if (!bEl || !block) return;
+  let tip = bEl.querySelector('.block-start-tooltip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.className = 'block-start-tooltip';
+    bEl.appendChild(tip);
+  }
+  tip.textContent = formatDateFull(colToDate(block.start));
+}
+
+function removeBlockStartTooltip(bEl) {
+  const tip = bEl && bEl.querySelector('.block-start-tooltip');
+  if (tip) tip.remove();
+}
+
 document.addEventListener('mousemove', (e) => {
   if (dragState) {
     const block = blocks.find(b => b.id === dragState.blockId);
@@ -2755,20 +2793,23 @@ document.addEventListener('mousemove', (e) => {
     const colDelta = Math.round(dx / dayPx());
     const bEl = document.querySelector(`[data-block-id="${dragState.blockId}"]`);
     const cEl = document.querySelector(`[data-contingency-for="${dragState.blockId}"]`);
+    const capEl = document.querySelector(`[data-capacity-for="${dragState.blockId}"]`);
 
-    const updateContingencyEl = () => {
-      if (!cEl) return;
-      const extraDays = Math.round(block.duration * contingencyPct / 100);
-      const baseExtraDays = Math.round(getBlockBaseDuration(block) * contingencyPct / 100);
-      // Positioned relative to the block: starts at block's right edge
-      cEl.style.left = (block.duration * dayPx() - 2) + 'px';
-      cEl.style.width = (extraDays * dayPx()) + 'px';
-      const capContEl = cEl.querySelector('.contingency-capacity-extension');
-      if (capContEl) {
-        capContEl.style.left = (baseExtraDays * dayPx()) + 'px';
-        capContEl.style.width = (Math.max(0, extraDays - baseExtraDays) * dayPx()) + 'px';
+    const updateExtensions = () => {
+      const baseDuration = getBlockBaseDuration(block);
+      const capacityDays = Math.max(0, block.duration - baseDuration);
+      const extraDays = contingencyPct > 0 ? Math.round(block.duration * contingencyPct / 100) : 0;
+      const baseExtraDays = contingencyPct > 0 ? Math.round(baseDuration * contingencyPct / 100) : 0;
+      const capacityExtraDays = Math.max(0, extraDays - baseExtraDays);
+
+      if (cEl) {
+        cEl.style.left = (baseDuration * dayPx() - 2) + 'px';
+        cEl.style.width = (baseExtraDays * dayPx()) + 'px';
       }
-
+      if (capEl) {
+        capEl.style.left = ((block.start + baseDuration + baseExtraDays) * dayPx()) + 'px';
+        capEl.style.width = ((capacityDays + capacityExtraDays) * dayPx() - 2) + 'px';
+      }
     };
 
     if (dragState.type === 'move') {
@@ -2789,6 +2830,7 @@ document.addEventListener('mousemove', (e) => {
             // Move bEl to the new row's cells; contingency auto-follows as a child of bEl
             const newCells = rowEl.querySelector('.row-cells');
             if (newCells && bEl) newCells.appendChild(bEl);
+            if (newCells && capEl) newCells.appendChild(capEl);
             if (bEl) {
               bEl.style.width = (getBlockBaseDuration(block) * dayPx() - 2) + 'px';
               const badge = bEl.querySelector('.block-days-badge');
@@ -2804,7 +2846,7 @@ document.addEventListener('mousemove', (e) => {
         bEl.style.left = (block.start * dayPx()) + 'px';
         bEl.classList.add('dragging');
       }
-      updateContingencyEl();
+      updateExtensions();
     }
     else if (dragState.type === 'resize-right') {
       block.baseDuration = Math.max(1, dragState.origBaseDuration + colDelta);
@@ -2814,7 +2856,7 @@ document.addEventListener('mousemove', (e) => {
         const badge = bEl.querySelector('.block-days-badge');
         if (badge) badge.innerHTML = fmtBlockDuration(block);
       }
-      updateContingencyEl();
+      updateExtensions();
     }
     else if (dragState.type === 'resize-left') {
       const newStart = dragState.origStart + colDelta;
@@ -2829,9 +2871,11 @@ document.addEventListener('mousemove', (e) => {
           const badge = bEl.querySelector('.block-days-badge');
           if (badge) badge.innerHTML = fmtBlockDuration(block);
         }
-        updateContingencyEl();
+        updateExtensions();
       }
     }
+
+    if (bEl) updateBlockStartTooltip(bEl, block);
   }
 
   // Row reorder drag
@@ -3006,7 +3050,10 @@ document.addEventListener('mouseup', (e) => {
       // In-place updates already moved/resized the element. Just persist
       // and clean up the dragging class — no need for a full render.
       const el = document.querySelector(`[data-block-id="${draggedId}"]`);
-      if (el) el.classList.remove('dragging');
+      if (el) {
+        el.classList.remove('dragging');
+        removeBlockStartTooltip(el);
+      }
       saveState();
       render();
     }
