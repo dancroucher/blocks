@@ -1130,6 +1130,8 @@
 <script>
 // --- State ---
 const CELL_W = 40;           // px per day in day view
+const DAY_LARGE_PX = 160;    // px per day in close day view
+const DAY_HALF_PX = 320;     // px per day in closest view, split into two half-day columns
 const WEEK_DAY_PX = 16;      // px per day in week view — 5 × 16 = 80px per week cell
 const MONTH_DAY_PX = 5;      // px per day in month view — typical ~22-day month ≈ 110px wide
 const ROW_H = 40;
@@ -1139,6 +1141,8 @@ const ROW_H = 40;
 // visual cell is 5 × WEEK_DAY_PX = 80px wide with no day subdivisions drawn,
 // but blocks position + size against day-level pixels underneath.
 function dayPx() {
+  if (zoom === 'day-large') return DAY_LARGE_PX;
+  if (zoom === 'day-half') return DAY_HALF_PX;
   if (zoom === 'week') return WEEK_DAY_PX;
   if (zoom === 'month') return MONTH_DAY_PX;
   return CELL_W;
@@ -1146,6 +1150,7 @@ function dayPx() {
 // For week view we use a fixed 5-day stride. Month view has variable month
 // widths (handled inline in render via per-month iteration), so daysPerCell
 // is only meaningful for day/week.
+function isDayLikeZoom() { return zoom === 'day' || zoom === 'day-large' || zoom === 'day-half'; }
 function daysPerCell() { return zoom === 'week' ? 5 : 1; }
 function cellVisualW() { return dayPx() * daysPerCell(); }
 const ROW_HEADER_W = 220;
@@ -1668,6 +1673,8 @@ function renderMapControls() {
   const controls = document.createElement('div');
   controls.className = 'map-header-controls';
   controls.innerHTML = `
+    <button id="btn-day-half" class="${zoom === 'day-half' ? 'active' : ''}" onclick="setZoom('day-half')">½ Day</button>
+    <button id="btn-day-large" class="${zoom === 'day-large' ? 'active' : ''}" onclick="setZoom('day-large')">Day +</button>
     <button id="btn-day" class="${zoom === 'day' ? 'active' : ''}" onclick="setZoom('day')">Day</button>
     <button id="btn-week" class="${zoom === 'week' ? 'active' : ''}" onclick="setZoom('week')">Week</button>
     <button id="btn-month" class="${zoom === 'month' ? 'active' : ''}" onclick="setZoom('month')">Month</button>
@@ -1958,8 +1965,8 @@ function _render() {
     headersWrap.appendChild(weekRow);
   }
 
-  // --- Rows 3 & 4: Day letters + date numbers (day view only) ---
-  if (zoom === 'day') {
+  // --- Rows 3 & 4: Day letters + date numbers (day-like views only) ---
+  if (isDayLikeZoom()) {
     const dayRow = document.createElement('div');
     dayRow.className = 'col-headers';
     const daySpacer = document.createElement('div');
@@ -1982,11 +1989,15 @@ function _render() {
       const today = isToday(walker);
       const dayCh = document.createElement('div');
       dayCh.className = today ? 'col-header today' : 'col-header';
+      dayCh.style.width = dayPx() + 'px';
+      dayCh.style.minWidth = dayPx() + 'px';
       dayCh.textContent = dayLetters[walker.getDay()];
       dayFrag.appendChild(dayCh);
 
       const dateCh = document.createElement('div');
       dateCh.className = today ? 'col-header today' : 'col-header';
+      dateCh.style.width = dayPx() + 'px';
+      dateCh.style.minWidth = dayPx() + 'px';
       dateCh.textContent = walker.getDate();
       dateFrag.appendChild(dateCh);
 
@@ -1996,6 +2007,27 @@ function _render() {
     dateRow.appendChild(dateFrag);
     headersWrap.appendChild(dayRow);
     headersWrap.appendChild(dateRow);
+
+    if (zoom === 'day-half') {
+      const halfRow = document.createElement('div');
+      halfRow.className = 'col-headers';
+      const halfSpacer = document.createElement('div');
+      halfSpacer.className = 'row-header-spacer';
+      halfRow.appendChild(halfSpacer);
+      const halfFrag = document.createDocumentFragment();
+      for (let c = 0; c < TOTAL_COLS; c++) {
+        ['AM', 'PM'].forEach(label => {
+          const halfCh = document.createElement('div');
+          halfCh.className = 'col-header';
+          halfCh.style.width = (dayPx() / 2) + 'px';
+          halfCh.style.minWidth = (dayPx() / 2) + 'px';
+          halfCh.textContent = label;
+          halfFrag.appendChild(halfCh);
+        });
+      }
+      halfRow.appendChild(halfFrag);
+      headersWrap.appendChild(halfRow);
+    }
   }
 
   wrapper.appendChild(headersWrap);
@@ -2095,6 +2127,12 @@ function _render() {
       }
     } else {
       cells.classList.add(zoom === 'week' ? 'painted-week' : 'painted-day');
+      if (isDayLikeZoom()) {
+        const px = dayPx();
+        cells.style.backgroundImage = zoom === 'day-half'
+          ? `repeating-linear-gradient(to right, transparent 0, transparent ${px / 2 - 1}px, rgba(180,180,180,0.45) ${px / 2 - 1}px, rgba(180,180,180,0.45) ${px / 2}px, transparent ${px / 2}px, transparent ${px - 1}px, var(--grid-line) ${px - 1}px, var(--grid-line) ${px}px)`
+          : `repeating-linear-gradient(to right, transparent 0, transparent ${px - 1}px, var(--grid-line) ${px - 1}px, var(--grid-line) ${px}px)`;
+      }
       // Set explicit width since there are no child cells driving size
       cells.style.width = (TOTAL_COLS * dayPx()) + 'px';
       cells.style.minWidth = (TOTAL_COLS * dayPx()) + 'px';
@@ -3203,6 +3241,8 @@ function duplicateBlock(id) {
 
 // --- Zoom ---
 function syncViewButtons() {
+  document.getElementById('btn-day-half')?.classList.toggle('active', zoom === 'day-half');
+  document.getElementById('btn-day-large')?.classList.toggle('active', zoom === 'day-large');
   document.getElementById('btn-day')?.classList.toggle('active', zoom === 'day');
   document.getElementById('btn-week')?.classList.toggle('active', zoom === 'week');
   document.getElementById('btn-month')?.classList.toggle('active', zoom === 'month');
@@ -3210,7 +3250,7 @@ function syncViewButtons() {
   document.getElementById('btn-map')?.classList.toggle('active', zoom !== 'table');
 }
 
-const MAP_ZOOM_LEVELS = ['month', 'week', 'day'];
+const MAP_ZOOM_LEVELS = ['month', 'week', 'day', 'day-large', 'day-half'];
 let _lastZoomWheelAt = 0;
 
 function setZoom(z, anchorClientX = null) {
