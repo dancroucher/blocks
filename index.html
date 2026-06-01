@@ -1685,8 +1685,10 @@ function renderMapControls() {
   const idx = MAP_ZOOM_LEVELS.indexOf(zoom);
   controls.innerHTML = `
     <div class="zoom-slider-wrap">
+      <button onclick="zoomRelative(-1)" title="Zoom out">−</button>
       <input id="zoom-slider" type="range" min="0" max="${MAP_ZOOM_LEVELS.length - 1}" value="${idx === -1 ? 0 : idx}"
         oninput="setZoom(MAP_ZOOM_LEVELS[+this.value])" title="Timeline zoom">
+      <button onclick="zoomRelative(1)" title="Zoom in">+</button>
       <span class="zoom-slider-label">${ZOOM_LABELS[zoom] || zoom}</span>
     </div>
     <button id="btn-today" onclick="jumpToToday()" title="Jump to today">↓ Today</button>
