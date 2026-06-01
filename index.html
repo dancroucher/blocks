@@ -1063,16 +1063,37 @@
   .map-header-controls {
     display: flex;
     align-items: center;
-    gap: 0.25rem;
+    gap: 0.4rem;
     width: var(--row-header-width);
     min-width: var(--row-header-width);
-    padding: 0.25rem 0.45rem;
+    padding: 0.25rem 0.55rem;
     background: var(--header-bg);
     border-right: 1px solid var(--border);
     position: sticky;
     left: 0;
     z-index: 6;
     flex-shrink: 0;
+  }
+  .zoom-slider-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex: 1;
+    min-width: 0;
+  }
+  .zoom-slider-label {
+    font-size: 0.72rem;
+    color: var(--dim);
+    white-space: nowrap;
+    min-width: 2.8rem;
+    text-align: right;
+  }
+  #zoom-slider {
+    flex: 1;
+    min-width: 0;
+    accent-color: var(--accent);
+    cursor: pointer;
+    height: 3px;
   }
   .map-header-controls button {
     font-family: inherit;
@@ -1085,7 +1106,6 @@
     cursor: pointer;
   }
   .map-header-controls button:hover { color: var(--text); background: #fff; }
-  .map-header-controls button.active { background: var(--accent-dim); color: var(--accent); font-weight: 500; }
   .table-data-top {
     border: 1px solid var(--border);
     border-radius: 12px;
@@ -1673,12 +1693,13 @@ function render() {
 function renderMapControls() {
   const controls = document.createElement('div');
   controls.className = 'map-header-controls';
+  const idx = MAP_ZOOM_LEVELS.indexOf(zoom);
   controls.innerHTML = `
-    <button id="btn-day-half" class="${zoom === 'day-half' ? 'active' : ''}" onclick="setZoom('day-half')">½ Day</button>
-    <button id="btn-day-large" class="${zoom === 'day-large' ? 'active' : ''}" onclick="setZoom('day-large')">Day +</button>
-    <button id="btn-day" class="${zoom === 'day' ? 'active' : ''}" onclick="setZoom('day')">Day</button>
-    <button id="btn-week" class="${zoom === 'week' ? 'active' : ''}" onclick="setZoom('week')">Week</button>
-    <button id="btn-month" class="${zoom === 'month' ? 'active' : ''}" onclick="setZoom('month')">Month</button>
+    <div class="zoom-slider-wrap">
+      <input id="zoom-slider" type="range" min="0" max="${MAP_ZOOM_LEVELS.length - 1}" value="${idx === -1 ? 0 : idx}"
+        oninput="setZoom(MAP_ZOOM_LEVELS[+this.value])" title="Timeline zoom">
+      <span class="zoom-slider-label">${ZOOM_LABELS[zoom] || zoom}</span>
+    </div>
     <button id="btn-today" onclick="jumpToToday()" title="Jump to today">↓ Today</button>
   `;
   return controls;
@@ -3242,16 +3263,16 @@ function duplicateBlock(id) {
 
 // --- Zoom ---
 function syncViewButtons() {
-  document.getElementById('btn-day-half')?.classList.toggle('active', zoom === 'day-half');
-  document.getElementById('btn-day-large')?.classList.toggle('active', zoom === 'day-large');
-  document.getElementById('btn-day')?.classList.toggle('active', zoom === 'day');
-  document.getElementById('btn-week')?.classList.toggle('active', zoom === 'week');
-  document.getElementById('btn-month')?.classList.toggle('active', zoom === 'month');
+  const slider = document.getElementById('zoom-slider');
+  if (slider) slider.value = MAP_ZOOM_LEVELS.indexOf(zoom);
+  const label = document.querySelector('.zoom-slider-label');
+  if (label) label.textContent = ZOOM_LABELS[zoom] || zoom;
   document.getElementById('btn-table')?.classList.toggle('active', zoom === 'table');
   document.getElementById('btn-map')?.classList.toggle('active', zoom !== 'table');
 }
 
 const MAP_ZOOM_LEVELS = ['month', 'week', 'day', 'day-large', 'day-half'];
+const ZOOM_LABELS = { month: 'Month', week: 'Week', day: 'Day', 'day-large': 'Day+', 'day-half': '½ Day' };
 let _lastZoomWheelAt = 0;
 
 function setZoom(z, anchorClientX = null) {
