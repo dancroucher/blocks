@@ -949,6 +949,7 @@
   }
   .table-toolbar h2 { font-size: 1rem; font-weight: 700; margin: 0; }
   .table-toolbar button,
+  .section-add-block-btn,
   .block-table button {
     border: 1px solid var(--border);
     background: var(--surface);
@@ -984,16 +985,17 @@
     background: var(--bg);
     color: var(--text);
   }
-  .block-table .kind-cell { white-space: nowrap; color: var(--dim); }
   .block-table .danger { color: #dc2626; }
   .combined-blocks { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: #fff; }
-  .combined-blocks .panel-section-header { cursor: default; border-top: 8px solid var(--bg); }
+  .combined-blocks .panel-section-header { cursor: default; border-top: 14px solid var(--bg); background: #e9ecef; }
   .combined-blocks .panel-section-header:first-child { border-top: none; }
   .combined-blocks .section-days-3col .sec-conting,
   .combined-blocks .section-days-3col .sec-total { display: none; }
   .combined-blocks .resource-delete-btn { margin-left: 0.5rem; }
-  .combined-blocks .panel-section-body { padding: 0; border-bottom: 1px solid var(--border); }
+  .combined-blocks .panel-section-body { padding: 0; border-bottom: 1px solid #d7d7d7; }
   .combined-blocks .panel-section-body:last-child { border-bottom: none; }
+  .section-actions { display: flex; justify-content: flex-start; padding: 0.55rem 1rem; background: #fbfbfb; border-top: 1px solid var(--border); }
+  .section-add-block-btn { font-size: 0.82rem; color: var(--accent); }
   .combined-blocks .block-table { border: none; border-radius: 0; }
   .combined-blocks .block-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); }
   .combined-blocks .block-table tr:last-child td { border-bottom: none; }
@@ -1742,20 +1744,6 @@ function appendBlockEditRow(tbody, block) {
   scheduledTd.innerHTML = fmtBlockDuration(block);
   tr.appendChild(scheduledTd);
 
-  const kindTd = document.createElement('td');
-  kindTd.className = 'kind-cell';
-  const kindSelect = document.createElement('select');
-  [{ value: 'grid', label: 'Block-driven' }, { value: 'data', label: 'Data-driven' }].forEach(k => {
-    const opt = document.createElement('option');
-    opt.value = k.value;
-    opt.textContent = k.label;
-    opt.selected = (block.kind || 'grid') === k.value;
-    kindSelect.appendChild(opt);
-  });
-  kindSelect.onchange = () => { block.kind = kindSelect.value; render(); saveState(); };
-  kindTd.appendChild(kindSelect);
-  tr.appendChild(kindTd);
-
   const delTd = document.createElement('td');
   const delBtn = document.createElement('button');
   delBtn.className = 'danger';
@@ -1772,15 +1760,7 @@ function renderCombinedBlocksView(view) {
   toolbar.className = 'table-toolbar';
   const title = document.createElement('h2');
   title.textContent = 'Blocks';
-  const addBtn = document.createElement('button');
-  addBtn.textContent = '+ Add block';
-  addBtn.onclick = () => {
-    const rowId = rows[0]?.id || 1;
-    createBlock(rowId, Math.max(0, todayWeekdayCol()), 5, 'New block', false, 'data');
-    saveState();
-  };
   toolbar.appendChild(title);
-  toolbar.appendChild(addBtn);
   view.appendChild(toolbar);
 
   const shell = document.createElement('div');
@@ -1826,13 +1806,12 @@ function renderCombinedBlocksView(view) {
       const table = document.createElement('table');
       table.className = 'block-table';
       table.innerHTML = `<thead><tr>
-        <th style="width:28%">Name</th>
-        <th style="width:13%">Start</th>
-        <th style="width:13%">End</th>
-        <th style="width:10%">Base days</th>
-        <th style="width:12%">Shown days</th>
-        <th style="width:16%">Type</th>
-        <th style="width:8%"></th>
+        <th style="width:34%">Name</th>
+        <th style="width:14%">Start</th>
+        <th style="width:14%">End</th>
+        <th style="width:12%">Base days</th>
+        <th style="width:16%">Shown days</th>
+        <th style="width:10%"></th>
       </tr></thead>`;
       const tbody = document.createElement('tbody');
       rowBlocks.forEach(block => appendBlockEditRow(tbody, block));
@@ -1849,6 +1828,19 @@ function renderCombinedBlocksView(view) {
       <span class="totals-col totals-total">${totalRowDays}d</span>
     `;
     body.appendChild(totals);
+
+    const actions = document.createElement('div');
+    actions.className = 'section-actions';
+    const addSectionBtn = document.createElement('button');
+    addSectionBtn.className = 'section-add-block-btn';
+    addSectionBtn.type = 'button';
+    addSectionBtn.textContent = '+ Add block';
+    addSectionBtn.onclick = () => {
+      createBlock(row.id, Math.max(0, todayWeekdayCol()), 5, 'New block');
+      saveState();
+    };
+    actions.appendChild(addSectionBtn);
+    body.appendChild(actions);
     shell.appendChild(body);
   });
 
@@ -2173,7 +2165,6 @@ function _render() {
       // Context menu
       bEl.addEventListener('contextmenu', (e) => {
         e.preventDefault();
-        if (isDataBlock(block)) return;
         showBlockContextMenu(e, block.id);
       });
 
@@ -3116,7 +3107,7 @@ function showBlockContextMenu(e, blockId) {
   if (!block) return;
 
   // Position — clamp to viewport edges
-  const menuW = 140, menuH = 120;
+  const menuW = 180, menuH = 170;
   const left = Math.min(e.clientX, window.innerWidth - menuW - 8);
   const top  = Math.min(e.clientY, window.innerHeight - menuH - 8);
   menu.style.display = 'block';
@@ -3147,6 +3138,21 @@ function showBlockContextMenu(e, blockId) {
     grid.appendChild(sw);
   }
   menu.appendChild(grid);
+
+  const lockItem = document.createElement('label');
+  lockItem.className = 'context-menu-item';
+  const lockInput = document.createElement('input');
+  lockInput.type = 'checkbox';
+  lockInput.checked = isDataBlock(block);
+  lockInput.addEventListener('change', () => {
+    block.kind = lockInput.checked ? 'data' : 'grid';
+    render();
+    saveState();
+    menu.style.display = 'none';
+  });
+  lockItem.appendChild(lockInput);
+  lockItem.appendChild(document.createTextNode('Lock'));
+  menu.appendChild(lockItem);
 
   // Separator
   const sep = document.createElement('div');
