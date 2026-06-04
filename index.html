@@ -231,28 +231,12 @@
     border-bottom-color: transparent;
   }
 
-  /* Row resize handle */
-  .row-resize-handle {
-    position: absolute;
-    bottom: -3px;
-    left: 0;
-    right: 0;
-    height: 6px;
-    cursor: ns-resize;
-    z-index: 20;
-    opacity: 0;
-    transition: opacity 0.15s;
-  }
-  .row:hover .row-resize-handle,
-  .row.resizing .row-resize-handle {
-    opacity: 1;
-  }
   .row.resizing { user-select: none; }
 
   .row-header {
     width: var(--row-header-width);
     min-width: var(--row-header-width);
-    padding: 0.35rem 0.75rem 0.25rem;
+    padding: 0;
     display: flex;
     flex-direction: column;
     justify-content: flex-start;
@@ -273,6 +257,7 @@
     width: 100%;
     flex: 1;
     min-height: 0;
+    padding-left: 0.4rem;
   }
   .resource-summary {
     width: 112px;
@@ -280,7 +265,7 @@
     display: flex;
     flex-direction: column;
     gap: 3px;
-    padding-right: 0.4rem;
+    padding: 0.35rem 0.4rem 0.25rem 0.5rem;
     border-right: 1px solid rgba(0,0,0,0.06);
   }
   .track-panel {
@@ -313,8 +298,7 @@
     height: var(--track-h, 40px);
     min-height: var(--track-h, 40px);
     flex: 0 0 var(--track-h, 40px);
-    border-bottom: 1px solid rgba(0,0,0,0.04);
-    padding-right: 2.6rem;
+    padding-right: 0.4rem;
     position: relative;
   }
   .track-drag-handle {
@@ -331,7 +315,6 @@
     color: var(--dim) !important;
   }
   .track-delete-btn,
-  .track-add-btn,
   .track-resize-grip {
     border: none;
     background: transparent;
@@ -348,14 +331,19 @@
     color: #bbb;
   }
   .track-resize-grip:hover { color: var(--accent); }
-  .track-add-btn {
-    position: absolute;
-    right: 0;
-    top: 0.15rem;
+  .track-add-row {
+    display: flex;
+    align-items: center;
+    height: var(--add-track-h, 22px);
+    min-height: var(--add-track-h, 22px);
+    flex: 0 0 var(--add-track-h, 22px);
+    padding-left: 1.45rem;
     font-size: 0.68rem;
-    background: rgba(248,248,248,0.9);
+    color: #aaa;
+    cursor: pointer;
+    user-select: none;
   }
-  .track-add-btn:hover { color: var(--accent); }
+  .track-add-row:hover { color: var(--accent); }
   .tag-chip {
     display: inline-flex;
     align-items: center;
@@ -502,33 +490,28 @@
     flex: 0 0 auto;
   }
   .track-grid-row {
-    border-bottom: 1px solid var(--grid-line);
+    flex: 0 0 auto;
   }
-  .track-grid-row:last-child { border-bottom: none; }
   .track-row-cells {
     display: block;
     height: 100%;
   }
-  .track-lane {
-    position: relative;
-    height: var(--track-h, 40px);
-    min-height: var(--track-h, 40px);
-    border-bottom: 1px solid var(--grid-line);
-    flex: 0 0 auto;
-  }
-  .track-lane:last-child { border-bottom: none; }
-  .track-resize {
+  /* Full-width divider between sub-tracks, spanning the resource header and the
+     timeline so each sub-track reads as one continuous row. Purely visual. */
+  .track-separator {
     position: absolute;
     left: 0;
     right: 0;
-    bottom: -4px;
-    height: 12px;
-    cursor: row-resize;
-    z-index: 60;
-    border-bottom: 2px solid rgba(245,166,35,0.18);
-    pointer-events: auto;
+    height: 0;
+    border-top: 1px solid var(--grid-line);
+    z-index: 4;
+    pointer-events: none;
   }
-  .track-resize:hover { border-bottom-color: var(--accent); }
+  .track-add-lane {
+    cursor: pointer;
+    background: rgba(0,0,0,0.015);
+  }
+  .track-add-lane:hover { background: rgba(245,166,35,0.06); }
 
   /* Painted grid backgrounds — repeating gradients are dramatically faster
      than one DOM node per day for thousands of columns. Solid grey fill
@@ -1441,6 +1424,7 @@ const ROW_H_DEFAULT = 40;
 const ROW_H_MAX = 360;
 const MAX_TRACKS_PER_ROW = 8;
 const RESOURCE_HEADER_MIN_H = 56;
+const ADD_TRACK_ROW_H = 22; // half-height "+ Track" row at the bottom of each resource
 
 // --- Firebase shared state ---
 // Replace with your actual Firebase project config from:
@@ -1896,7 +1880,12 @@ function getRowTracks(row) {
 }
 function getDefaultTrackId(row) { return getRowTracks(row)[0]?.id || null; }
 function getTrack(row, trackId) { return getRowTracks(row).find(track => track.id === trackId) || getRowTracks(row)[0]; }
-function getRowVisualHeight(row) { return Math.max(RESOURCE_HEADER_MIN_H, getRowTracks(row).reduce((sum, track) => sum + (track.height || ROW_H_DEFAULT), 0)); }
+function canAddTrack(row) { return getRowTracks(row).length < MAX_TRACKS_PER_ROW; }
+function getAddRowH(row) { return canAddTrack(row) ? ADD_TRACK_ROW_H : 0; }
+function getResourceGroupHeight(row) {
+  const sum = getRowTracks(row).reduce((s, t) => s + (t.height || ROW_H_DEFAULT), 0);
+  return Math.max(RESOURCE_HEADER_MIN_H, sum + getAddRowH(row));
+}
 function getRowCapacity(row) {
   const cap = Number(row && row.capacity);
   return Number.isFinite(cap) && cap > 0 ? cap : 100;
@@ -2010,14 +1999,16 @@ function buildTrackList(row) {
     wrap.appendChild(item);
   });
 
-  const add = document.createElement('button');
-  add.className = 'track-add-btn';
-  add.type = 'button';
-  add.textContent = getRowTracks(row).length >= MAX_TRACKS_PER_ROW ? 'Max' : '+ Track';
-  add.disabled = getRowTracks(row).length >= MAX_TRACKS_PER_ROW;
-  add.addEventListener('mousedown', e => e.stopPropagation());
-  add.addEventListener('click', e => { e.stopPropagation(); addTrack(row); });
-  wrap.appendChild(add);
+  if (canAddTrack(row)) {
+    const addRow = document.createElement('div');
+    addRow.className = 'track-add-row';
+    addRow.title = 'Add a track to this resource';
+    addRow.style.setProperty('--add-track-h', ADD_TRACK_ROW_H + 'px');
+    addRow.textContent = '+ Track';
+    addRow.addEventListener('mousedown', e => e.stopPropagation());
+    addRow.addEventListener('click', e => { e.stopPropagation(); addTrack(row); });
+    wrap.appendChild(addRow);
+  }
   return wrap;
 }
 function addTrack(row) {
@@ -2664,7 +2655,7 @@ function _render() {
     const group = document.createElement('div');
     group.className = 'resource-group';
     group.dataset.rowId = row.id;
-    group.style.setProperty('--row-h', getRowVisualHeight(row) + 'px');
+    group.style.setProperty('--row-h', getResourceGroupHeight(row) + 'px');
 
     const resourceResize = document.createElement('div');
     resourceResize.className = 'row-resize resource-row-resize';
@@ -2793,6 +2784,38 @@ function _render() {
       trackStack.appendChild(trackRow);
       trackCells.set(track.id, cells);
     });
+
+    if (canAddTrack(row)) {
+      const addLane = document.createElement('div');
+      addLane.className = 'row track-grid-row track-add-lane';
+      addLane.dataset.rowId = row.id;
+      addLane.title = 'Add a track to this resource';
+      addLane.style.setProperty('--row-h', ADD_TRACK_ROW_H + 'px');
+      addLane.addEventListener('click', (e) => { if (e.target.closest('.block')) return; addTrack(row); });
+      const addCells = document.createElement('div');
+      addCells.className = 'row-cells track-row-cells';
+      addCells.style.width = (TOTAL_COLS * dayPx()) + 'px';
+      addCells.style.minWidth = (TOTAL_COLS * dayPx()) + 'px';
+      addLane.appendChild(addCells);
+      trackStack.appendChild(addLane);
+    }
+
+    // Full-width horizontal separators between sub-tracks (and above the add row),
+    // drawn across the whole group so each sub-track reads as one continuous row.
+    {
+      const tracks = getRowTracks(row);
+      let sepY = 0;
+      tracks.forEach((track, idx) => {
+        sepY += track.height || ROW_H_DEFAULT;
+        if (idx < tracks.length - 1 || canAddTrack(row)) {
+          const sep = document.createElement('div');
+          sep.className = 'track-separator';
+          sep.dataset.sepIndex = idx;
+          sep.style.top = sepY + 'px';
+          group.appendChild(sep);
+        }
+      });
+    }
 
     const rowBlocks = blocks.filter(b => b.rowId === row.id);
     rowBlocks.forEach(block => {
@@ -2965,7 +2988,8 @@ function setupTrackSortables() {
       draggable: '.track-label-row',
       handle: '.track-drag-handle',
       animation: 160,
-      filter: '.track-add-btn, .track-delete-btn, .track-label-input, .track-resize-grip',
+      preventOnFilter: false,
+      filter: '.track-delete-btn, .track-resize-grip',
       onEnd() {
         const orderedIds = [...list.querySelectorAll('.track-label-row[data-track-id]')].map(el => el.dataset.trackId);
         const byId = new Map(getRowTracks(row).map(track => [track.id, track]));
@@ -3213,14 +3237,18 @@ function applyRowHeights() {
   rows.forEach(row => {
     const rowEl = document.querySelector(`.resource-group[data-row-id="${row.id}"]`);
     if (!rowEl) return;
-    rowEl.style.setProperty('--row-h', getRowVisualHeight(row) + 'px');
+    rowEl.style.setProperty('--row-h', getResourceGroupHeight(row) + 'px');
 
-    getRowTracks(row).forEach(track => {
+    let sepY = 0;
+    getRowTracks(row).forEach((track, idx) => {
       const h = track.height || ROW_H_DEFAULT;
       document.querySelectorAll(`[data-track-id="${track.id}"]`).forEach(el => {
         el.style.setProperty('--track-h', h + 'px');
         if (el.classList.contains('track-grid-row')) el.style.setProperty('--row-h', h + 'px');
       });
+      sepY += h;
+      const sep = rowEl.querySelector(`.track-separator[data-sep-index="${idx}"]`);
+      if (sep) sep.style.top = sepY + 'px';
     });
   });
 }
