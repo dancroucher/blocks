@@ -274,13 +274,22 @@
     flex: 1;
     min-height: 0;
   }
-  .row-header-content {
+  .resource-summary {
+    width: 94px;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding-right: 0.4rem;
+    border-right: 1px solid rgba(0,0,0,0.06);
+  }
+  .track-panel {
     flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    align-items: stretch;
-    gap: 3px;
+    position: relative;
+    padding-left: 0.45rem;
   }
   .row-header-tags {
     display: flex;
@@ -294,8 +303,8 @@
     display: flex;
     flex-direction: column;
     gap: 0;
-    margin-top: 0.15rem;
-    border-top: 1px solid rgba(0,0,0,0.05);
+    flex: 1;
+    min-height: 0;
   }
   .track-label-row {
     display: flex;
@@ -303,6 +312,7 @@
     gap: 0.25rem;
     min-height: var(--track-h, 40px);
     border-bottom: 1px solid rgba(0,0,0,0.04);
+    padding-right: 2.6rem;
   }
   .track-drag-handle {
     cursor: grab;
@@ -328,6 +338,13 @@
     padding: 0.05rem 0.2rem;
   }
   .track-delete-btn:hover { color: #dc2626; }
+  .track-add-btn {
+    position: absolute;
+    right: 0;
+    top: 0.15rem;
+    font-size: 0.68rem;
+    background: rgba(248,248,248,0.9);
+  }
   .track-add-btn:hover { color: var(--accent); }
   .tag-chip {
     display: inline-flex;
@@ -454,10 +471,6 @@
     flex: 0 0 auto;
     height: 100%;
   }
-  .track-lane-spacer {
-    flex: 0 0 auto;
-    border-bottom: 1px solid rgba(0,0,0,0.04);
-  }
   .track-lane {
     position: relative;
     height: var(--track-h, 40px);
@@ -470,11 +483,14 @@
     position: absolute;
     left: 0;
     right: 0;
-    bottom: -3px;
-    height: 6px;
+    bottom: -5px;
+    height: 10px;
     cursor: row-resize;
-    z-index: 8;
+    z-index: 30;
+    border-bottom: 2px solid transparent;
+    pointer-events: auto;
   }
+  .track-resize:hover { border-bottom-color: var(--accent); }
 
   /* Painted grid backgrounds — repeating gradients are dramatically faster
      than one DOM node per day for thousands of columns. Solid grey fill
@@ -1386,7 +1402,7 @@ const ROW_H_MIN = 30;
 const ROW_H_DEFAULT = 40;
 const ROW_H_MAX = 360;
 const MAX_TRACKS_PER_ROW = 8;
-const RESOURCE_HEADER_META_H = 58;
+const RESOURCE_HEADER_MIN_H = 56;
 
 // --- Firebase shared state ---
 // Replace with your actual Firebase project config from:
@@ -1842,7 +1858,7 @@ function getRowTracks(row) {
 }
 function getDefaultTrackId(row) { return getRowTracks(row)[0]?.id || null; }
 function getTrack(row, trackId) { return getRowTracks(row).find(track => track.id === trackId) || getRowTracks(row)[0]; }
-function getRowVisualHeight(row) { return RESOURCE_HEADER_META_H + getRowTracks(row).reduce((sum, track) => sum + (track.height || ROW_H_DEFAULT), 0); }
+function getRowVisualHeight(row) { return Math.max(RESOURCE_HEADER_MIN_H, getRowTracks(row).reduce((sum, track) => sum + (track.height || ROW_H_DEFAULT), 0)); }
 function getRowCapacity(row) {
   const cap = Number(row && row.capacity);
   return Number.isFinite(cap) && cap > 0 ? cap : 100;
@@ -1950,7 +1966,7 @@ function buildTrackList(row) {
   const add = document.createElement('button');
   add.className = 'track-add-btn';
   add.type = 'button';
-  add.textContent = getRowTracks(row).length >= MAX_TRACKS_PER_ROW ? 'Max tracks' : '+ Track';
+  add.textContent = getRowTracks(row).length >= MAX_TRACKS_PER_ROW ? 'Max' : '+ Track';
   add.disabled = getRowTracks(row).length >= MAX_TRACKS_PER_ROW;
   add.addEventListener('mousedown', e => e.stopPropagation());
   add.addEventListener('click', e => { e.stopPropagation(); addTrack(row); });
@@ -2628,15 +2644,15 @@ function _render() {
     }
     headerMain.appendChild(gridHandle);
 
-    const headerContent = document.createElement('div');
-    headerContent.className = 'row-header-content';
+    const summary = document.createElement('div');
+    summary.className = 'resource-summary';
 
     const input = document.createElement('input');
     input.className = 'row-label-input';
     input.placeholder = 'Resource ' + row.id;
     input.value = row.label;
     input.oninput = (e) => { row.label = e.target.value; renderPanel(); saveState(); };
-    headerContent.appendChild(input);
+    summary.appendChild(input);
 
     const capacityWrap = document.createElement('span');
     capacityWrap.className = 'capacity-control';
@@ -2653,10 +2669,8 @@ function _render() {
     capacityInput.addEventListener('change', (e) => setRowCapacity(row, e.target.value));
     capacityWrap.appendChild(capacityInput);
     capacityWrap.appendChild(document.createTextNode('%'));
-    headerContent.appendChild(capacityWrap);
-    headerContent.appendChild(buildTagsRow(row));
-    headerContent.appendChild(buildTrackList(row));
-    headerMain.appendChild(headerContent);
+    summary.appendChild(capacityWrap);
+    summary.appendChild(buildTagsRow(row));
 
     const deleteResourceBtn = document.createElement('button');
     deleteResourceBtn.className = 'resource-delete-btn';
@@ -2665,7 +2679,13 @@ function _render() {
     deleteResourceBtn.textContent = '×';
     deleteResourceBtn.addEventListener('mousedown', e => e.stopPropagation());
     deleteResourceBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteResource(row.id); });
-    headerMain.appendChild(deleteResourceBtn);
+    summary.appendChild(deleteResourceBtn);
+    headerMain.appendChild(summary);
+
+    const trackPanel = document.createElement('div');
+    trackPanel.className = 'track-panel';
+    trackPanel.appendChild(buildTrackList(row));
+    headerMain.appendChild(trackPanel);
 
     header.appendChild(headerMain);
     rowEl.appendChild(header);
@@ -2706,12 +2726,6 @@ function _render() {
     }
     cells.style.width = (TOTAL_COLS * dayPx()) + 'px';
     cells.style.minWidth = (TOTAL_COLS * dayPx()) + 'px';
-
-    const trackSpacer = document.createElement('div');
-    trackSpacer.className = 'track-lane-spacer';
-    trackSpacer.style.height = RESOURCE_HEADER_META_H + 'px';
-    trackSpacer.style.minHeight = RESOURCE_HEADER_META_H + 'px';
-    cells.appendChild(trackSpacer);
 
     getRowTracks(row).forEach(track => {
       const lane = document.createElement('div');
