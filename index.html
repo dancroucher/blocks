@@ -497,6 +497,7 @@
     position: relative;
     width: max-content;
     min-width: 100%;
+    height: var(--row-h, auto);
     border-bottom: 1px solid var(--grid-line);
   }
   .resource-group-header {
@@ -506,6 +507,18 @@
   .resource-row-resize {
     z-index: 70;
   }
+  .resource-track-resize-line {
+    position: absolute;
+    left: 0;
+    right: 0;
+    height: 10px;
+    transform: translateY(-5px);
+    cursor: row-resize;
+    z-index: 90;
+    border-bottom: 2px solid transparent;
+    pointer-events: auto;
+  }
+  .resource-track-resize-line:hover { border-bottom-color: var(--accent); }
   .resource-track-stack {
     display: flex;
     flex-direction: column;
@@ -2682,6 +2695,18 @@ function _render() {
     group.dataset.rowId = row.id;
     group.style.setProperty('--row-h', getRowVisualHeight(row) + 'px');
 
+    let resizeLineY = 0;
+    getRowTracks(row).forEach(track => {
+      resizeLineY += track.height || ROW_H_DEFAULT;
+      const line = document.createElement('div');
+      line.className = 'resource-track-resize-line';
+      line.dataset.trackId = track.id;
+      line.style.top = resizeLineY + 'px';
+      line.title = 'Drag to resize track';
+      line.addEventListener('mousedown', e => startTrackResize(e, row.id, track.id), true);
+      group.appendChild(line);
+    });
+
     const resourceResize = document.createElement('div');
     resourceResize.className = 'row-resize resource-row-resize';
     resourceResize.title = 'Drag to resize all tracks in this resource. Hold Shift to apply to all resources.';
@@ -3236,8 +3261,17 @@ function applyRowHeights() {
     const rowEl = document.querySelector(`.resource-group[data-row-id="${row.id}"]`);
     if (!rowEl) return;
     rowEl.style.setProperty('--row-h', getRowVisualHeight(row) + 'px');
+
+    let resizeLineY = 0;
     getRowTracks(row).forEach(track => {
-      document.querySelectorAll(`[data-track-id="${track.id}"]`).forEach(el => el.style.setProperty('--track-h', (track.height || ROW_H_DEFAULT) + 'px'));
+      const h = track.height || ROW_H_DEFAULT;
+      document.querySelectorAll(`[data-track-id="${track.id}"]`).forEach(el => {
+        el.style.setProperty('--track-h', h + 'px');
+        if (el.classList.contains('track-grid-row')) el.style.setProperty('--row-h', h + 'px');
+      });
+      resizeLineY += h;
+      const line = rowEl.querySelector(`.resource-track-resize-line[data-track-id="${track.id}"]`);
+      if (line) line.style.top = resizeLineY + 'px';
     });
   });
 }
