@@ -2604,6 +2604,13 @@ function _render() {
     const rowH = getRowVisualHeight(row);
     rowEl.style.setProperty('--row-h', rowH + 'px');
 
+    // Resource resize handle at bottom; adjusts all tracks in this resource.
+    const resizeHandle = document.createElement('div');
+    resizeHandle.className = 'row-resize';
+    resizeHandle.title = 'Drag to resize all tracks in this resource. Hold Shift to apply to all resources.';
+    resizeHandle.addEventListener('mousedown', (e) => startRowResize(e, row.id));
+    rowEl.appendChild(resizeHandle);
+
     // Row header
     const header = document.createElement('div');
     header.className = 'row-header';
@@ -3286,55 +3293,42 @@ function startRowResize(e, rowId) {
   e.stopPropagation();
   const row = rows.find(r => r.id === rowId);
   if (!row) return;
-  const rowEl = document.querySelector(`.row[data-row-id="${rowId}"]`);
-  if (!rowEl) return;
+  const tracks = getRowTracks(row);
+  if (!tracks.length) return;
 
   const startY = e.clientY;
-  const startH = rowHeights[rowId] || row.height || rowEl.getBoundingClientRect().height || ROW_H_DEFAULT;
-  const defaultH = ROW_H_DEFAULT;
+  const startHeights = new Map(rows.map(r => [r.id, getRowTracks(r).map(t => t.height || ROW_H_DEFAULT)]));
   let resizeAllOnRelease = e.shiftKey;
 
-  rowEl.classList.add('resizing');
+  document.querySelector(`.row[data-row-id="${rowId}"]`)?.classList.add('resizing');
   document.body.classList.add('row-resizing');
 
-  function applyPersistedHeight(targetRow, h) {
-    const targetEl = document.querySelector(`.row[data-row-id="${targetRow.id}"]`);
-    if (Math.abs(h - defaultH) < 5) {
-      targetRow.height = 0;
-      delete rowHeights[targetRow.id];
-      if (targetEl) targetEl.style.setProperty('--row-h', ROW_H_DEFAULT + 'px');
-    } else {
-      const persistedH = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round(h)));
-      targetRow.height = persistedH;
-      rowHeights[targetRow.id] = persistedH;
-      if (targetEl) targetEl.style.setProperty('--row-h', persistedH + 'px');
-    }
-  }
-
-  function setPreviewHeight(h) {
-    const nextH = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round(h)));
-    rowHeights[rowId] = nextH;
-    row.height = nextH;
-    rowEl.style.setProperty('--row-h', nextH + 'px');
+  function applyDelta(targetRow, deltaY) {
+    const targetTracks = getRowTracks(targetRow);
+    const baseHeights = startHeights.get(targetRow.id) || targetTracks.map(t => t.height || ROW_H_DEFAULT);
+    const deltaPerTrack = deltaY / Math.max(1, targetTracks.length);
+    targetTracks.forEach((track, idx) => {
+      track.height = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round((baseHeights[idx] || ROW_H_DEFAULT) + deltaPerTrack)));
+    });
   }
 
   function onMove(me) {
     if (me.shiftKey) resizeAllOnRelease = true;
-    setPreviewHeight(startH + (me.clientY - startY));
+    const deltaY = me.clientY - startY;
+    applyDelta(row, deltaY);
+    applyRowHeights();
   }
 
   function onUp(upEvent) {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
-    rowEl.classList.remove('resizing');
+    document.querySelector(`.row[data-row-id="${rowId}"]`)?.classList.remove('resizing');
     document.body.classList.remove('row-resizing');
 
-    const finalH = rowHeights[rowId] || row.height || rowEl.getBoundingClientRect().height;
-    if (resizeAllOnRelease || (upEvent && upEvent.shiftKey)) {
-      rows.forEach(targetRow => applyPersistedHeight(targetRow, finalH));
-    } else {
-      applyPersistedHeight(row, finalH);
-    }
+    const deltaY = upEvent.clientY - startY;
+    if (resizeAllOnRelease || (upEvent && upEvent.shiftKey)) rows.forEach(targetRow => applyDelta(targetRow, deltaY));
+    else applyDelta(row, deltaY);
+    render();
     saveState();
   }
 
