@@ -492,6 +492,33 @@
     flex: 0 0 auto;
     height: 100%;
   }
+  .resource-group {
+    display: flex;
+    position: relative;
+    width: max-content;
+    min-width: 100%;
+    border-bottom: 1px solid var(--grid-line);
+  }
+  .resource-group-header {
+    flex: 0 0 var(--row-header-width);
+    align-self: stretch;
+  }
+  .resource-row-resize {
+    z-index: 70;
+  }
+  .resource-track-stack {
+    display: flex;
+    flex-direction: column;
+    flex: 0 0 auto;
+  }
+  .track-grid-row {
+    border-bottom: 1px solid var(--grid-line);
+  }
+  .track-grid-row:last-child { border-bottom: none; }
+  .track-row-cells {
+    display: block;
+    height: 100%;
+  }
   .track-lane {
     position: relative;
     height: var(--track-h, 40px);
@@ -2648,36 +2675,30 @@ function _render() {
 
   wrapper.appendChild(headersWrap);
 
-  // Rows
+  // Resources. Each track is rendered as a real grid row, grouped under one resource header.
   rows.forEach(row => {
-    const rowEl = document.createElement('div');
-    rowEl.className = 'row';
-    rowEl.dataset.rowId = row.id;
-    const rowH = getRowVisualHeight(row);
-    rowEl.style.setProperty('--row-h', rowH + 'px');
+    const group = document.createElement('div');
+    group.className = 'resource-group';
+    group.dataset.rowId = row.id;
+    group.style.setProperty('--row-h', getRowVisualHeight(row) + 'px');
 
-    // Resource resize handle at bottom; adjusts all tracks in this resource.
-    const resizeHandle = document.createElement('div');
-    resizeHandle.className = 'row-resize';
-    resizeHandle.title = 'Drag to resize all tracks in this resource. Hold Shift to apply to all resources.';
-    resizeHandle.addEventListener('mousedown', (e) => startRowResize(e, row.id));
-    rowEl.appendChild(resizeHandle);
+    const resourceResize = document.createElement('div');
+    resourceResize.className = 'row-resize resource-row-resize';
+    resourceResize.title = 'Drag to resize all tracks in this resource. Hold Shift to apply to all resources.';
+    resourceResize.addEventListener('mousedown', (e) => startRowResize(e, row.id));
+    group.appendChild(resourceResize);
 
-    // Row header
     const header = document.createElement('div');
-    header.className = 'row-header';
+    header.className = 'row-header resource-group-header';
 
     const headerMain = document.createElement('div');
     headerMain.className = 'row-header-main';
 
-    // Drag handle
     const gridHandle = document.createElement('div');
     gridHandle.className = 'row-drag-handle';
     gridHandle.textContent = '⠿';
-    gridHandle.title = 'Drag to reorder';
-    if (typeof Sortable === 'undefined') {
-      gridHandle.addEventListener('mousedown', (e) => startRowDrag(e, row.id, 'grid'));
-    }
+    gridHandle.title = 'Drag to reorder resource';
+    if (typeof Sortable === 'undefined') gridHandle.addEventListener('mousedown', (e) => startRowDrag(e, row.id, 'grid'));
     headerMain.appendChild(gridHandle);
 
     const summary = document.createElement('div');
@@ -2724,66 +2745,81 @@ function _render() {
     headerMain.appendChild(trackPanel);
 
     header.appendChild(headerMain);
-    rowEl.appendChild(header);
+    group.appendChild(header);
 
-    // Cells
-    const cells = document.createElement('div');
-    cells.className = 'row-cells';
-    cells.dataset.rowId = row.id;
-    const trackLanes = new Map();
+    const trackStack = document.createElement('div');
+    trackStack.className = 'resource-track-stack';
 
-    // Body cells.
-    if (zoom === 'month') {
-      cells.classList.add('painted-month');
-    } else {
-      cells.classList.add(zoom === 'week' ? 'painted-week' : 'painted-day');
-      if (isDayLikeZoom()) {
-        const px = dayPx();
-        cells.style.backgroundImage = zoom === 'day-half'
-          ? `repeating-linear-gradient(to right, transparent 0, transparent ${px / 2 - 1}px, rgba(180,180,180,0.45) ${px / 2 - 1}px, rgba(180,180,180,0.45) ${px / 2}px, transparent ${px / 2}px, transparent ${px - 1}px, var(--grid-line) ${px - 1}px, var(--grid-line) ${px}px)`
-          : `repeating-linear-gradient(to right, transparent 0, transparent ${px - 1}px, var(--grid-line) ${px - 1}px, var(--grid-line) ${px}px)`;
+    const trackCells = new Map();
+    getRowTracks(row).forEach(track => {
+      const trackRow = document.createElement('div');
+      trackRow.className = 'row track-grid-row';
+      trackRow.dataset.rowId = row.id;
+      trackRow.dataset.trackId = track.id;
+      trackRow.style.setProperty('--row-h', (track.height || ROW_H_DEFAULT) + 'px');
+
+      const resizeHandle = document.createElement('div');
+      resizeHandle.className = 'row-resize track-row-resize';
+      resizeHandle.title = 'Drag to resize track';
+      resizeHandle.addEventListener('mousedown', (e) => startTrackResize(e, row.id, track.id), true);
+      trackRow.appendChild(resizeHandle);
+
+      const cells = document.createElement('div');
+      cells.className = 'row-cells track-row-cells';
+      cells.dataset.rowId = row.id;
+      cells.dataset.trackId = track.id;
+      if (zoom === 'month') cells.classList.add('painted-month');
+      else {
+        cells.classList.add(zoom === 'week' ? 'painted-week' : 'painted-day');
+        if (isDayLikeZoom()) {
+          const px = dayPx();
+          cells.style.backgroundImage = zoom === 'day-half'
+            ? `repeating-linear-gradient(to right, transparent 0, transparent ${px / 2 - 1}px, rgba(180,180,180,0.45) ${px / 2 - 1}px, rgba(180,180,180,0.45) ${px / 2}px, transparent ${px / 2}px, transparent ${px - 1}px, var(--grid-line) ${px - 1}px, var(--grid-line) ${px}px)`
+            : `repeating-linear-gradient(to right, transparent 0, transparent ${px - 1}px, var(--grid-line) ${px - 1}px, var(--grid-line) ${px}px)`;
+        }
+        if (zoom === 'week') {
+          let firstWeekDays = 0;
+          for (let wc = 0; wc < TOTAL_COLS; wc++) {
+            if (wc > 0 && colToDate(wc).getDay() === 1) break;
+            firstWeekDays++;
+          }
+          cells.style.backgroundPositionX = (firstWeekDays * WEEK_DAY_PX - 79) + 'px';
+        }
       }
-      // Set explicit width since there are no child cells driving size
       cells.style.width = (TOTAL_COLS * dayPx()) + 'px';
       cells.style.minWidth = (TOTAL_COLS * dayPx()) + 'px';
-      // Align week gradient lines with week header boundaries.
-      // The first week may be a partial week (project might not start on Monday),
-      // so offset the repeating gradient by the first week's pixel width.
-      if (zoom === 'week') {
-        let firstWeekDays = 0;
-        for (let wc = 0; wc < TOTAL_COLS; wc++) {
-          if (wc > 0 && colToDate(wc).getDay() === 1) break;
-          firstWeekDays++;
-        }
-        // Gradient line (left edge) is at 79px within each 80px tile.
-        // Shift origin so first line falls at firstWeekDays * WEEK_DAY_PX.
-        cells.style.backgroundPositionX = (firstWeekDays * WEEK_DAY_PX - 79) + 'px';
-      }
-    }
-    cells.style.width = (TOTAL_COLS * dayPx()) + 'px';
-    cells.style.minWidth = (TOTAL_COLS * dayPx()) + 'px';
 
-    getRowTracks(row).forEach(track => {
-      const lane = document.createElement('div');
-      lane.className = 'track-lane';
-      lane.dataset.rowId = row.id;
-      lane.dataset.trackId = track.id;
-      lane.style.setProperty('--track-h', (track.height || ROW_H_DEFAULT) + 'px');
-      if (zoom === 'month') lane.classList.add('painted-month');
-      else lane.classList.add(zoom === 'week' ? 'painted-week' : 'painted-day');
-      const resize = document.createElement('div');
-      resize.className = 'track-resize';
-      resize.title = 'Drag to resize track';
-      resize.addEventListener('mousedown', e => startTrackResize(e, row.id, track.id), true);
-      lane.appendChild(resize);
-      cells.appendChild(lane);
-      trackLanes.set(track.id, lane);
+      cells.addEventListener('dblclick', (e) => {
+        if (e.target.closest('.block')) return;
+        const rect = cells.getBoundingClientRect();
+        const x = e.clientX - rect.left + cells.scrollLeft;
+        const col = Math.floor(x / dayPx());
+        createBlock(row.id, col, 3, '', false, 'grid', track.id);
+      });
+
+      cells.addEventListener('mousedown', (e) => {
+        if (e.target.closest('.block') || e.target.closest('.row-resize') || e.target.closest('.track-label-resize')) return;
+        if (e.button !== 0) return;
+        const rect = cells.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const col = Math.floor(x / dayPx());
+        const preview = document.createElement('div');
+        preview.className = 'create-preview';
+        preview.style.left = (col * dayPx()) + 'px';
+        preview.style.width = dayPx() + 'px';
+        cells.appendChild(preview);
+        createState = { rowId: row.id, trackId: track.id, startCol: col, currentCol: col, preview };
+      });
+
+      trackRow.appendChild(cells);
+      trackStack.appendChild(trackRow);
+      trackCells.set(track.id, cells);
     });
 
-    // Render blocks for this row
     const rowBlocks = blocks.filter(b => b.rowId === row.id);
     rowBlocks.forEach(block => {
-      const lane = trackLanes.get(block.trackId) || trackLanes.get(getDefaultTrackId(row));
+      const cells = trackCells.get(block.trackId) || trackCells.get(getDefaultTrackId(row));
+      if (!cells) return;
       const bEl = document.createElement('div');
       bEl.className = `block block-color-${block.color}${isDataBlock(block) ? ' block-data' : ''}`;
       const baseDuration = getBlockBaseDuration(block);
@@ -2792,20 +2828,17 @@ function _render() {
       bEl.style.width = (baseDuration * dayPx() - 2) + 'px';
       bEl.dataset.blockId = block.id;
 
-      // Editable label
       const labelEl = document.createElement('span');
       labelEl.className = 'block-label';
       labelEl.textContent = block.label || '';
       bEl.appendChild(labelEl);
 
-      // Right-aligned day count badge: base days, then capacity-adjusted schedule in brackets
       const daysBadge = document.createElement('span');
       daysBadge.className = 'block-days-badge';
       daysBadge.innerHTML = fmtBlockDuration(block);
       bEl.appendChild(daysBadge);
 
       if (!isDataBlock(block)) {
-        // Resize handles
         const hl = document.createElement('div');
         hl.className = 'handle-left';
         hl.addEventListener('mousedown', (e) => startResize(e, block.id, 'left'));
@@ -2816,7 +2849,6 @@ function _render() {
         hr.addEventListener('mousedown', (e) => startResize(e, block.id, 'right'));
         bEl.appendChild(hr);
 
-        // Move
         bEl.addEventListener('mousedown', (e) => {
           if (e.target.classList.contains('handle-left') || e.target.classList.contains('handle-right')) return;
           if (e.target.classList.contains('block-label-input')) return;
@@ -2824,14 +2856,11 @@ function _render() {
         });
       }
 
-      // Context menu
       bEl.addEventListener('contextmenu', (e) => {
         e.preventDefault();
         showBlockContextMenu(e, block.id);
       });
 
-      // Click-timing double-click detection — more reliable than native dblclick
-      // (which can be lost when render() rebuilds DOM between clicks).
       bEl.addEventListener('click', (e) => {
         if (isDataBlock(block)) return;
         if (e.target.classList.contains('handle-left') || e.target.classList.contains('handle-right')) return;
@@ -2846,13 +2875,12 @@ function _render() {
         }
       });
 
-      lane.appendChild(bEl);
+      cells.appendChild(bEl);
 
       const extraDays = contingencyPct > 0 ? Math.round(block.duration * contingencyPct / 100) : 0;
       const baseExtraDays = contingencyPct > 0 ? Math.round(baseDuration * contingencyPct / 100) : 0;
       const capacityExtraDays = Math.max(0, extraDays - baseExtraDays);
 
-      // Contingency extension — the non-hatched contingency sits immediately after the base block.
       if (baseExtraDays > 0) {
         const cEl = document.createElement('div');
         cEl.className = `block-contingency block-color-${block.color}`;
@@ -2862,7 +2890,6 @@ function _render() {
         bEl.appendChild(cEl);
       }
 
-      // Capacity block — hatched capacity adjustment appears after the contingency section.
       const capacityVisualDays = capacityDays + capacityExtraDays;
       if (capacityVisualDays > 0) {
         const capEl = document.createElement('div');
@@ -2870,40 +2897,12 @@ function _render() {
         capEl.dataset.capacityFor = block.id;
         capEl.style.left = ((block.start + baseDuration + baseExtraDays) * dayPx()) + 'px';
         capEl.style.width = (capacityVisualDays * dayPx() - 2) + 'px';
-        lane.appendChild(capEl);
+        cells.appendChild(capEl);
       }
     });
 
-    // Double click on empty space to create block
-    cells.addEventListener('dblclick', (e) => {
-      if (e.target.closest('.block')) return;
-      const lane = e.target.closest('.track-lane');
-      if (!lane) return;
-      const rect = lane.getBoundingClientRect();
-      const x = e.clientX - rect.left + lane.scrollLeft;
-      const col = Math.floor(x / dayPx());
-      createBlock(row.id, col, 3, '', false, 'grid', lane.dataset.trackId);
-    });
-
-    // Mousedown to start creating
-    cells.addEventListener('mousedown', (e) => {
-      if (e.target.closest('.block') || e.target.closest('.track-resize') || e.target.closest('.track-label-resize')) return;
-      if (e.button !== 0) return;
-      const lane = e.target.closest('.track-lane');
-      if (!lane) return;
-      const rect = lane.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const col = Math.floor(x / dayPx());
-      const preview = document.createElement('div');
-      preview.className = 'create-preview';
-      preview.style.left = (col * dayPx()) + 'px';
-      preview.style.width = dayPx() + 'px';
-      lane.appendChild(preview);
-      createState = { rowId: row.id, trackId: lane.dataset.trackId, startCol: col, currentCol: col, preview };
-    });
-
-    rowEl.appendChild(cells);
-    wrapper.appendChild(rowEl);
+    group.appendChild(trackStack);
+    wrapper.appendChild(group);
   });
 
   // Add row button — structured as a row so the left label stays sticky with other headers
@@ -2947,7 +2946,7 @@ function setupGridRowSortable() {
     _gridRowSortable = null;
   }
   _gridRowSortable = Sortable.create(wrapper, {
-    draggable: '.row[data-row-id]',
+    draggable: '.resource-group[data-row-id]',
     handle: '.row-header-main > .row-drag-handle',
     animation: 180,
     ghostClass: 'row-sortable-ghost',
@@ -2962,7 +2961,7 @@ function setupGridRowSortable() {
       document.body.classList.remove('row-reordering-sortable');
       const addRowEl = wrapper.querySelector('.add-row-btn')?.closest('.row');
       if (addRowEl) wrapper.appendChild(addRowEl);
-      const orderedIds = [...wrapper.querySelectorAll('.row[data-row-id]')].map(el => parseInt(el.dataset.rowId));
+      const orderedIds = [...wrapper.querySelectorAll('.resource-group[data-row-id]')].map(el => parseInt(el.dataset.rowId));
       if (orderedIds.length !== rows.length) return;
       const byId = new Map(rows.map(row => [row.id, row]));
       const nextRows = orderedIds.map(id => byId.get(id)).filter(Boolean);
@@ -3027,7 +3026,7 @@ function startEditingPanelRowLabel(labelSpan, row) {
     if (commit && row.label !== prev) {
       saveState();
       // Sync grid row header input
-      const gridInput = document.querySelector(`.row[data-row-id="${row.id}"] .row-header .row-label-input`);
+      const gridInput = document.querySelector(`.resource-group[data-row-id="${row.id}"] .row-header .row-label-input`);
       if (gridInput) gridInput.value = row.label;
     }
   };
@@ -3234,7 +3233,7 @@ function renderPanel() {
 // --- Row vertical resize ---
 function applyRowHeights() {
   rows.forEach(row => {
-    const rowEl = document.querySelector(`.row[data-row-id="${row.id}"]`);
+    const rowEl = document.querySelector(`.resource-group[data-row-id="${row.id}"]`);
     if (!rowEl) return;
     rowEl.style.setProperty('--row-h', getRowVisualHeight(row) + 'px');
     getRowTracks(row).forEach(track => {
@@ -3350,7 +3349,7 @@ function startRowResize(e, rowId) {
   const startHeights = new Map(rows.map(r => [r.id, getRowTracks(r).map(t => t.height || ROW_H_DEFAULT)]));
   let resizeAllOnRelease = e.shiftKey;
 
-  document.querySelector(`.row[data-row-id="${rowId}"]`)?.classList.add('resizing');
+  document.querySelector(`.resource-group[data-row-id="${rowId}"]`)?.classList.add('resizing');
   document.body.classList.add('row-resizing');
 
   function applyDelta(targetRow, deltaY) {
@@ -3372,7 +3371,7 @@ function startRowResize(e, rowId) {
   function onUp(upEvent) {
     document.removeEventListener('mousemove', onMove);
     document.removeEventListener('mouseup', onUp);
-    document.querySelector(`.row[data-row-id="${rowId}"]`)?.classList.remove('resizing');
+    document.querySelector(`.resource-group[data-row-id="${rowId}"]`)?.classList.remove('resizing');
     document.body.classList.remove('row-resizing');
 
     const deltaY = upEvent.clientY - startY;
@@ -3554,7 +3553,7 @@ document.addEventListener('mousemove', (e) => {
 
       // Check if we should move to a different row
       const gridArea = document.getElementById('grid-area');
-      const lanes = gridArea.querySelectorAll('.track-lane[data-row-id][data-track-id]');
+      const lanes = gridArea.querySelectorAll('.row-cells[data-row-id][data-track-id]');
       for (const lane of lanes) {
         const rect = lane.getBoundingClientRect();
         if (e.clientY >= rect.top && e.clientY < rect.bottom) {
@@ -3716,7 +3715,7 @@ document.addEventListener('mousemove', (e) => {
 
   // Create by drag preview
   if (createState) {
-    const cells = document.querySelector(`.track-lane[data-row-id="${createState.rowId}"][data-track-id="${createState.trackId}"]`);
+    const cells = document.querySelector(`.row-cells[data-row-id="${createState.rowId}"][data-track-id="${createState.trackId}"]`);
     if (cells && createState.preview) {
       const r = cells.getBoundingClientRect();
       const x = e.clientX - r.left;
@@ -3798,7 +3797,7 @@ document.addEventListener('mouseup', (e) => {
   }
 
   if (createState) {
-    const rect = document.querySelector(`.track-lane[data-row-id="${createState.rowId}"][data-track-id="${createState.trackId}"]`);
+    const rect = document.querySelector(`.row-cells[data-row-id="${createState.rowId}"][data-track-id="${createState.trackId}"]`);
     if (rect) {
       const r = rect.getBoundingClientRect();
       const x = e.clientX - r.left;
