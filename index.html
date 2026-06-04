@@ -329,7 +329,8 @@
     color: var(--dim) !important;
   }
   .track-delete-btn,
-  .track-add-btn {
+  .track-add-btn,
+  .track-resize-grip {
     border: none;
     background: transparent;
     color: #aaa;
@@ -339,6 +340,12 @@
     padding: 0.05rem 0.2rem;
   }
   .track-delete-btn:hover { color: #dc2626; }
+  .track-resize-grip {
+    cursor: row-resize;
+    font-size: 0.85rem;
+    color: #bbb;
+  }
+  .track-resize-grip:hover { color: var(--accent); }
   .track-label-resize {
     position: absolute;
     left: 0;
@@ -495,11 +502,11 @@
     position: absolute;
     left: 0;
     right: 0;
-    bottom: 0;
-    height: 8px;
+    bottom: -4px;
+    height: 12px;
     cursor: row-resize;
-    z-index: 30;
-    border-bottom: 2px solid transparent;
+    z-index: 60;
+    border-bottom: 2px solid rgba(245,166,35,0.18);
     pointer-events: auto;
   }
   .track-resize:hover { border-bottom-color: var(--accent); }
@@ -1973,6 +1980,14 @@ function buildTrackList(row) {
     del.addEventListener('click', e => { e.stopPropagation(); deleteTrack(row, track.id); });
     item.appendChild(del);
 
+    const grip = document.createElement('button');
+    grip.className = 'track-resize-grip';
+    grip.type = 'button';
+    grip.textContent = '↕';
+    grip.title = 'Drag to resize track';
+    grip.addEventListener('mousedown', e => startTrackResize(e, row.id, track.id));
+    item.appendChild(grip);
+
     const resize = document.createElement('div');
     resize.className = 'track-label-resize';
     resize.title = 'Drag to resize track';
@@ -2971,7 +2986,7 @@ function setupTrackSortables() {
       draggable: '.track-label-row',
       handle: '.track-drag-handle',
       animation: 160,
-      filter: '.track-add-btn',
+      filter: '.track-add-btn, .track-delete-btn, .track-label-input, .track-label-resize, .track-resize-grip',
       onEnd() {
         const orderedIds = [...list.querySelectorAll('.track-label-row[data-track-id]')].map(el => el.dataset.trackId);
         const byId = new Map(getRowTracks(row).map(track => [track.id, track]));
@@ -3372,6 +3387,7 @@ function startRowResize(e, rowId) {
 function startTrackResize(e, rowId, trackId) {
   e.preventDefault();
   e.stopPropagation();
+  if (e.stopImmediatePropagation) e.stopImmediatePropagation();
   const row = rows.find(r => r.id === rowId);
   const track = getTrack(row, trackId);
   if (!row || !track) return;
