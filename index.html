@@ -1160,17 +1160,50 @@
     gap: 0.35rem;
     flex: 1;
     min-width: 0;
+    position: relative;
   }
-  .zoom-select {
+  .zoom-select-btn {
     font-family: inherit;
     font-size: 0.78rem;
     color: var(--text);
     background: #fff;
     border: 1px solid var(--border);
-    border-radius: 7px;
-    padding: 0.22rem 1.45rem 0.22rem 0.45rem;
+    border-radius: 0;
+    padding: 0.22rem 0.45rem;
     cursor: pointer;
-    max-width: 5.7rem;
+    min-width: 4.9rem;
+    text-align: left;
+  }
+  .zoom-select-btn::after {
+    content: '⌄';
+    float: right;
+    color: var(--dim);
+    margin-left: 0.4rem;
+  }
+  .zoom-menu {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 50;
+    min-width: 7.5rem;
+    padding: 0.25rem;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 0;
+    box-shadow: 0 12px 28px rgba(0,0,0,0.12);
+  }
+  .zoom-menu[hidden] { display: none; }
+  .zoom-menu button {
+    display: block;
+    width: 100%;
+    text-align: left;
+    border-radius: 0;
+    padding: 0.35rem 0.45rem;
+    color: var(--text);
+  }
+  .zoom-menu button.active,
+  .zoom-menu button:hover {
+    background: #eee;
   }
   .map-nav-controls {
     display: flex;
@@ -1949,12 +1982,11 @@ function render() {
 function renderMapControls() {
   const controls = document.createElement('div');
   controls.className = 'map-header-controls';
-  const options = MAP_ZOOM_LEVELS.map(level => `<option value="${level}" ${level === zoom ? 'selected' : ''}>${ZOOM_LABELS[level] || level}</option>`).join('');
+  const options = MAP_ZOOM_LEVELS.map(level => `<button type="button" class="${level === zoom ? 'active' : ''}" onclick="selectZoomLevel('${level}')">${ZOOM_LABELS[level] || level}</button>`).join('');
   controls.innerHTML = `
     <div class="zoom-controls">
-      <select class="zoom-select" onchange="setZoom(this.value)" title="Timeline zoom">
-        ${options}
-      </select>
+      <button type="button" class="zoom-select-btn" onclick="toggleZoomMenu(event)" title="Timeline zoom">${ZOOM_LABELS[zoom] || zoom}</button>
+      <div class="zoom-menu" id="zoom-menu" hidden>${options}</div>
     </div>
     <div class="map-nav-controls">
       <button class="map-nav-btn" onclick="scrollTimeline(-1)" title="Scroll left">‹</button>
@@ -3575,8 +3607,9 @@ function duplicateBlock(id) {
 
 // --- Zoom ---
 function syncViewButtons() {
-  const select = document.querySelector('.zoom-select');
-  if (select) select.value = zoom;
+  const btn = document.querySelector('.zoom-select-btn');
+  if (btn) btn.childNodes[0].nodeValue = ZOOM_LABELS[zoom] || zoom;
+  document.querySelectorAll('.zoom-menu button').forEach(item => item.classList.toggle('active', item.textContent === (ZOOM_LABELS[zoom] || zoom)));
   document.getElementById('btn-table')?.classList.toggle('active', zoom === 'table');
   document.getElementById('btn-map')?.classList.toggle('active', zoom !== 'table');
 }
@@ -3621,6 +3654,18 @@ function zoomRelative(direction, anchorClientX = null) {
   if (nextIdx !== idx) setZoom(MAP_ZOOM_LEVELS[nextIdx], anchorClientX);
 }
 
+function toggleZoomMenu(e) {
+  e.stopPropagation();
+  const menu = document.getElementById('zoom-menu');
+  if (menu) menu.hidden = !menu.hidden;
+}
+
+function selectZoomLevel(level) {
+  const menu = document.getElementById('zoom-menu');
+  if (menu) menu.hidden = true;
+  setZoom(level);
+}
+
 function onTimelineWheel(e) {
   if (zoom === 'table' || (!e.ctrlKey && !e.metaKey)) return;
   e.preventDefault();
@@ -3642,7 +3687,7 @@ function jumpToToday() {
 function scrollTimeline(direction) {
   const gridArea = document.getElementById('grid-area');
   if (!gridArea) return;
-  const amount = Math.max(gridArea.clientWidth * 0.75, dayPx() * 5);
+  const amount = Math.max(gridArea.clientWidth * 0.1875, dayPx() * 2);
   gridArea.scrollBy({ left: direction * amount, behavior: 'smooth' });
 }
 
@@ -3659,9 +3704,16 @@ function updateContingency() {
 }
 
 // --- Keyboard ---
+document.addEventListener('click', () => {
+  const menu = document.getElementById('zoom-menu');
+  if (menu) menu.hidden = true;
+});
+
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     document.getElementById('context-menu').style.display = 'none';
+    const menu = document.getElementById('zoom-menu');
+    if (menu) menu.hidden = true;
   }
   if ((e.metaKey || e.ctrlKey) && (e.key === '+' || e.key === '=')) {
     e.preventDefault();
