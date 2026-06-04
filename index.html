@@ -299,8 +299,10 @@
     min-height: var(--track-h, 40px);
     flex: 0 0 var(--track-h, 40px);
     padding-right: 0.4rem;
+    border-bottom: 1px solid var(--grid-line);
     position: relative;
   }
+  .track-list > .track-label-row:last-child { border-bottom: none; }
   .track-drag-handle {
     cursor: grab;
     color: #c2c2c2;
@@ -314,8 +316,7 @@
     font-weight: 400 !important;
     color: var(--dim) !important;
   }
-  .track-delete-btn,
-  .track-resize-grip {
+  .track-delete-btn {
     border: none;
     background: transparent;
     color: #aaa;
@@ -325,12 +326,6 @@
     padding: 0.05rem 0.2rem;
   }
   .track-delete-btn:hover { color: #dc2626; }
-  .track-resize-grip {
-    cursor: row-resize;
-    font-size: 0.85rem;
-    color: #bbb;
-  }
-  .track-resize-grip:hover { color: var(--accent); }
   .track-add-row {
     display: flex;
     align-items: center;
@@ -448,17 +443,19 @@
 
   .row-header input::placeholder { color: #ccc; }
   .resource-delete-btn {
+    position: absolute;
+    top: 2px;
+    left: 3px;
+    z-index: 4;
     border: none;
     background: transparent;
-    color: #aaa;
+    color: #bbb;
     cursor: pointer;
     font-family: inherit;
-    font-size: 1rem;
+    font-size: 0.9rem;
     line-height: 1;
-    padding: 0.1rem 0.25rem;
+    padding: 0.05rem 0.2rem;
     border-radius: 4px;
-    margin-left: 0.25rem;
-    flex-shrink: 0;
   }
   .resource-delete-btn:hover { color: #dc2626; background: rgba(220,38,38,0.08); }
 
@@ -484,6 +481,10 @@
   .resource-row-resize {
     z-index: 70;
   }
+  .track-row-resize {
+    z-index: 65;
+  }
+  .track-row-resize:hover { border-bottom-color: var(--accent); }
   .resource-track-stack {
     display: flex;
     flex-direction: column;
@@ -491,21 +492,12 @@
   }
   .track-grid-row {
     flex: 0 0 auto;
+    border-bottom: 1px solid var(--grid-line);
   }
+  .resource-track-stack > .track-grid-row:last-child { border-bottom: none; }
   .track-row-cells {
     display: block;
     height: 100%;
-  }
-  /* Full-width divider between sub-tracks, spanning the resource header and the
-     timeline so each sub-track reads as one continuous row. Purely visual. */
-  .track-separator {
-    position: absolute;
-    left: 0;
-    right: 0;
-    height: 0;
-    border-top: 1px solid var(--grid-line);
-    z-index: 4;
-    pointer-events: none;
   }
   .track-add-lane {
     cursor: pointer;
@@ -1959,7 +1951,8 @@ function buildTrackList(row) {
   const wrap = document.createElement('div');
   wrap.className = 'track-list';
   wrap.dataset.rowId = row.id;
-  getRowTracks(row).forEach(track => {
+  const tracks = getRowTracks(row);
+  tracks.forEach((track, idx) => {
     const item = document.createElement('div');
     item.className = 'track-label-row';
     item.dataset.trackId = track.id;
@@ -1988,13 +1981,15 @@ function buildTrackList(row) {
     del.addEventListener('click', e => { e.stopPropagation(); deleteTrack(row, track.id); });
     item.appendChild(del);
 
-    const grip = document.createElement('button');
-    grip.className = 'track-resize-grip';
-    grip.type = 'button';
-    grip.textContent = '↕';
-    grip.title = 'Drag to resize track';
-    grip.addEventListener('mousedown', e => startTrackResize(e, row.id, track.id), true);
-    item.appendChild(grip);
+    // Drag the divider below this track label to resize the track, matching the
+    // resize handle on the timeline lane for the same dividing line.
+    if (idx < tracks.length - 1 || canAddTrack(row)) {
+      const resize = document.createElement('div');
+      resize.className = 'row-resize track-row-resize';
+      resize.title = 'Drag to resize this track';
+      resize.addEventListener('mousedown', e => startTrackResize(e, row.id, track.id));
+      item.appendChild(resize);
+    }
 
     wrap.appendChild(item);
   });
@@ -2711,7 +2706,7 @@ function _render() {
     deleteResourceBtn.textContent = '×';
     deleteResourceBtn.addEventListener('mousedown', e => e.stopPropagation());
     deleteResourceBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteResource(row.id); });
-    summary.appendChild(deleteResourceBtn);
+    header.appendChild(deleteResourceBtn);
     headerMain.appendChild(summary);
 
     const trackPanel = document.createElement('div');
@@ -2726,7 +2721,8 @@ function _render() {
     trackStack.className = 'resource-track-stack';
 
     const trackCells = new Map();
-    getRowTracks(row).forEach(track => {
+    const rowTracks = getRowTracks(row);
+    rowTracks.forEach((track, idx) => {
       const trackRow = document.createElement('div');
       trackRow.className = 'row track-grid-row';
       trackRow.dataset.rowId = row.id;
@@ -2781,6 +2777,18 @@ function _render() {
       });
 
       trackRow.appendChild(cells);
+
+      // Drag the line dividing this track from the next to resize this track,
+      // mirroring the resource-level resize handle. Skip the bottom-most edge
+      // when it coincides with the resource resize handle (no add row below).
+      if (idx < rowTracks.length - 1 || canAddTrack(row)) {
+        const trackResize = document.createElement('div');
+        trackResize.className = 'row-resize track-row-resize';
+        trackResize.title = 'Drag to resize this track';
+        trackResize.addEventListener('mousedown', (e) => startTrackResize(e, row.id, track.id));
+        trackRow.appendChild(trackResize);
+      }
+
       trackStack.appendChild(trackRow);
       trackCells.set(track.id, cells);
     });
@@ -2798,23 +2806,6 @@ function _render() {
       addCells.style.minWidth = (TOTAL_COLS * dayPx()) + 'px';
       addLane.appendChild(addCells);
       trackStack.appendChild(addLane);
-    }
-
-    // Full-width horizontal separators between sub-tracks (and above the add row),
-    // drawn across the whole group so each sub-track reads as one continuous row.
-    {
-      const tracks = getRowTracks(row);
-      let sepY = 0;
-      tracks.forEach((track, idx) => {
-        sepY += track.height || ROW_H_DEFAULT;
-        if (idx < tracks.length - 1 || canAddTrack(row)) {
-          const sep = document.createElement('div');
-          sep.className = 'track-separator';
-          sep.dataset.sepIndex = idx;
-          sep.style.top = sepY + 'px';
-          group.appendChild(sep);
-        }
-      });
     }
 
     const rowBlocks = blocks.filter(b => b.rowId === row.id);
@@ -2989,7 +2980,7 @@ function setupTrackSortables() {
       handle: '.track-drag-handle',
       animation: 160,
       preventOnFilter: false,
-      filter: '.track-delete-btn, .track-resize-grip',
+      filter: '.track-delete-btn',
       onEnd() {
         const orderedIds = [...list.querySelectorAll('.track-label-row[data-track-id]')].map(el => el.dataset.trackId);
         const byId = new Map(getRowTracks(row).map(track => [track.id, track]));
@@ -3239,16 +3230,12 @@ function applyRowHeights() {
     if (!rowEl) return;
     rowEl.style.setProperty('--row-h', getResourceGroupHeight(row) + 'px');
 
-    let sepY = 0;
-    getRowTracks(row).forEach((track, idx) => {
+    getRowTracks(row).forEach(track => {
       const h = track.height || ROW_H_DEFAULT;
       document.querySelectorAll(`[data-track-id="${track.id}"]`).forEach(el => {
         el.style.setProperty('--track-h', h + 'px');
         if (el.classList.contains('track-grid-row')) el.style.setProperty('--row-h', h + 'px');
       });
-      sepY += h;
-      const sep = rowEl.querySelector(`.track-separator[data-sep-index="${idx}"]`);
-      if (sep) sep.style.top = sepY + 'px';
     });
   });
 }
