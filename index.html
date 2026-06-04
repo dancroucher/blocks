@@ -348,17 +348,6 @@
     color: #bbb;
   }
   .track-resize-grip:hover { color: var(--accent); }
-  .track-label-resize {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: -5px;
-    height: 10px;
-    cursor: row-resize;
-    z-index: 20;
-    border-bottom: 2px solid transparent;
-  }
-  .track-label-resize:hover { border-bottom-color: var(--accent); }
   .track-add-btn {
     position: absolute;
     right: 0;
@@ -507,18 +496,6 @@
   .resource-row-resize {
     z-index: 70;
   }
-  .resource-track-resize-line {
-    position: absolute;
-    left: 0;
-    right: 0;
-    height: 10px;
-    transform: translateY(-5px);
-    cursor: row-resize;
-    z-index: 90;
-    border-bottom: 2px solid transparent;
-    pointer-events: auto;
-  }
-  .resource-track-resize-line:hover { border-bottom-color: var(--accent); }
   .resource-track-stack {
     display: flex;
     flex-direction: column;
@@ -2030,12 +2007,6 @@ function buildTrackList(row) {
     grip.addEventListener('mousedown', e => startTrackResize(e, row.id, track.id), true);
     item.appendChild(grip);
 
-    const resize = document.createElement('div');
-    resize.className = 'track-label-resize';
-    resize.title = 'Drag to resize track';
-    resize.addEventListener('mousedown', e => startTrackResize(e, row.id, track.id), true);
-    item.appendChild(resize);
-
     wrap.appendChild(item);
   });
 
@@ -2695,18 +2666,6 @@ function _render() {
     group.dataset.rowId = row.id;
     group.style.setProperty('--row-h', getRowVisualHeight(row) + 'px');
 
-    let resizeLineY = 0;
-    getRowTracks(row).forEach(track => {
-      resizeLineY += track.height || ROW_H_DEFAULT;
-      const line = document.createElement('div');
-      line.className = 'resource-track-resize-line';
-      line.dataset.trackId = track.id;
-      line.style.top = resizeLineY + 'px';
-      line.title = 'Drag to resize track';
-      line.addEventListener('mousedown', e => startTrackResize(e, row.id, track.id), true);
-      group.appendChild(line);
-    });
-
     const resourceResize = document.createElement('div');
     resourceResize.className = 'row-resize resource-row-resize';
     resourceResize.title = 'Drag to resize all tracks in this resource. Hold Shift to apply to all resources.';
@@ -2783,12 +2742,6 @@ function _render() {
       trackRow.dataset.trackId = track.id;
       trackRow.style.setProperty('--row-h', (track.height || ROW_H_DEFAULT) + 'px');
 
-      const resizeHandle = document.createElement('div');
-      resizeHandle.className = 'row-resize track-row-resize';
-      resizeHandle.title = 'Drag to resize track';
-      resizeHandle.addEventListener('mousedown', (e) => startTrackResize(e, row.id, track.id), true);
-      trackRow.appendChild(resizeHandle);
-
       const cells = document.createElement('div');
       cells.className = 'row-cells track-row-cells';
       cells.dataset.rowId = row.id;
@@ -2823,7 +2776,7 @@ function _render() {
       });
 
       cells.addEventListener('mousedown', (e) => {
-        if (e.target.closest('.block') || e.target.closest('.row-resize') || e.target.closest('.track-label-resize')) return;
+        if (e.target.closest('.block') || e.target.closest('.row-resize')) return;
         if (e.button !== 0) return;
         const rect = cells.getBoundingClientRect();
         const x = e.clientX - rect.left;
@@ -3012,7 +2965,7 @@ function setupTrackSortables() {
       draggable: '.track-label-row',
       handle: '.track-drag-handle',
       animation: 160,
-      filter: '.track-add-btn, .track-delete-btn, .track-label-input, .track-label-resize, .track-resize-grip',
+      filter: '.track-add-btn, .track-delete-btn, .track-label-input, .track-resize-grip',
       onEnd() {
         const orderedIds = [...list.querySelectorAll('.track-label-row[data-track-id]')].map(el => el.dataset.trackId);
         const byId = new Map(getRowTracks(row).map(track => [track.id, track]));
@@ -3262,16 +3215,12 @@ function applyRowHeights() {
     if (!rowEl) return;
     rowEl.style.setProperty('--row-h', getRowVisualHeight(row) + 'px');
 
-    let resizeLineY = 0;
     getRowTracks(row).forEach(track => {
       const h = track.height || ROW_H_DEFAULT;
       document.querySelectorAll(`[data-track-id="${track.id}"]`).forEach(el => {
         el.style.setProperty('--track-h', h + 'px');
         if (el.classList.contains('track-grid-row')) el.style.setProperty('--row-h', h + 'px');
       });
-      resizeLineY += h;
-      const line = rowEl.querySelector(`.resource-track-resize-line[data-track-id="${track.id}"]`);
-      if (line) line.style.top = resizeLineY + 'px';
     });
   });
 }
