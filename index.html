@@ -310,7 +310,9 @@
     display: flex;
     align-items: center;
     gap: 0.25rem;
+    height: var(--track-h, 40px);
     min-height: var(--track-h, 40px);
+    flex: 0 0 var(--track-h, 40px);
     border-bottom: 1px solid rgba(0,0,0,0.04);
     padding-right: 2.6rem;
     position: relative;
@@ -1985,13 +1987,13 @@ function buildTrackList(row) {
     grip.type = 'button';
     grip.textContent = '↕';
     grip.title = 'Drag to resize track';
-    grip.addEventListener('mousedown', e => startTrackResize(e, row.id, track.id));
+    grip.addEventListener('mousedown', e => startTrackResize(e, row.id, track.id), true);
     item.appendChild(grip);
 
     const resize = document.createElement('div');
     resize.className = 'track-label-resize';
     resize.title = 'Drag to resize track';
-    resize.addEventListener('mousedown', e => startTrackResize(e, row.id, track.id));
+    resize.addEventListener('mousedown', e => startTrackResize(e, row.id, track.id), true);
     item.appendChild(resize);
 
     wrap.appendChild(item);
@@ -2772,7 +2774,7 @@ function _render() {
       const resize = document.createElement('div');
       resize.className = 'track-resize';
       resize.title = 'Drag to resize track';
-      resize.addEventListener('mousedown', e => startTrackResize(e, row.id, track.id));
+      resize.addEventListener('mousedown', e => startTrackResize(e, row.id, track.id), true);
       lane.appendChild(resize);
       cells.appendChild(lane);
       trackLanes.set(track.id, lane);
@@ -3384,28 +3386,34 @@ function startRowResize(e, rowId) {
   document.addEventListener('mouseup', onUp);
 }
 
+let _trackResizeActive = false;
 function startTrackResize(e, rowId, trackId) {
   e.preventDefault();
   e.stopPropagation();
   if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+  if (_trackResizeActive) return;
+  _trackResizeActive = true;
   const row = rows.find(r => r.id === rowId);
   const track = getTrack(row, trackId);
-  if (!row || !track) return;
+  if (!row || !track) { _trackResizeActive = false; return; }
   const startY = e.clientY;
   const startH = track.height || ROW_H_DEFAULT;
+  document.body.classList.add('row-resizing');
 
   function onMove(me) {
     track.height = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round(startH + (me.clientY - startY))));
     applyRowHeights();
   }
   function onUp() {
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onUp);
+    document.removeEventListener('mousemove', onMove, true);
+    document.removeEventListener('mouseup', onUp, true);
+    document.body.classList.remove('row-resizing');
+    _trackResizeActive = false;
     render();
     saveState();
   }
-  document.addEventListener('mousemove', onMove);
-  document.addEventListener('mouseup', onUp);
+  document.addEventListener('mousemove', onMove, true);
+  document.addEventListener('mouseup', onUp, true);
 }
 
 function startRowDrag(e, rowId, source) {
