@@ -280,7 +280,7 @@
     display: flex;
     flex-direction: column;
     align-items: stretch;
-    gap: 1px;
+    gap: 3px;
   }
   .row-header-tags {
     display: flex;
@@ -288,7 +288,47 @@
     align-items: center;
     gap: 3px;
     min-height: 0;
+    margin-bottom: 0.15rem;
   }
+  .track-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    margin-top: 0.15rem;
+    border-top: 1px solid rgba(0,0,0,0.05);
+  }
+  .track-label-row {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: var(--track-h, 40px);
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+  }
+  .track-drag-handle {
+    cursor: grab;
+    color: #c2c2c2;
+    font-size: 0.85rem;
+    user-select: none;
+  }
+  .track-label-input {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.72rem !important;
+    font-weight: 400 !important;
+    color: var(--dim) !important;
+  }
+  .track-delete-btn,
+  .track-add-btn {
+    border: none;
+    background: transparent;
+    color: #aaa;
+    cursor: pointer;
+    font-family: inherit;
+    font-size: 0.75rem;
+    padding: 0.05rem 0.2rem;
+  }
+  .track-delete-btn:hover { color: #dc2626; }
+  .track-add-btn:hover { color: var(--accent); }
   .tag-chip {
     display: inline-flex;
     align-items: center;
@@ -409,9 +449,31 @@
 
   .row-cells {
     display: flex;
+    flex-direction: column;
     position: relative;
     flex: 0 0 auto;
     height: 100%;
+  }
+  .track-lane-spacer {
+    flex: 0 0 auto;
+    border-bottom: 1px solid rgba(0,0,0,0.04);
+  }
+  .track-lane {
+    position: relative;
+    height: var(--track-h, 40px);
+    min-height: var(--track-h, 40px);
+    border-bottom: 1px solid var(--grid-line);
+    flex: 0 0 auto;
+  }
+  .track-lane:last-child { border-bottom: none; }
+  .track-resize {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -3px;
+    height: 6px;
+    cursor: row-resize;
+    z-index: 8;
   }
 
   /* Painted grid backgrounds — repeating gradients are dramatically faster
@@ -1323,6 +1385,8 @@ const COLORS = 18;
 const ROW_H_MIN = 30;
 const ROW_H_DEFAULT = 40;
 const ROW_H_MAX = 360;
+const MAX_TRACKS_PER_ROW = 8;
+const RESOURCE_HEADER_META_H = 58;
 
 // --- Firebase shared state ---
 // Replace with your actual Firebase project config from:
@@ -1375,7 +1439,7 @@ function countWeekdaysInclusive(from, to) {
   return n;
 }
 const TOTAL_COLS = countWeekdaysInclusive(PROJECT_START_DATE, PROJECT_END_DATE);
-const STATE_VERSION = 3; // v2 = weekday-indexed cols; v3 = grid/data block kinds
+const STATE_VERSION = 4; // v4 = resource tracks
 
 // Format: "[base]d + [conting]d ([total]d)" when contingency > 0, else "[base]d".
 // The letter 'd' and any contingency amount are wrapped in .cg for styling.
@@ -1484,24 +1548,39 @@ function sanitizeState(data) {
   const validZooms = new Set(MAP_ZOOM_LEVELS.map(level => typeof level === 'string' ? level : level.key).concat('table'));
   const cleanRows = data.rows
     .filter(row => row && typeof row === 'object' && Number.isFinite(Number(row.id)))
-    .map(row => ({
-      ...row,
-      id: toPositiveInt(row.id),
-      label: typeof row.label === 'string' ? row.label : '',
-      height: toNonNegativeInt(row.height, 0),
-      capacity: Math.max(1, Math.min(999, toPositiveInt(row.capacity, 100))),
-      tags: Array.isArray(row.tags)
-        ? row.tags.filter(tag => typeof tag === 'string').map(tag => tag.trim()).filter(Boolean).slice(0, 50)
-        : [],
-    }));
+    .map(row => {
+      const rowId = toPositiveInt(row.id);
+      const tracks = Array.isArray(row.tracks) && row.tracks.length
+        ? row.tracks.slice(0, MAX_TRACKS_PER_ROW)
+          .filter(track => track && typeof track === 'object')
+          .map((track, idx) => ({
+            id: typeof track.id === 'string' && track.id ? track.id : `r${rowId}-t${idx + 1}`,
+            label: typeof track.label === 'string' ? track.label : (idx === 0 ? 'Main' : `Track ${idx + 1}`),
+            height: Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, toPositiveInt(track.height || row.height, ROW_H_DEFAULT))),
+          }))
+        : [{ id: `r${rowId}-t1`, label: 'Main', height: Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, toPositiveInt(row.height, ROW_H_DEFAULT))) }];
+      return {
+        ...row,
+        id: rowId,
+        label: typeof row.label === 'string' ? row.label : '',
+        height: toNonNegativeInt(row.height, 0),
+        capacity: Math.max(1, Math.min(999, toPositiveInt(row.capacity, 100))),
+        tags: Array.isArray(row.tags)
+          ? row.tags.filter(tag => typeof tag === 'string').map(tag => tag.trim()).filter(Boolean).slice(0, 50)
+          : [],
+        tracks,
+      };
+    });
 
   const rowIds = new Set(cleanRows.map(row => row.id));
+  const firstTrackByRow = new Map(cleanRows.map(row => [row.id, row.tracks[0].id]));
   const cleanBlocks = data.blocks
     .filter(block => block && typeof block === 'object' && Number.isFinite(Number(block.id)))
     .map(block => ({
       ...block,
       id: toPositiveInt(block.id),
       rowId: toPositiveInt(block.rowId),
+      trackId: typeof block.trackId === 'string' ? block.trackId : firstTrackByRow.get(toPositiveInt(block.rowId)),
       start: toNonNegativeInt(block.start, 0),
       baseDuration: toPositiveInt(block.baseDuration || block.duration, 1),
       duration: toPositiveInt(block.duration || block.baseDuration, 1),
@@ -1679,7 +1758,8 @@ function applyRemoteState(data) {
   }
   // Sync rowHeights with row.height values from rows
   rows.forEach(row => {
-    if (!rowHeights[row.id] && row.height) rowHeights[row.id] = row.height;
+    if (rowHeights[row.id] && getRowTracks(row).length === 1) row.tracks[0].height = rowHeights[row.id];
+    else if (row.height && getRowTracks(row).length === 1) row.tracks[0].height = row.height;
   });
   normalizeRows();
   normalizeBlocks();
@@ -1698,11 +1778,11 @@ function applyRemoteState(data) {
 let zoom = 'day'; // day, week, month, table
 let mapZoom = 'day'; // last non-table view used by the Map tab
 let rows = [
-  { id: 1, label: '', height: 0, capacity: 100 },
-  { id: 2, label: '', height: 0, capacity: 100 },
-  { id: 3, label: '', height: 0, capacity: 100 },
-  { id: 4, label: '', height: 0, capacity: 100 },
-  { id: 5, label: '', height: 0, capacity: 100 },
+  makeRow(1),
+  makeRow(2),
+  makeRow(3),
+  makeRow(4),
+  makeRow(5),
 ];
 let blocks = [];
 let rowHeights = {}; // { rowId: height }
@@ -1745,7 +1825,24 @@ document.addEventListener('mousemove', (e) => {
 document.addEventListener('mouseup', endPan);
 
 
-function makeRow(id) { return { id, label: '', height: 0, capacity: 100, tags: [] }; }
+function makeTrack(rowId, index = 0) {
+  return { id: `r${rowId}-t${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, label: index === 0 ? 'Main' : `Track ${index + 1}`, height: ROW_H_DEFAULT };
+}
+function makeDefaultTrack(rowId) { return { id: `r${rowId}-t1`, label: 'Main', height: ROW_H_DEFAULT }; }
+function makeRow(id) { return { id, label: '', height: 0, capacity: 100, tags: [], tracks: [makeDefaultTrack(id)] }; }
+function getRowTracks(row) {
+  if (!row) return [];
+  if (!Array.isArray(row.tracks) || !row.tracks.length) row.tracks = [makeDefaultTrack(row.id)];
+  row.tracks = row.tracks.slice(0, MAX_TRACKS_PER_ROW).map((track, idx) => ({
+    id: typeof track.id === 'string' && track.id ? track.id : `r${row.id}-t${idx + 1}`,
+    label: typeof track.label === 'string' ? track.label : (idx === 0 ? 'Main' : `Track ${idx + 1}`),
+    height: Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round(Number(track.height) || ROW_H_DEFAULT))),
+  }));
+  return row.tracks;
+}
+function getDefaultTrackId(row) { return getRowTracks(row)[0]?.id || null; }
+function getTrack(row, trackId) { return getRowTracks(row).find(track => track.id === trackId) || getRowTracks(row)[0]; }
+function getRowVisualHeight(row) { return RESOURCE_HEADER_META_H + getRowTracks(row).reduce((sum, track) => sum + (track.height || ROW_H_DEFAULT), 0); }
 function getRowCapacity(row) {
   const cap = Number(row && row.capacity);
   return Number.isFinite(cap) && cap > 0 ? cap : 100;
@@ -1754,6 +1851,7 @@ function normalizeRows() {
   rows.forEach(row => {
     if (!row || !Number.isFinite(Number(row.capacity)) || Number(row.capacity) <= 0) row.capacity = 100;
     if (!Array.isArray(row.tags)) row.tags = [];
+    getRowTracks(row);
   });
 }
 function allTags() {
@@ -1814,6 +1912,71 @@ function buildTagsRow(row) {
   wrap.appendChild(addBtn);
   return wrap;
 }
+function buildTrackList(row) {
+  const wrap = document.createElement('div');
+  wrap.className = 'track-list';
+  wrap.dataset.rowId = row.id;
+  getRowTracks(row).forEach(track => {
+    const item = document.createElement('div');
+    item.className = 'track-label-row';
+    item.dataset.trackId = track.id;
+    item.style.setProperty('--track-h', (track.height || ROW_H_DEFAULT) + 'px');
+
+    const handle = document.createElement('span');
+    handle.className = 'track-drag-handle';
+    handle.textContent = '⋮⋮';
+    handle.title = 'Drag to reorder track';
+    item.appendChild(handle);
+
+    const input = document.createElement('input');
+    input.className = 'track-label-input';
+    input.value = track.label || '';
+    input.placeholder = 'Track';
+    input.addEventListener('mousedown', e => e.stopPropagation());
+    input.addEventListener('input', e => { track.label = e.target.value; renderPanel(); saveState(); });
+    item.appendChild(input);
+
+    const del = document.createElement('button');
+    del.className = 'track-delete-btn';
+    del.type = 'button';
+    del.textContent = '×';
+    del.title = 'Delete track';
+    del.addEventListener('mousedown', e => e.stopPropagation());
+    del.addEventListener('click', e => { e.stopPropagation(); deleteTrack(row, track.id); });
+    item.appendChild(del);
+    wrap.appendChild(item);
+  });
+
+  const add = document.createElement('button');
+  add.className = 'track-add-btn';
+  add.type = 'button';
+  add.textContent = getRowTracks(row).length >= MAX_TRACKS_PER_ROW ? 'Max tracks' : '+ Track';
+  add.disabled = getRowTracks(row).length >= MAX_TRACKS_PER_ROW;
+  add.addEventListener('mousedown', e => e.stopPropagation());
+  add.addEventListener('click', e => { e.stopPropagation(); addTrack(row); });
+  wrap.appendChild(add);
+  return wrap;
+}
+function addTrack(row) {
+  const tracks = getRowTracks(row);
+  if (tracks.length >= MAX_TRACKS_PER_ROW) return;
+  tracks.push(makeTrack(row.id, tracks.length));
+  render();
+  saveState();
+}
+function deleteTrack(row, trackId) {
+  const tracks = getRowTracks(row);
+  if (tracks.length <= 1) return;
+  const track = tracks.find(t => t.id === trackId);
+  const count = blocks.filter(b => b.rowId === row.id && b.trackId === trackId).length;
+  const msg = count ? `Delete track "${track?.label || 'Track'}" and move ${count} block${count === 1 ? '' : 's'} to the first track?` : `Delete track "${track?.label || 'Track'}"?`;
+  if (!confirm(msg)) return;
+  const fallback = tracks.find(t => t.id !== trackId);
+  blocks.forEach(block => { if (block.rowId === row.id && block.trackId === trackId) block.trackId = fallback.id; });
+  row.tracks = tracks.filter(t => t.id !== trackId);
+  render();
+  saveState();
+}
 function buildTagInput(row) {
   const existing = allTags();
   const inp = document.createElement('input');
@@ -1862,7 +2025,10 @@ function fmtContingencyDuration(baseDays, scheduledDays) {
 }
 function normalizeBlocks() {
   blocks.forEach(block => {
-    const row = rows.find(r => r.id === block.rowId);
+    let row = rows.find(r => r.id === block.rowId) || rows[0];
+    if (row) block.rowId = row.id;
+    const tracks = getRowTracks(row);
+    if (!block.trackId || !tracks.some(track => track.id === block.trackId)) block.trackId = tracks[0]?.id || null;
     if (block.kind !== 'data') block.kind = 'grid';
     if (!Number.isFinite(Number(block.baseDuration)) || Number(block.baseDuration) <= 0) {
       block.baseDuration = adjustedDurationForCapacity(block.duration || 1, getRowCapacity(row), 100);
@@ -2179,23 +2345,38 @@ function renderCombinedBlocksView(view) {
     if (!rowBlocks.length) {
       const empty = document.createElement('div');
       empty.className = 'combined-empty';
-      empty.textContent = 'No blocks in this row';
+      empty.textContent = 'No blocks in this resource';
       body.appendChild(empty);
     } else {
-      const table = document.createElement('table');
-      table.className = 'block-table';
-      table.innerHTML = `<thead><tr>
-        <th style="width:34%">Name</th>
-        <th style="width:14%">Start</th>
-        <th style="width:14%">End</th>
-        <th style="width:12%">Base days</th>
-        <th style="width:16%">Shown days</th>
-        <th style="width:10%"></th>
-      </tr></thead>`;
-      const tbody = document.createElement('tbody');
-      rowBlocks.forEach(block => appendBlockEditRow(tbody, block));
-      table.appendChild(tbody);
-      body.appendChild(table);
+      getRowTracks(row).forEach(track => {
+        const trackBlocks = rowBlocks.filter(block => block.trackId === track.id);
+        const trackTitle = document.createElement('div');
+        trackTitle.className = 'panel-header';
+        trackTitle.style.fontSize = '0.78rem';
+        trackTitle.textContent = track.label || 'Track';
+        body.appendChild(trackTitle);
+        if (!trackBlocks.length) {
+          const empty = document.createElement('div');
+          empty.className = 'combined-empty';
+          empty.textContent = 'No blocks in this track';
+          body.appendChild(empty);
+          return;
+        }
+        const table = document.createElement('table');
+        table.className = 'block-table';
+        table.innerHTML = `<thead><tr>
+          <th style="width:34%">Name</th>
+          <th style="width:14%">Start</th>
+          <th style="width:14%">End</th>
+          <th style="width:12%">Base days</th>
+          <th style="width:16%">Shown days</th>
+          <th style="width:10%"></th>
+        </tr></thead>`;
+        const tbody = document.createElement('tbody');
+        trackBlocks.forEach(block => appendBlockEditRow(tbody, block));
+        table.appendChild(tbody);
+        body.appendChild(table);
+      });
     }
 
     const totals = document.createElement('div');
@@ -2215,7 +2396,7 @@ function renderCombinedBlocksView(view) {
     addSectionBtn.type = 'button';
     addSectionBtn.textContent = '+ Add block';
     addSectionBtn.onclick = () => {
-      createBlock(row.id, Math.max(0, todayWeekdayCol()), 5, 'New block');
+      createBlock(row.id, Math.max(0, todayWeekdayCol()), 5, 'New block', false, 'grid', getDefaultTrackId(row));
       saveState();
     };
     actions.appendChild(addSectionBtn);
@@ -2420,15 +2601,8 @@ function _render() {
     const rowEl = document.createElement('div');
     rowEl.className = 'row';
     rowEl.dataset.rowId = row.id;
-    const rowH = rowHeights[row.id] || row.height || ROW_H_DEFAULT;
+    const rowH = getRowVisualHeight(row);
     rowEl.style.setProperty('--row-h', rowH + 'px');
-
-    // Row resize handle at bottom of row
-    const resizeHandle = document.createElement('div');
-    resizeHandle.className = 'row-resize';
-    resizeHandle.title = 'Drag to resize. Hold Shift to apply final height to all rows.';
-    resizeHandle.addEventListener('mousedown', (e) => startRowResize(e, row.id));
-    rowEl.appendChild(resizeHandle);
 
     // Row header
     const header = document.createElement('div');
@@ -2474,6 +2648,7 @@ function _render() {
     capacityWrap.appendChild(document.createTextNode('%'));
     headerContent.appendChild(capacityWrap);
     headerContent.appendChild(buildTagsRow(row));
+    headerContent.appendChild(buildTrackList(row));
     headerMain.appendChild(headerContent);
 
     const deleteResourceBtn = document.createElement('button');
@@ -2492,32 +2667,11 @@ function _render() {
     const cells = document.createElement('div');
     cells.className = 'row-cells';
     cells.dataset.rowId = row.id;
+    const trackLanes = new Map();
 
     // Body cells.
-    // Day/week views: paint the grid via CSS gradient on .row-cells (no DOM
-    // nodes per cell). Month view keeps real DOM nodes since month widths
-    // vary and don't tile cleanly.
     if (zoom === 'month') {
       cells.classList.add('painted-month');
-      let mc = 0;
-      while (mc < TOTAL_COLS) {
-        const d0 = colToDate(mc);
-        const m = d0.getMonth();
-        const y = d0.getFullYear();
-        let span = 0;
-        while (mc + span < TOTAL_COLS) {
-          const d2 = colToDate(mc + span);
-          if (d2.getMonth() !== m || d2.getFullYear() !== y) break;
-          span++;
-        }
-        const w = span * dayPx();
-        const line = document.createElement('div');
-        line.className = 'cell-line';
-        line.style.width = w + 'px';
-        line.style.minWidth = w + 'px';
-        cells.appendChild(line);
-        mc += span;
-      }
     } else {
       cells.classList.add(zoom === 'week' ? 'painted-week' : 'painted-day');
       if (isDayLikeZoom()) {
@@ -2543,10 +2697,36 @@ function _render() {
         cells.style.backgroundPositionX = (firstWeekDays * WEEK_DAY_PX - 79) + 'px';
       }
     }
+    cells.style.width = (TOTAL_COLS * dayPx()) + 'px';
+    cells.style.minWidth = (TOTAL_COLS * dayPx()) + 'px';
+
+    const trackSpacer = document.createElement('div');
+    trackSpacer.className = 'track-lane-spacer';
+    trackSpacer.style.height = RESOURCE_HEADER_META_H + 'px';
+    trackSpacer.style.minHeight = RESOURCE_HEADER_META_H + 'px';
+    cells.appendChild(trackSpacer);
+
+    getRowTracks(row).forEach(track => {
+      const lane = document.createElement('div');
+      lane.className = 'track-lane';
+      lane.dataset.rowId = row.id;
+      lane.dataset.trackId = track.id;
+      lane.style.setProperty('--track-h', (track.height || ROW_H_DEFAULT) + 'px');
+      if (zoom === 'month') lane.classList.add('painted-month');
+      else lane.classList.add(zoom === 'week' ? 'painted-week' : 'painted-day');
+      const resize = document.createElement('div');
+      resize.className = 'track-resize';
+      resize.title = 'Drag to resize track';
+      resize.addEventListener('mousedown', e => startTrackResize(e, row.id, track.id));
+      lane.appendChild(resize);
+      cells.appendChild(lane);
+      trackLanes.set(track.id, lane);
+    });
 
     // Render blocks for this row
     const rowBlocks = blocks.filter(b => b.rowId === row.id);
     rowBlocks.forEach(block => {
+      const lane = trackLanes.get(block.trackId) || trackLanes.get(getDefaultTrackId(row));
       const bEl = document.createElement('div');
       bEl.className = `block block-color-${block.color}${isDataBlock(block) ? ' block-data' : ''}`;
       const baseDuration = getBlockBaseDuration(block);
@@ -2609,7 +2789,7 @@ function _render() {
         }
       });
 
-      cells.appendChild(bEl);
+      lane.appendChild(bEl);
 
       const extraDays = contingencyPct > 0 ? Math.round(block.duration * contingencyPct / 100) : 0;
       const baseExtraDays = contingencyPct > 0 ? Math.round(baseDuration * contingencyPct / 100) : 0;
@@ -2633,32 +2813,36 @@ function _render() {
         capEl.dataset.capacityFor = block.id;
         capEl.style.left = ((block.start + baseDuration + baseExtraDays) * dayPx()) + 'px';
         capEl.style.width = (capacityVisualDays * dayPx() - 2) + 'px';
-        cells.appendChild(capEl);
+        lane.appendChild(capEl);
       }
     });
 
     // Double click on empty space to create block
     cells.addEventListener('dblclick', (e) => {
       if (e.target.closest('.block')) return;
-      const rect = cells.getBoundingClientRect();
-      const x = e.clientX - rect.left + cells.scrollLeft;
+      const lane = e.target.closest('.track-lane');
+      if (!lane) return;
+      const rect = lane.getBoundingClientRect();
+      const x = e.clientX - rect.left + lane.scrollLeft;
       const col = Math.floor(x / dayPx());
-      createBlock(row.id, col, 3);
+      createBlock(row.id, col, 3, '', false, 'grid', lane.dataset.trackId);
     });
 
     // Mousedown to start creating
     cells.addEventListener('mousedown', (e) => {
-      if (e.target.closest('.block')) return;
+      if (e.target.closest('.block') || e.target.closest('.track-resize')) return;
       if (e.button !== 0) return;
-      const rect = cells.getBoundingClientRect();
+      const lane = e.target.closest('.track-lane');
+      if (!lane) return;
+      const rect = lane.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const col = Math.floor(x / dayPx());
       const preview = document.createElement('div');
       preview.className = 'create-preview';
       preview.style.left = (col * dayPx()) + 'px';
       preview.style.width = dayPx() + 'px';
-      cells.appendChild(preview);
-      createState = { rowId: row.id, startCol: col, currentCol: col, preview };
+      lane.appendChild(preview);
+      createState = { rowId: row.id, trackId: lane.dataset.trackId, startCol: col, currentCol: col, preview };
     });
 
     rowEl.appendChild(cells);
@@ -2691,11 +2875,13 @@ function _render() {
   wrapper.appendChild(addRowWrapper);
 
   setupGridRowSortable();
+  setupTrackSortables();
   renderPanel();
   saveState();
 }
 
 let _gridRowSortable = null;
+let _trackSortables = [];
 function setupGridRowSortable() {
   const wrapper = document.getElementById('grid-wrapper');
   if (!wrapper || typeof Sortable === 'undefined') return;
@@ -2730,6 +2916,32 @@ function setupGridRowSortable() {
       renderPanel();
       saveState();
     },
+  });
+}
+
+function setupTrackSortables() {
+  _trackSortables.forEach(sortable => sortable.destroy());
+  _trackSortables = [];
+  if (typeof Sortable === 'undefined') return;
+  document.querySelectorAll('.track-list[data-row-id]').forEach(list => {
+    const rowId = parseInt(list.dataset.rowId);
+    const row = rows.find(r => r.id === rowId);
+    if (!row) return;
+    _trackSortables.push(Sortable.create(list, {
+      draggable: '.track-label-row',
+      handle: '.track-drag-handle',
+      animation: 160,
+      filter: '.track-add-btn',
+      onEnd() {
+        const orderedIds = [...list.querySelectorAll('.track-label-row[data-track-id]')].map(el => el.dataset.trackId);
+        const byId = new Map(getRowTracks(row).map(track => [track.id, track]));
+        const nextTracks = orderedIds.map(id => byId.get(id)).filter(Boolean);
+        if (nextTracks.length !== row.tracks.length) return;
+        row.tracks = nextTracks;
+        render();
+        saveState();
+      },
+    }));
   });
 }
 
@@ -2935,7 +3147,8 @@ function renderPanel() {
 
       const metaDiv = document.createElement('div');
       metaDiv.className = 'block-meta';
-      metaDiv.textContent = `${startDate} → ${endDate}`;
+      const track = getTrack(row, block.trackId);
+      metaDiv.textContent = `${track?.label || 'Track'} · ${startDate} → ${endDate}`;
 
       item.appendChild(nameRow);
       item.appendChild(metaDiv);
@@ -2964,22 +3177,26 @@ function renderPanel() {
 // --- Row vertical resize ---
 function applyRowHeights() {
   rows.forEach(row => {
-    const h = rowHeights[row.id] || row.height || ROW_H_DEFAULT;
     const rowEl = document.querySelector(`.row[data-row-id="${row.id}"]`);
     if (!rowEl) return;
-    rowEl.style.setProperty('--row-h', h + 'px');
+    rowEl.style.setProperty('--row-h', getRowVisualHeight(row) + 'px');
+    getRowTracks(row).forEach(track => {
+      document.querySelectorAll(`[data-track-id="${track.id}"]`).forEach(el => el.style.setProperty('--track-h', (track.height || ROW_H_DEFAULT) + 'px'));
+    });
   });
 }
 
 // --- Block operations ---
-function createBlock(rowId, startCol, duration, label, durationIsScheduled = false, kind = 'grid') {
+function createBlock(rowId, startCol, duration, label, durationIsScheduled = false, kind = 'grid', trackId = null) {
   const row = rows.find(r => r.id === rowId);
+  const resolvedTrackId = trackId || getDefaultTrackId(row);
   const inputDuration = duration || 3;
   const baseDuration = durationIsScheduled ? adjustedDurationForCapacity(inputDuration, getRowCapacity(row), 100) : inputDuration;
   const scheduledDuration = adjustedDurationForCapacity(baseDuration, 100, getRowCapacity(row));
   const block = {
     id: nextBlockId++,
     rowId,
+    trackId: resolvedTrackId,
     start: startCol,
     baseDuration,
     duration: scheduledDuration,
@@ -3125,6 +3342,29 @@ function startRowResize(e, rowId) {
   document.addEventListener('mouseup', onUp);
 }
 
+function startTrackResize(e, rowId, trackId) {
+  e.preventDefault();
+  e.stopPropagation();
+  const row = rows.find(r => r.id === rowId);
+  const track = getTrack(row, trackId);
+  if (!row || !track) return;
+  const startY = e.clientY;
+  const startH = track.height || ROW_H_DEFAULT;
+
+  function onMove(me) {
+    track.height = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round(startH + (me.clientY - startY))));
+    applyRowHeights();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove);
+    document.removeEventListener('mouseup', onUp);
+    render();
+    saveState();
+  }
+  document.addEventListener('mousemove', onMove);
+  document.addEventListener('mouseup', onUp);
+}
+
 function startRowDrag(e, rowId, source) {
   e.preventDefault();
   e.stopPropagation();
@@ -3263,20 +3503,21 @@ document.addEventListener('mousemove', (e) => {
 
       // Check if we should move to a different row
       const gridArea = document.getElementById('grid-area');
-      const rowEls = gridArea.querySelectorAll('.row');
-      for (const rowEl of rowEls) {
-        const rect = rowEl.getBoundingClientRect();
+      const lanes = gridArea.querySelectorAll('.track-lane[data-row-id][data-track-id]');
+      for (const lane of lanes) {
+        const rect = lane.getBoundingClientRect();
         if (e.clientY >= rect.top && e.clientY < rect.bottom) {
-          const rowId = parseInt(rowEl.dataset.rowId);
-          if (rowId && rowId !== block.rowId) {
+          const rowId = parseInt(lane.dataset.rowId);
+          const trackId = lane.dataset.trackId;
+          if (rowId && (rowId !== block.rowId || trackId !== block.trackId)) {
             const newRow = rows.find(r => r.id === rowId);
             block.baseDuration = getBlockBaseDuration(block);
             block.duration = adjustedDurationForCapacity(block.baseDuration, 100, getRowCapacity(newRow));
             block.rowId = rowId;
-            // Move bEl to the new row's cells; contingency auto-follows as a child of bEl
-            const newCells = rowEl.querySelector('.row-cells');
-            if (newCells && bEl) newCells.appendChild(bEl);
-            if (newCells && capEl) newCells.appendChild(capEl);
+            block.trackId = trackId;
+            // Move bEl to the new track lane; contingency auto-follows as a child of bEl
+            if (bEl) lane.appendChild(bEl);
+            if (capEl) lane.appendChild(capEl);
             if (bEl) {
               bEl.style.width = (getBlockBaseDuration(block) * dayPx() - 2) + 'px';
               const badge = bEl.querySelector('.block-days-badge');
@@ -3424,7 +3665,7 @@ document.addEventListener('mousemove', (e) => {
 
   // Create by drag preview
   if (createState) {
-    const cells = document.querySelector(`.row-cells[data-row-id="${createState.rowId}"]`);
+    const cells = document.querySelector(`.track-lane[data-row-id="${createState.rowId}"][data-track-id="${createState.trackId}"]`);
     if (cells && createState.preview) {
       const r = cells.getBoundingClientRect();
       const x = e.clientX - r.left;
@@ -3506,7 +3747,7 @@ document.addEventListener('mouseup', (e) => {
   }
 
   if (createState) {
-    const rect = document.querySelector(`.row-cells[data-row-id="${createState.rowId}"]`);
+    const rect = document.querySelector(`.track-lane[data-row-id="${createState.rowId}"][data-track-id="${createState.trackId}"]`);
     if (rect) {
       const r = rect.getBoundingClientRect();
       const x = e.clientX - r.left;
@@ -3516,7 +3757,7 @@ document.addEventListener('mouseup', (e) => {
       const duration = end - start + 1;
 
       if (duration >= 2) {
-        createBlock(createState.rowId, start, duration);
+        createBlock(createState.rowId, start, duration, '', false, 'grid', createState.trackId);
       } else if (createState.preview) {
         createState.preview.remove();
       }
@@ -3657,7 +3898,7 @@ function duplicateBlock(id) {
   document.getElementById('context-menu').style.display = 'none';
   const block = blocks.find(b => b.id === id);
   if (!block) return;
-  const clone = createBlock(block.rowId, block.start + block.duration + 1, getBlockBaseDuration(block), block.label, false, block.kind || 'grid');
+  const clone = createBlock(block.rowId, block.start + block.duration + 1, getBlockBaseDuration(block), block.label, false, block.kind || 'grid', block.trackId);
   clone.color = block.color;
   render();
 }
@@ -3832,7 +4073,8 @@ async function init() {
     normalizeRows();
     rowHeights = saved.rowHeights || {};
     rows.forEach(row => {
-      if (!rowHeights[row.id] && row.height) rowHeights[row.id] = row.height;
+      if (rowHeights[row.id] && getRowTracks(row).length === 1) row.tracks[0].height = rowHeights[row.id];
+      else if (row.height && getRowTracks(row).length === 1) row.tracks[0].height = row.height;
     });
     blocks = saved.blocks || [];
     // v1 state had no version field and used calendar-day columns.
