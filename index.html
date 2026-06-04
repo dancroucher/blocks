@@ -1372,21 +1372,86 @@ function showSignedIn(user) {
   setSyncStatus('saving', 'Loading');
 }
 
+function toFiniteNumber(value, fallback = 0) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function toPositiveInt(value, fallback = 1) {
+  return Math.max(1, Math.round(toFiniteNumber(value, fallback)));
+}
+
+function toNonNegativeInt(value, fallback = 0) {
+  return Math.max(0, Math.round(toFiniteNumber(value, fallback)));
+}
+
 function sanitizeState(data) {
   if (!data || typeof data !== 'object') return null;
   if (!Array.isArray(data.rows) || !Array.isArray(data.blocks)) return null;
-  return data;
+
+  const validZooms = new Set(MAP_ZOOM_LEVELS.map(level => typeof level === 'string' ? level : level.key).concat('table'));
+  const cleanRows = data.rows
+    .filter(row => row && typeof row === 'object' && Number.isFinite(Number(row.id)))
+    .map(row => ({
+      ...row,
+      id: toPositiveInt(row.id),
+      label: typeof row.label === 'string' ? row.label : '',
+      height: toNonNegativeInt(row.height, 0),
+      capacity: Math.max(1, Math.min(999, toPositiveInt(row.capacity, 100))),
+      tags: Array.isArray(row.tags)
+        ? row.tags.filter(tag => typeof tag === 'string').map(tag => tag.trim()).filter(Boolean).slice(0, 50)
+        : [],
+    }));
+
+  const rowIds = new Set(cleanRows.map(row => row.id));
+  const cleanBlocks = data.blocks
+    .filter(block => block && typeof block === 'object' && Number.isFinite(Number(block.id)))
+    .map(block => ({
+      ...block,
+      id: toPositiveInt(block.id),
+      rowId: toPositiveInt(block.rowId),
+      start: toNonNegativeInt(block.start, 0),
+      baseDuration: toPositiveInt(block.baseDuration || block.duration, 1),
+      duration: toPositiveInt(block.duration || block.baseDuration, 1),
+      label: typeof block.label === 'string' ? block.label : '',
+      kind: block.kind === 'data' ? 'data' : 'grid',
+      color: ((toNonNegativeInt(block.color, 0) % COLORS) + COLORS) % COLORS,
+      locked: !!block.locked,
+    }))
+    .filter(block => rowIds.size === 0 || rowIds.has(block.rowId));
+
+  return {
+    ...data,
+    version: toPositiveInt(data.version, STATE_VERSION),
+    rows: cleanRows,
+    blocks: cleanBlocks,
+    rowHeights: data.rowHeights && typeof data.rowHeights === 'object' ? data.rowHeights : {},
+    nextBlockId: toPositiveInt(data.nextBlockId, cleanBlocks.reduce((m, b) => Math.max(m, b.id), 0) + 1),
+    nextRowId: toPositiveInt(data.nextRowId, cleanRows.reduce((m, r) => Math.max(m, r.id), 0) + 1),
+    contingencyPct: Math.max(0, Math.min(100, toNonNegativeInt(data.contingencyPct, 0))),
+    zoom: validZooms.has(data.zoom) ? data.zoom : 'day',
+    panelWidth: Math.max(200, Math.min(800, toPositiveInt(data.panelWidth, 280))),
+    collapsedRows: data.collapsedRows && typeof data.collapsedRows === 'object' ? data.collapsedRows : {},
+  };
 }
 
 function snapshotState() {
+  const now = Date.now();
   return {
     version: STATE_VERSION,
     rows, blocks, rowHeights, nextBlockId, nextRowId,
     contingencyPct, zoom, panelWidth, collapsedRows,
     projectStart: projectStart.toISOString(),
-    savedAt: Date.now(),
-    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+    savedAt: now,
+    updatedAt: now,
     updatedBy: _currentUser ? { uid: _currentUser.uid, email: _currentUser.email } : null,
+  };
+}
+
+function firestoreSnapshot(snapshot) {
+  return {
+    ...snapshot,
+    updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
   };
 }
 
@@ -1448,18 +1513,22 @@ async function loadState() {
 // Debounced save — Firestore primary + IndexedDB local fallback
 let _saveTimer = null;
 let _saveReady = false;
+let _hasPendingLocalSave = false;
 function saveState() {
   if (!_saveReady) return;
+  _hasPendingLocalSave = true;
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async () => {
+    _saveTimer = null;
     const snapshot = snapshotState();
+    const remoteSnapshot = _db && _currentUser ? firestoreSnapshot(snapshot) : snapshot;
 
     // Firestore — ignore failure (offline etc.), fallback persists locally
     if (_db && _currentUser) {
       try {
         setSyncStatus('saving', 'Saving');
-        await writeBackup(snapshot, 'auto');
-        await _db.doc(DOC_PATH).set({ ...snapshot, _clientId: CLIENT_ID }, { merge: false });
+        await writeBackup(remoteSnapshot, 'auto');
+        await _db.doc(DOC_PATH).set({ ...remoteSnapshot, _clientId: CLIENT_ID }, { merge: false });
         setSyncStatus('saved', 'Saved');
       } catch (e) {
         setSyncStatus('error', 'Save failed');
@@ -1467,12 +1536,14 @@ function saveState() {
       }
     }
 
-    // IndexedDB local backup
+    // IndexedDB local backup. Use the plain snapshot, not Firestore sentinels.
     try {
       const db = await openDB();
       db.transaction(STORE, 'readwrite').objectStore(STORE).put(snapshot, STATE_KEY);
     } catch (e) {
       console.warn('IndexedDB saveState failed:', e);
+    } finally {
+      _hasPendingLocalSave = false;
     }
   }, 200);
 }
@@ -1487,6 +1558,10 @@ function listenForChanges() {
     if (data._clientId === CLIENT_ID) return;
     const remote = sanitizeState({ ...data });
     if (!remote) return;
+    if (_hasPendingLocalSave || _saveTimer) {
+      setSyncStatus('saving', 'Local changes kept');
+      return;
+    }
     delete remote._clientId;
     setSyncStatus('saving', 'Syncing');
     applyRemoteState(remote);
@@ -3627,9 +3702,6 @@ async function init() {
   gridArea.addEventListener('mousedown', startPan);
   gridArea.addEventListener('wheel', onTimelineWheel, { passive: false });
 }
-
-function applyPanelWidth() {}
-function setupPanelResize() {}
 
 init();
 </script>

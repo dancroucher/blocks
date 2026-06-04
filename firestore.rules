@@ -8,20 +8,71 @@ service cloud.firestore {
         ];
     }
 
+    function requiredStateKeys() {
+      return [
+        'version', 'rows', 'blocks', 'nextBlockId', 'nextRowId',
+        'contingencyPct', 'zoom', 'panelWidth', 'collapsedRows',
+        'projectStart', 'savedAt', 'updatedAt', 'updatedBy', 'rowHeights'
+      ];
+    }
+
+    function validBaseStateKeys() {
+      return request.resource.data.keys().hasAll(requiredStateKeys())
+        && request.resource.data.keys().hasOnly([
+          'version', 'rows', 'blocks', 'nextBlockId', 'nextRowId',
+          'contingencyPct', 'zoom', 'panelWidth', 'collapsedRows',
+          'projectStart', 'savedAt', 'updatedAt', 'updatedBy', 'rowHeights',
+          '_clientId'
+        ]);
+    }
+
+    function validBackupStateKeys() {
+      return request.resource.data.keys().hasAll(requiredStateKeys())
+        && request.resource.data.keys().hasOnly([
+          'version', 'rows', 'blocks', 'nextBlockId', 'nextRowId',
+          'contingencyPct', 'zoom', 'panelWidth', 'collapsedRows',
+          'projectStart', 'savedAt', 'updatedAt', 'updatedBy', 'rowHeights',
+          'backupReason', 'backupCreatedAt'
+        ]);
+    }
+
+    function hasValidStateShape() {
+      return request.resource.data.version is int
+        && request.resource.data.version >= 1
+        && request.resource.data.rows is list
+        && request.resource.data.rows.size() <= 200
+        && request.resource.data.blocks is list
+        && request.resource.data.blocks.size() <= 2000
+        && request.resource.data.nextBlockId is int
+        && request.resource.data.nextBlockId >= 1
+        && request.resource.data.nextRowId is int
+        && request.resource.data.nextRowId >= 1
+        && request.resource.data.contingencyPct is int
+        && request.resource.data.contingencyPct >= 0
+        && request.resource.data.contingencyPct <= 100
+        && request.resource.data.zoom in ['month', 'week', 'day', 'day-large', 'day-half', 'table']
+        && request.resource.data.panelWidth is int
+        && request.resource.data.panelWidth >= 200
+        && request.resource.data.panelWidth <= 800
+        && request.resource.data.collapsedRows is map
+        && request.resource.data.rowHeights is map
+        && request.resource.data.projectStart is string
+        && request.resource.data.savedAt is int;
+    }
+
     match /projects/blocks {
       allow read: if isAllowedUser();
       allow create, update: if isAllowedUser()
-        && request.resource.data.version is int
-        && request.resource.data.rows is list
-        && request.resource.data.blocks is list;
+        && validBaseStateKeys()
+        && hasValidStateShape();
       allow delete: if false;
 
       match /backups/{backupId} {
         allow read: if isAllowedUser();
         allow create: if isAllowedUser()
-          && request.resource.data.version is int
-          && request.resource.data.rows is list
-          && request.resource.data.blocks is list;
+          && validBackupStateKeys()
+          && hasValidStateShape()
+          && request.resource.data.backupReason is string;
         allow update, delete: if false;
       }
     }
