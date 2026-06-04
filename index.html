@@ -28,7 +28,7 @@
     --header-bg: #f8f8f8;
     --row-alt: #fcfbf9;
     --cell-size: 40px;
-    --row-header-width: 220px;
+    --row-header-width: 300px;
     --alt-bg: #f8f8f8;
   }
 
@@ -275,7 +275,7 @@
     min-height: 0;
   }
   .resource-summary {
-    width: 94px;
+    width: 112px;
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -313,6 +313,7 @@
     min-height: var(--track-h, 40px);
     border-bottom: 1px solid rgba(0,0,0,0.04);
     padding-right: 2.6rem;
+    position: relative;
   }
   .track-drag-handle {
     cursor: grab;
@@ -338,6 +339,17 @@
     padding: 0.05rem 0.2rem;
   }
   .track-delete-btn:hover { color: #dc2626; }
+  .track-label-resize {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -5px;
+    height: 10px;
+    cursor: row-resize;
+    z-index: 20;
+    border-bottom: 2px solid transparent;
+  }
+  .track-label-resize:hover { border-bottom-color: var(--accent); }
   .track-add-btn {
     position: absolute;
     right: 0;
@@ -483,8 +495,8 @@
     position: absolute;
     left: 0;
     right: 0;
-    bottom: -5px;
-    height: 10px;
+    bottom: 0;
+    height: 8px;
     cursor: row-resize;
     z-index: 30;
     border-bottom: 2px solid transparent;
@@ -1396,7 +1408,7 @@ function dayPx() {
 function isDayLikeZoom() { return zoom === 'day' || zoom === 'day-large' || zoom === 'day-half'; }
 function daysPerCell() { return zoom === 'week' ? 5 : 1; }
 function cellVisualW() { return dayPx() * daysPerCell(); }
-const ROW_HEADER_W = 220;
+const ROW_HEADER_W = 300;
 const COLORS = 18;
 const ROW_H_MIN = 30;
 const ROW_H_DEFAULT = 40;
@@ -1960,6 +1972,13 @@ function buildTrackList(row) {
     del.addEventListener('mousedown', e => e.stopPropagation());
     del.addEventListener('click', e => { e.stopPropagation(); deleteTrack(row, track.id); });
     item.appendChild(del);
+
+    const resize = document.createElement('div');
+    resize.className = 'track-label-resize';
+    resize.title = 'Drag to resize track';
+    resize.addEventListener('mousedown', e => startTrackResize(e, row.id, track.id));
+    item.appendChild(resize);
+
     wrap.appendChild(item);
   });
 
@@ -2851,7 +2870,7 @@ function _render() {
 
     // Mousedown to start creating
     cells.addEventListener('mousedown', (e) => {
-      if (e.target.closest('.block') || e.target.closest('.track-resize')) return;
+      if (e.target.closest('.block') || e.target.closest('.track-resize') || e.target.closest('.track-label-resize')) return;
       if (e.button !== 0) return;
       const lane = e.target.closest('.track-lane');
       if (!lane) return;
