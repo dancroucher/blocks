@@ -1992,11 +1992,15 @@ function makeRow(id) { return { id, label: '', height: 0, capacity: 100, tags: [
 function getRowTracks(row) {
   if (!row) return [];
   if (!Array.isArray(row.tracks) || !row.tracks.length) row.tracks = [makeDefaultTrack(row.id)];
-  row.tracks = row.tracks.slice(0, MAX_TRACKS_PER_ROW).map((track, idx) => ({
-    id: typeof track.id === 'string' && track.id ? track.id : `r${row.id}-t${idx + 1}`,
-    label: typeof track.label === 'string' ? track.label : (idx === 0 ? 'Main' : `Track ${idx + 1}`),
-    height: Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round(Number(track.height) || ROW_H_DEFAULT))),
-  }));
+  if (row.tracks.length > MAX_TRACKS_PER_ROW) row.tracks.length = MAX_TRACKS_PER_ROW;
+  // Normalize in place — must preserve object identity. Rebuilding into new
+  // objects here orphans any track reference held during a drag (the resize
+  // handlers), so height writes land on a detached object and the row reverts.
+  row.tracks.forEach((track, idx) => {
+    if (typeof track.id !== 'string' || !track.id) track.id = `r${row.id}-t${idx + 1}`;
+    if (typeof track.label !== 'string') track.label = idx === 0 ? 'Main' : `Track ${idx + 1}`;
+    track.height = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round(Number(track.height) || ROW_H_DEFAULT)));
+  });
   return row.tracks;
 }
 function getDefaultTrackId(row) { return getRowTracks(row)[0]?.id || null; }
@@ -3746,9 +3750,11 @@ function startTrackResize(e, rowId, trackId) {
   const started = beginPointerDrag(e, {
     cursorClass: 'row-resizing',
     onMove(dx, dy) {
-      // Resize this track directly. The header-content floor is applied at render
-      // time (applyRowHeights), so it must not constrain the stored track height.
-      track.height = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round(startH + dy)));
+      // Re-resolve the track each move (never trust a captured reference) and
+      // resize it directly. The header-content floor is applied at render time
+      // (applyRowHeights), so it must not constrain the stored track height.
+      const t = getTrack(row, trackId);
+      if (t) t.height = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round(startH + dy)));
       applyRowHeights();
     },
     onEnd() {
