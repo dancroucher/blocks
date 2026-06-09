@@ -549,7 +549,12 @@
   .track-row-resize {
     z-index: 65;
   }
-  .track-row-resize:hover::after { background: rgba(0,0,0,0.16); }
+  .track-row-resize::after {
+    height: 1px;
+    background: rgba(0,0,0,0.05);
+  }
+  .track-row-resize:hover::after,
+  .track-row-resize.dragging::after { background: rgba(0,0,0,0.11); }
   .resource-track-stack {
     display: flex;
     flex-direction: column;
@@ -3547,6 +3552,26 @@ function startEditingBlockLabel(bEl, labelEl, block) {
 }
 
 // --- Row drag-to-reorder ---
+function getResourceContentMinHeight(row) {
+  const summary = document.querySelector(`.resource-group[data-row-id="${row.id}"] .resource-summary`);
+  // Keep enough resource height for wrapped name/capacity/tags content.
+  return Math.max(RESOURCE_HEADER_MIN_H, summary ? Math.ceil(summary.scrollHeight) + 4 : RESOURCE_HEADER_MIN_H);
+}
+
+function enforceResourceMinTrackHeights(row) {
+  const tracks = getRowTracks(row);
+  if (!tracks.length) return;
+  const minTrackTotal = Math.max(ROW_H_MIN * tracks.length, getResourceContentMinHeight(row) - getAddRowH(row));
+  let total = tracks.reduce((sum, track) => sum + (track.height || ROW_H_DEFAULT), 0);
+  if (total >= minTrackTotal) return;
+  let deficit = minTrackTotal - total;
+  tracks.forEach((track, idx) => {
+    const add = idx === tracks.length - 1 ? deficit : Math.ceil(deficit / (tracks.length - idx));
+    track.height = Math.min(ROW_H_MAX, (track.height || ROW_H_DEFAULT) + add);
+    deficit -= add;
+  });
+}
+
 function startRowResize(e, rowId) {
   e.preventDefault();
   e.stopPropagation();
@@ -3571,6 +3596,7 @@ function startRowResize(e, rowId) {
     targetTracks.forEach((track, idx) => {
       track.height = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round((baseHeights[idx] || ROW_H_DEFAULT) + deltaPerTrack)));
     });
+    enforceResourceMinTrackHeights(targetRow);
   }
 
   function onMove(me) {
@@ -3615,7 +3641,12 @@ function startTrackResize(e, rowId, trackId) {
   document.body.classList.add('row-resizing');
 
   function onMove(me) {
-    track.height = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round(startH + (me.clientY - startY))));
+    const otherTracksH = getRowTracks(row)
+      .filter(t => t.id !== track.id)
+      .reduce((sum, t) => sum + (t.height || ROW_H_DEFAULT), 0);
+    const minHForContent = getResourceContentMinHeight(row) - getAddRowH(row) - otherTracksH;
+    const minH = Math.max(ROW_H_MIN, minHForContent);
+    track.height = Math.max(minH, Math.min(ROW_H_MAX, Math.round(startH + (me.clientY - startY))));
     applyRowHeights();
   }
   function onUp() {
