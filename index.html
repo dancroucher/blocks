@@ -3683,6 +3683,7 @@ function getResourceContentMinHeight(row) {
 function startRowResize(e, rowId) {
   e.preventDefault();
   e.stopPropagation();
+  if (e.stopImmediatePropagation) e.stopImmediatePropagation();
   const row = rows.find(r => r.id === rowId);
   if (!row) return;
   const tracks = getRowTracks(row);
@@ -3690,10 +3691,6 @@ function startRowResize(e, rowId) {
 
   const startY = e.clientY;
   const startHeights = new Map(rows.map(r => [r.id, getRowTracks(r).map(t => t.height || ROW_H_DEFAULT)]));
-  const startRenderedHeights = new Map(rows.map(r => {
-    const trackTotal = getRowTracks(r).reduce((sum, t) => sum + (t.height || ROW_H_DEFAULT), 0);
-    return [r.id, Math.max(trackTotal + getAddRowH(r), getResourceContentMinHeight(r))];
-  }));
   let resizeAllOnRelease = e.shiftKey;
 
   const handle = e.currentTarget;
@@ -3704,28 +3701,30 @@ function startRowResize(e, rowId) {
   function applyDelta(targetRow, deltaY) {
     const targetTracks = getRowTracks(targetRow);
     const baseHeights = startHeights.get(targetRow.id) || targetTracks.map(t => t.height || ROW_H_DEFAULT);
+    const count = Math.max(1, targetTracks.length);
     const baseTrackTotal = baseHeights.reduce((sum, h) => sum + (h || ROW_H_DEFAULT), 0);
-    const addH = getAddRowH(targetRow);
-    const contentMinH = getResourceContentMinHeight(targetRow);
-    const startRenderedH = startRenderedHeights.get(targetRow.id) || Math.max(baseTrackTotal + addH, contentMinH);
-    const maxRenderedH = ROW_H_MAX * targetTracks.length + addH;
-    const targetRenderedH = Math.max(contentMinH, Math.min(maxRenderedH, startRenderedH + deltaY));
-    let targetTrackTotal;
-    if (targetRenderedH <= contentMinH && deltaY <= 0) {
-      // At the content floor: don't keep changing subtrack heights as the mouse
-      // moves further upward past the resize limit.
-      targetTrackTotal = baseTrackTotal;
-    } else {
-      // Make the visible resource row follow the handle immediately. If header
-      // content currently creates extra slack, absorb that slack into tracks
-      // when growing so there is no dead zone before resize appears to work.
-      targetTrackTotal = targetRenderedH - addH;
+    const contentTrackFloor = Math.max(ROW_H_MIN * count, getResourceContentMinHeight(targetRow) - getAddRowH(targetRow));
+    const maxTrackTotal = ROW_H_MAX * count;
+    let targetTrackTotal = baseTrackTotal + deltaY;
+
+    if (deltaY < 0) {
+      // Shrink tracks only until the rendered resource reaches the header/tag
+      // content floor. If it already starts below that floor, don't shrink
+      // tracks further while the visible row is unable to get smaller.
+      const shrinkFloor = baseTrackTotal > contentTrackFloor ? contentTrackFloor : baseTrackTotal;
+      targetTrackTotal = Math.max(shrinkFloor, targetTrackTotal);
     }
-    targetTrackTotal = Math.max(ROW_H_MIN * targetTracks.length, Math.min(ROW_H_MAX * targetTracks.length, targetTrackTotal));
-    const trackDelta = targetTrackTotal - baseTrackTotal;
-    const deltaPerTrack = trackDelta / Math.max(1, targetTracks.length);
+    targetTrackTotal = Math.max(ROW_H_MIN * count, Math.min(maxTrackTotal, targetTrackTotal));
+
+    const scale = baseTrackTotal > 0 ? targetTrackTotal / baseTrackTotal : 1;
+    let used = 0;
     targetTracks.forEach((track, idx) => {
-      track.height = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round((baseHeights[idx] || ROW_H_DEFAULT) + deltaPerTrack)));
+      const isLast = idx === targetTracks.length - 1;
+      const nextH = isLast
+        ? targetTrackTotal - used
+        : Math.round((baseHeights[idx] || ROW_H_DEFAULT) * scale);
+      track.height = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round(nextH)));
+      used += track.height;
     });
   }
 
