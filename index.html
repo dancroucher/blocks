@@ -1605,6 +1605,14 @@ function sanitizeState(data) {
   };
 }
 
+// Underscore-prefixed props are transient client-side scratch (e.g. the old
+// _lastClickAt dblclick stamp on blocks loaded from older docs) — never persist.
+function stripTransient(obj) {
+  const clean = {};
+  for (const k in obj) { if (k[0] !== '_') clean[k] = obj[k]; }
+  return clean;
+}
+
 function snapshotState() {
   const now = Date.now();
   return {
@@ -1614,8 +1622,10 @@ function snapshotState() {
     // stale map let any client still running old code reset single-track rows
     // from it and write the reset back to the shared doc. Omitting it clears the
     // field from Firestore so even old clients see no rowHeights to apply.
-    rows, blocks, nextBlockId, nextRowId,
-    contingencyPct, zoom, headerWidth, resourceSummaryWidth,
+    // View prefs (zoom, header widths) are per-client in localStorage, not here.
+    rows,
+    blocks: blocks.map(stripTransient),
+    nextBlockId, nextRowId, contingencyPct,
     projectStart: projectStart.toISOString(),
     savedAt: now,
     updatedAt: now,
@@ -1691,6 +1701,9 @@ let _hasPendingLocalSave = false;
 function saveState() {
   if (!_saveReady) return;
   _hasPendingLocalSave = true;
+  // Our write supersedes any remote snapshot stashed while we were busy —
+  // the doc is last-writer-wins, and our save will echo to other clients.
+  _pendingRemote = null;
   clearTimeout(_saveTimer);
   _saveTimer = setTimeout(async () => {
     _saveTimer = null;
@@ -1722,7 +1735,23 @@ function saveState() {
   }, 200);
 }
 
-// Listen for remote state changes and apply them
+// Listen for remote state changes and apply them. While the user is mid-drag
+// or a local save is pending, applying a remote snapshot would replace rows[]
+// and orphan the objects the drag handlers hold — so stash the latest remote
+// state instead and flush it once the interaction settles. A local save clears
+// the stash (last-writer-wins; our write echoes to the other clients).
+let _pendingRemote = null;
+function uiBusy() {
+  return !!(_pointerDragging || dragState || createState || _saveTimer || _hasPendingLocalSave);
+}
+function flushPendingRemote() {
+  if (!_pendingRemote || uiBusy()) return;
+  const remote = _pendingRemote;
+  _pendingRemote = null;
+  setSyncStatus('saving', 'Syncing');
+  applyRemoteState(remote);
+  setSyncStatus('saved', 'Synced');
+}
 function listenForChanges() {
   if (!_db) return;
   _unsub = _db.doc(DOC_PATH).onSnapshot((snap) => {
@@ -1732,11 +1761,12 @@ function listenForChanges() {
     if (data._clientId === CLIENT_ID) return;
     const remote = sanitizeState({ ...data });
     if (!remote) return;
-    if (_hasPendingLocalSave || _saveTimer) {
-      setSyncStatus('saving', 'Local changes kept');
+    delete remote._clientId;
+    if (uiBusy()) {
+      _pendingRemote = remote;
+      setSyncStatus('saving', 'Sync deferred');
       return;
     }
-    delete remote._clientId;
     setSyncStatus('saving', 'Syncing');
     applyRemoteState(remote);
     setSyncStatus('saved', 'Synced');
@@ -1753,32 +1783,49 @@ function applyRemoteState(data) {
   if (data.nextBlockId != null) nextBlockId = data.nextBlockId;
   if (data.nextRowId != null)   nextRowId   = data.nextRowId;
   if (data.contingencyPct != null) contingencyPct = data.contingencyPct;
-  if (data.zoom)     zoom = data.zoom;
-  if (typeof data.resourceSummaryWidth === 'number') resourceSummaryWidth = data.resourceSummaryWidth;
-  if (typeof data.headerWidth === 'number') { headerWidth = data.headerWidth; applyHeaderWidth(); }
   // Block columns are indexed against the sender's anchor; adopt it if it differs.
   if (typeof data.projectStart === 'string' && data.projectStart !== projectStart.toISOString()) {
     setTimelineAnchor(data.projectStart);
   }
-  // Track heights are authoritative on row.tracks (seeded from the legacy
-  // rowHeights map during sanitizeState). The map itself is never applied here.
+  // View prefs (zoom, header widths) are per-client now and not applied from
+  // remote state. Track heights are authoritative on row.tracks (seeded from
+  // the legacy rowHeights map during sanitizeState).
   normalizeRows();
   normalizeBlocks();
 
   // Sync UI
   const contingencyInput = document.getElementById('contingency');
   if (contingencyInput) contingencyInput.value = contingencyPct;
-  syncViewButtons();
 
-  // Re-render without writing the just-received state back to Firestore.
-  _skipSaveOnNextPostRender = true;
-  _renderScheduled = false;
   render();
   renderStats();
 }
 
 let zoom = 'day'; // day, week, month, table
 let mapZoom = 'day'; // last non-table view used by the Map tab
+
+// --- Per-client view prefs (localStorage, not the shared Firestore doc) ---
+// Zoom and column widths are how *this* browser looks at the timeline; syncing
+// them caused open clients to fight over each other's view.
+const VIEW_PREFS_KEY = 'blocks-view-prefs';
+function saveViewPrefs() {
+  try {
+    localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify({ zoom, mapZoom, headerWidth, resourceSummaryWidth }));
+  } catch (e) { /* private mode / quota — view prefs just won't stick */ }
+}
+function loadViewPrefs(saved) {
+  let prefs = null;
+  try { prefs = JSON.parse(localStorage.getItem(VIEW_PREFS_KEY)); } catch (e) {}
+  // Fall back to the shared doc's legacy view fields (pre-local-prefs saves).
+  const src = prefs || saved || {};
+  const validZooms = new Set(MAP_ZOOM_LEVELS.concat('table'));
+  if (validZooms.has(src.zoom)) zoom = src.zoom;
+  if (MAP_ZOOM_LEVELS.includes(src.mapZoom)) mapZoom = src.mapZoom;
+  else if (zoom !== 'table') mapZoom = zoom;
+  if (typeof src.headerWidth === 'number') headerWidth = src.headerWidth;
+  if (typeof src.resourceSummaryWidth === 'number') resourceSummaryWidth = src.resourceSummaryWidth;
+}
+
 let rows = [
   makeRow(1),
   makeRow(2),
@@ -2086,6 +2133,7 @@ function setRowCapacity(row, nextCapacity) {
 // Drag state
 let dragState = null; // { type: 'move'|'resize-left'|'resize-right', blockId, startX, origStart, origDuration }
 let createState = null; // { rowId, startCol }
+const _lastBlockClickAt = new Map(); // blockId → ts, for dblclick-to-edit detection
 
 // Grid wrapper reference (updated on each render)
 let gridWrapper = null;
@@ -2171,7 +2219,6 @@ function dateInputToCol(value) {
 // single actual render in the next animation frame.
 let _renderScheduled = false;
 let _postRenderTimer = null;
-let _skipSaveOnNextPostRender = false;
 function render() {
   if (_renderScheduled) return;
   _renderScheduled = true;
@@ -2184,16 +2231,14 @@ function schedulePostRenderWork() {
   if (_postRenderTimer) clearTimeout(_postRenderTimer);
   // Keep expensive non-visual work out of the interaction frame. This avoids
   // grid-wrapper clicks/drags being charged with Sortable setup + panel render.
+  // Persistence is NOT triggered here: rendering is view work, and saving on
+  // every render is what caused two open clients to ping-pong saves. Mutators
+  // call saveState() explicitly.
   _postRenderTimer = setTimeout(() => {
     _postRenderTimer = null;
     setupGridRowSortable();
     setupTrackSortables();
     renderStats();
-    // A render triggered by applying remote state must not write that state
-    // straight back to Firestore — otherwise two open clients ping-pong saves
-    // (A saves → B applies → B saves → A applies → …) roughly every round-trip.
-    if (_skipSaveOnNextPostRender) _skipSaveOnNextPostRender = false;
-    else saveState();
   }, 0);
 }
 function renderMapControls() {
@@ -2854,12 +2899,12 @@ function _render() {
         if (e.target.classList.contains('handle-left') || e.target.classList.contains('handle-right')) return;
         if (e.target.classList.contains('block-label-input')) return;
         const now = Date.now();
-        if (now - (block._lastClickAt || 0) < 400) {
+        if (now - (_lastBlockClickAt.get(block.id) || 0) < 400) {
           e.stopPropagation();
-          block._lastClickAt = 0;
+          _lastBlockClickAt.delete(block.id);
           startEditingBlockLabel(bEl, labelEl, block);
         } else {
-          block._lastClickAt = now;
+          _lastBlockClickAt.set(block.id, now);
         }
       });
 
@@ -2904,6 +2949,7 @@ function _render() {
   addRowHeader.onclick = () => {
     rows.push(makeRow(nextRowId++));
     render();
+    saveState();
   };
   addRowWrapper.appendChild(addRowHeader);
 
@@ -3055,6 +3101,7 @@ function applyHeaderWidth() {
 // suppress the compat mouse events the move/up listeners were waiting on, which
 // silently wedged the handles. Pointer capture-free window listeners plus
 // pointercancel guarantee the drag always cleans up — no stuck "active" flags.
+let _pointerDragging = false; // any beginPointerDrag handle drag in flight
 function beginPointerDrag(e, { onMove, onEnd, cursorClass } = {}) {
   if (e.button != null && e.button > 0) return false; // primary button / touch only
   e.preventDefault();
@@ -3067,11 +3114,14 @@ function beginPointerDrag(e, { onMove, onEnd, cursorClass } = {}) {
     window.removeEventListener('pointerup', end);
     window.removeEventListener('pointercancel', end);
     if (cursorClass) document.body.classList.remove(cursorClass);
+    _pointerDragging = false;
     if (onEnd) onEnd(ev);
+    flushPendingRemote(); // apply any remote update stashed during the drag
   };
   window.addEventListener('pointermove', move);
   window.addEventListener('pointerup', end);
   window.addEventListener('pointercancel', end);
+  _pointerDragging = true;
   return true;
 }
 
@@ -3088,7 +3138,7 @@ function startHeaderResize(e) {
       applyHeaderWidth();
       applyRowHeights();
     },
-    onEnd() { handle?.classList?.remove('dragging'); saveState(); },
+    onEnd() { handle?.classList?.remove('dragging'); saveViewPrefs(); },
   });
   if (!started) return;
   handle?.classList?.add('dragging');
@@ -3104,7 +3154,7 @@ function startSummaryResize(e) {
       applyHeaderWidth();
       applyRowHeights();
     },
-    onEnd() { handle?.classList?.remove('dragging'); saveState(); },
+    onEnd() { handle?.classList?.remove('dragging'); saveViewPrefs(); },
   });
   if (!started) return;
   handle?.classList?.add('dragging');
@@ -3607,6 +3657,9 @@ document.addEventListener('mouseup', (e) => {
     }
     createState = null;
   }
+
+  // Apply any remote update stashed while a block drag/create was in flight.
+  flushPendingRemote();
 });
 
 // --- Context menu ---
@@ -3773,7 +3826,7 @@ function setZoom(z, anchorClientX = null) {
       });
     });
   }
-  saveState();
+  saveViewPrefs();
 }
 
 function zoomRelative(direction, anchorClientX = null) {
@@ -3827,6 +3880,7 @@ function updateContingency() {
   contingencyPct = parseInt(input ? input.value : contingencyPct) || 0;
   contingencyPct = Math.max(0, Math.min(100, contingencyPct));
   render();
+  saveState();
 }
 
 // --- Keyboard ---
@@ -3912,12 +3966,8 @@ async function init() {
     nextBlockId = saved.nextBlockId || (blocks.reduce((m, b) => Math.max(m, b.id), 0) + 1);
     nextRowId = saved.nextRowId || (rows.reduce((m, r) => Math.max(m, r.id), 0) + 1);
     contingencyPct = saved.contingencyPct || 0;
-    zoom = saved.zoom || 'day';
-    if (typeof saved.headerWidth === 'number') headerWidth = saved.headerWidth;
-    if (typeof saved.resourceSummaryWidth === 'number') resourceSummaryWidth = saved.resourceSummaryWidth;
     const contingencyInput = document.getElementById('contingency');
     if (contingencyInput) contingencyInput.value = contingencyPct;
-    syncViewButtons();
   } else {
     normalizeRows();
     // First run: seed example blocks
@@ -3929,6 +3979,8 @@ async function init() {
     saveState(); // write seed data to Firestore immediately
   }
 
+  loadViewPrefs(saved); // zoom + column widths: localStorage, doc as legacy fallback
+  syncViewButtons();
   listenForChanges(); // start real-time sync
   applyHeaderWidth(); // apply saved header-column width before first render
   applyRowHeights(); // apply saved row heights before first render
