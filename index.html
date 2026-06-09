@@ -3696,10 +3696,6 @@ function startRowResize(e, rowId) {
 
   const startY = e.clientY;
   const startHeights = new Map(rows.map(r => [r.id, getRowTracks(r).map(t => t.height || ROW_H_DEFAULT)]));
-  const startRenderedHeights = new Map(rows.map(r => {
-    const trackTotal = getRowTracks(r).reduce((sum, t) => sum + (t.height || ROW_H_DEFAULT), 0);
-    return [r.id, Math.max(trackTotal + getAddRowH(r), getResourceContentMinHeight(r))];
-  }));
   let resizeAllOnRelease = e.shiftKey;
 
   const handle = e.currentTarget;
@@ -3707,28 +3703,17 @@ function startRowResize(e, rowId) {
   document.querySelector(`.resource-group[data-row-id="${rowId}"]`)?.classList.add('resizing');
   document.body.classList.add('row-resizing');
 
+  // Track heights are the single source of truth: move the combined track total
+  // by the mouse delta and distribute it across the tracks proportionally. The
+  // header content height (name/capacity/tags) is a pure render-time floor in
+  // getResourceGroupHeight/applyRowHeights — it must NOT feed back into this
+  // math, or shrinking freezes and growing jumps.
   function applyDelta(targetRow, deltaY) {
     const targetTracks = getRowTracks(targetRow);
     const baseHeights = startHeights.get(targetRow.id) || targetTracks.map(t => t.height || ROW_H_DEFAULT);
     const count = Math.max(1, targetTracks.length);
     const baseTrackTotal = baseHeights.reduce((sum, h) => sum + (h || ROW_H_DEFAULT), 0);
-    const addH = getAddRowH(targetRow);
-    const contentMinH = getResourceContentMinHeight(targetRow);
-    const startRenderedH = startRenderedHeights.get(targetRow.id) || Math.max(baseTrackTotal + addH, contentMinH);
-    const maxRenderedH = ROW_H_MAX * count + addH;
-    const targetRenderedH = Math.max(contentMinH, Math.min(maxRenderedH, startRenderedH + deltaY));
-
-    let targetTrackTotal;
-    if (targetRenderedH <= contentMinH && deltaY <= 0) {
-      // Already at the visible content floor: extra upward mouse movement must
-      // not keep changing subtrack/add-track layout.
-      targetTrackTotal = baseTrackTotal;
-    } else {
-      // Convert desired visible resource height back to track height. This makes
-      // growth immediate even when header/tag content currently creates slack.
-      targetTrackTotal = targetRenderedH - addH;
-    }
-    targetTrackTotal = Math.max(ROW_H_MIN * count, Math.min(ROW_H_MAX * count, targetTrackTotal));
+    const targetTrackTotal = Math.max(ROW_H_MIN * count, Math.min(ROW_H_MAX * count, baseTrackTotal + deltaY));
 
     const scale = baseTrackTotal > 0 ? targetTrackTotal / baseTrackTotal : 1;
     let used = 0;
@@ -3783,12 +3768,9 @@ function startTrackResize(e, rowId, trackId) {
   document.body.classList.add('row-resizing');
 
   function onMove(me) {
-    const otherTracksH = getRowTracks(row)
-      .filter(t => t.id !== track.id)
-      .reduce((sum, t) => sum + (t.height || ROW_H_DEFAULT), 0);
-    const minHForContent = getResourceContentMinHeight(row) - getAddRowH(row) - otherTracksH;
-    const minH = Math.max(ROW_H_MIN, minHForContent);
-    track.height = Math.max(minH, Math.min(ROW_H_MAX, Math.round(startH + (me.clientY - startY))));
+    // Resize this track directly. The header-content floor is applied at render
+    // time (applyRowHeights), so it must not constrain the stored track height.
+    track.height = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round(startH + (me.clientY - startY))));
     applyRowHeights();
   }
   function onUp() {
