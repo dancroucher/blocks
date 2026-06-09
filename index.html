@@ -336,6 +336,7 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 3px;
+    flex: 0 0 auto;
     min-height: 0;
     margin-top: 5px;
     margin-bottom: 0.15rem;
@@ -475,6 +476,7 @@
   .row-label-input {
     width: 100%;
     min-width: 0;
+    flex: 0 0 auto;
     font-size: 15px;
     margin-bottom: 4px;
   }
@@ -488,6 +490,7 @@
     font-size: 0.68rem;
     font-weight: 400;
     line-height: 1.15;
+    flex: 0 0 auto;
   }
 
   .row-header input.capacity-input {
@@ -3377,6 +3380,7 @@ function startHeaderResize(e) {
     headerWidth = startW + (me.clientX - startX);
     resourceSummaryWidth = startSummaryW * (headerWidth / Math.max(1, startW));
     applyHeaderWidth();
+    applyRowHeights();
   }
   function onUp() {
     document.removeEventListener('mousemove', onMove, true);
@@ -3405,6 +3409,7 @@ function startSummaryResize(e) {
   function onMove(me) {
     resourceSummaryWidth = startW + (me.clientX - startX);
     applyHeaderWidth();
+    applyRowHeights();
   }
   function onUp() {
     document.removeEventListener('mousemove', onMove, true);
@@ -3444,6 +3449,7 @@ function applyRowHeights() {
   rows.forEach(row => {
     const rowEl = document.querySelector(`.resource-group[data-row-id="${row.id}"]`);
     if (!rowEl) return;
+    enforceResourceMinTrackHeights(row);
     rowEl.style.setProperty('--row-h', getResourceGroupHeight(row) + 'px');
 
     getRowTracks(row).forEach(track => {
@@ -3554,8 +3560,17 @@ function startEditingBlockLabel(bEl, labelEl, block) {
 // --- Row drag-to-reorder ---
 function getResourceContentMinHeight(row) {
   const summary = document.querySelector(`.resource-group[data-row-id="${row.id}"] .resource-summary`);
-  // Keep enough resource height for wrapped name/capacity/tags content.
-  return Math.max(RESOURCE_HEADER_MIN_H, summary ? Math.ceil(summary.scrollHeight) + 4 : RESOURCE_HEADER_MIN_H);
+  if (!summary) return RESOURCE_HEADER_MIN_H;
+  // Keep enough resource height for wrapped name/capacity/tags content. Measure
+  // child content explicitly because flex children can otherwise visually
+  // overflow without increasing the parent's scrollHeight while being resized.
+  const styles = getComputedStyle(summary);
+  const padY = parseFloat(styles.paddingTop || 0) + parseFloat(styles.paddingBottom || 0);
+  const gap = parseFloat(styles.rowGap || styles.gap || 0) || 0;
+  const children = Array.from(summary.children).filter(el => !el.classList.contains('summary-col-resize'));
+  const childH = children.reduce((sum, el) => sum + Math.max(el.scrollHeight || 0, el.offsetHeight || 0), 0);
+  const gaps = Math.max(0, children.length - 1) * gap;
+  return Math.max(RESOURCE_HEADER_MIN_H, Math.ceil(padY + childH + gaps + 6));
 }
 
 function enforceResourceMinTrackHeights(row) {
