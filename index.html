@@ -1513,6 +1513,7 @@ function daysPerCell() { return zoom === 'week' ? 5 : 1; }
 function cellVisualW() { return dayPx() * daysPerCell(); }
 const ROW_HEADER_W = 300;       // default header column width
 const RESOURCE_SUMMARY_W = 112; // default width of the name/capacity/tags cell
+const RESOURCE_NAME_MAX_CHARS = 16;
 const SUMMARY_W_MIN = 88;
 const SUMMARY_W_MAX = 360;
 const TRACK_PANEL_MIN_W = 96;
@@ -1712,7 +1713,7 @@ function sanitizeState(data) {
       return {
         ...row,
         id: rowId,
-        label: typeof row.label === 'string' ? row.label : '',
+        label: clampResourceName(row.label),
         height: toNonNegativeInt(row.height, 0),
         capacity: Math.max(1, Math.min(999, toPositiveInt(row.capacity, 100))),
         tags: Array.isArray(row.tags)
@@ -1985,6 +1986,7 @@ function makeTrack(rowId, index = 0) {
   return { id: `r${rowId}-t${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, label: index === 0 ? 'Main' : `Track ${index + 1}`, height: ROW_H_DEFAULT };
 }
 function makeDefaultTrack(rowId) { return { id: `r${rowId}-t1`, label: 'Main', height: ROW_H_DEFAULT }; }
+function clampResourceName(value) { return (typeof value === 'string' ? value : '').slice(0, RESOURCE_NAME_MAX_CHARS); }
 function makeRow(id) { return { id, label: '', height: 0, capacity: 100, tags: [], tracks: [makeDefaultTrack(id)] }; }
 function getRowTracks(row) {
   if (!row) return [];
@@ -2817,9 +2819,16 @@ function _render() {
 
     const input = document.createElement('input');
     input.className = 'row-label-input';
+    input.maxLength = RESOURCE_NAME_MAX_CHARS;
     input.placeholder = 'Resource ' + row.id;
-    input.value = row.label;
-    input.oninput = (e) => { row.label = e.target.value; renderPanel(); saveState(); };
+    input.value = clampResourceName(row.label);
+    input.oninput = (e) => {
+      e.target.value = clampResourceName(e.target.value);
+      row.label = e.target.value;
+      applyHeaderWidth();
+      renderPanel();
+      saveState();
+    };
     summary.appendChild(input);
 
     const capacityWrap = document.createElement('span');
@@ -3152,7 +3161,8 @@ function startEditingPanelRowLabel(labelSpan, row) {
   const input = document.createElement('input');
   input.type = 'text';
   input.className = 'panel-name-input';
-  input.value = row.label;
+  input.maxLength = RESOURCE_NAME_MAX_CHARS;
+  input.value = clampResourceName(row.label);
   input.placeholder = 'Row ' + row.id;
   input.addEventListener('mousedown', e => e.stopPropagation());
   input.addEventListener('click', e => e.stopPropagation());
@@ -3165,13 +3175,14 @@ function startEditingPanelRowLabel(labelSpan, row) {
   const finish = (commit) => {
     if (done) return;
     done = true;
-    if (commit) row.label = input.value.trim();
+    if (commit) row.label = clampResourceName(input.value.trim());
     labelSpan.textContent = row.label || 'Row ' + row.id;
     if (commit && row.label !== prev) {
       saveState();
       // Sync grid row header input
       const gridInput = document.querySelector(`.resource-group[data-row-id="${row.id}"] .row-header .row-label-input`);
       if (gridInput) gridInput.value = row.label;
+      applyHeaderWidth();
     }
   };
   input.addEventListener('blur', () => finish(true));
@@ -3375,9 +3386,25 @@ function renderPanel() {
 }
 
 // --- Row vertical resize ---
+function resourceNameMinWidth() {
+  const sampleInput = document.querySelector('.row-label-input');
+  const font = sampleInput ? getComputedStyle(sampleInput).font : '15px Inter, sans-serif';
+  const canvas = resourceNameMinWidth._canvas || (resourceNameMinWidth._canvas = document.createElement('canvas'));
+  const ctx = canvas.getContext('2d');
+  ctx.font = font;
+  const widest = rows.reduce((max, row) => {
+    const label = clampResourceName(row.label) || `Resource ${row.id}`;
+    return Math.max(max, ctx.measureText(label).width);
+  }, 0);
+  // Include summary left/right padding plus a small caret/breathing allowance.
+  return Math.ceil(widest + 30);
+}
+
 function clampResourceSummaryWidth() {
-  const maxForHeader = Math.max(SUMMARY_W_MIN, headerWidth - TRACK_PANEL_MIN_W);
-  resourceSummaryWidth = Math.max(SUMMARY_W_MIN, Math.min(SUMMARY_W_MAX, maxForHeader, Math.round(resourceSummaryWidth)));
+  const minForName = Math.max(SUMMARY_W_MIN, resourceNameMinWidth());
+  headerWidth = Math.max(headerWidth, minForName + TRACK_PANEL_MIN_W);
+  const maxForHeader = Math.max(minForName, headerWidth - TRACK_PANEL_MIN_W);
+  resourceSummaryWidth = Math.max(minForName, Math.min(SUMMARY_W_MAX, maxForHeader, Math.round(resourceSummaryWidth)));
 }
 
 function applyHeaderWidth() {
@@ -3683,11 +3710,18 @@ function startRowResize(e, rowId) {
     const startRenderedH = startRenderedHeights.get(targetRow.id) || Math.max(baseTrackTotal + addH, contentMinH);
     const maxRenderedH = ROW_H_MAX * targetTracks.length + addH;
     const targetRenderedH = Math.max(contentMinH, Math.min(maxRenderedH, startRenderedH + deltaY));
-    // Only convert the actual visible row-height delta into track-height delta.
-    // If header content is enforcing the minimum, extra mouse travel past that
-    // limit should not keep pushing subtrack/add-track sizes around.
-    const renderedDelta = targetRenderedH - startRenderedH;
-    const targetTrackTotal = Math.max(ROW_H_MIN * targetTracks.length, Math.min(ROW_H_MAX * targetTracks.length, baseTrackTotal + renderedDelta));
+    let targetTrackTotal;
+    if (targetRenderedH <= contentMinH && deltaY <= 0) {
+      // At the content floor: don't keep changing subtrack heights as the mouse
+      // moves further upward past the resize limit.
+      targetTrackTotal = baseTrackTotal;
+    } else {
+      // Make the visible resource row follow the handle immediately. If header
+      // content currently creates extra slack, absorb that slack into tracks
+      // when growing so there is no dead zone before resize appears to work.
+      targetTrackTotal = targetRenderedH - addH;
+    }
+    targetTrackTotal = Math.max(ROW_H_MIN * targetTracks.length, Math.min(ROW_H_MAX * targetTracks.length, targetTrackTotal));
     const trackDelta = targetTrackTotal - baseTrackTotal;
     const deltaPerTrack = trackDelta / Math.max(1, targetTracks.length);
     targetTracks.forEach((track, idx) => {
