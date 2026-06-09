@@ -1767,7 +1767,12 @@ function snapshotState() {
   const now = Date.now();
   return {
     version: STATE_VERSION,
-    rows, blocks, rowHeights, nextBlockId, nextRowId,
+    // NB: rowHeights (legacy v2/v3 per-row height map) is intentionally NOT
+    // persisted. Track heights live on row.tracks[].height now. Re-saving the
+    // stale map let any client still running old code reset single-track rows
+    // from it and write the reset back to the shared doc. Omitting it clears the
+    // field from Firestore so even old clients see no rowHeights to apply.
+    rows, blocks, nextBlockId, nextRowId,
     contingencyPct, zoom, panelWidth, headerWidth, resourceSummaryWidth, collapsedRows,
     projectStart: projectStart.toISOString(),
     savedAt: now,
