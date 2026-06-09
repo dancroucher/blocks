@@ -3048,6 +3048,7 @@ function _render() {
 
   setupGridRowSortable();
   setupTrackSortables();
+  applyRowHeights();
   renderPanel();
   saveState();
 }
@@ -3558,19 +3559,34 @@ function startEditingBlockLabel(bEl, labelEl, block) {
 }
 
 // --- Row drag-to-reorder ---
+function elementRequiredHeight(el) {
+  let h = Math.max(el.scrollHeight || 0, el.offsetHeight || 0);
+  const kids = Array.from(el.children || []).filter(child => getComputedStyle(child).position !== 'absolute');
+  if (kids.length) {
+    const parentTop = el.getBoundingClientRect().top;
+    let maxBottom = 0;
+    kids.forEach(child => {
+      const rect = child.getBoundingClientRect();
+      maxBottom = Math.max(maxBottom, rect.bottom - parentTop);
+    });
+    h = Math.max(h, maxBottom);
+  }
+  return h;
+}
+
 function getResourceContentMinHeight(row) {
   const summary = document.querySelector(`.resource-group[data-row-id="${row.id}"] .resource-summary`);
   if (!summary) return RESOURCE_HEADER_MIN_H;
   // Keep enough resource height for wrapped name/capacity/tags content. Measure
-  // child content explicitly because flex children can otherwise visually
-  // overflow without increasing the parent's scrollHeight while being resized.
+  // child content explicitly because flex children can visually overflow while
+  // a row is being resized, especially the wrapping tag chips.
   const styles = getComputedStyle(summary);
   const padY = parseFloat(styles.paddingTop || 0) + parseFloat(styles.paddingBottom || 0);
   const gap = parseFloat(styles.rowGap || styles.gap || 0) || 0;
   const children = Array.from(summary.children).filter(el => !el.classList.contains('summary-col-resize'));
-  const childH = children.reduce((sum, el) => sum + Math.max(el.scrollHeight || 0, el.offsetHeight || 0), 0);
+  const childH = children.reduce((sum, el) => sum + elementRequiredHeight(el), 0);
   const gaps = Math.max(0, children.length - 1) * gap;
-  return Math.max(RESOURCE_HEADER_MIN_H, Math.ceil(padY + childH + gaps + 6));
+  return Math.max(RESOURCE_HEADER_MIN_H, Math.ceil(padY + childH + gaps + 8));
 }
 
 function enforceResourceMinTrackHeights(row) {
