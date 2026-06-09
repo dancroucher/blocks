@@ -251,10 +251,10 @@
     top: 0;
     width: 2px;
     height: 100%;
-    background: transparent;
+    background: rgba(0,0,0,0.08);
   }
   .header-col-resize:hover::after,
-  .header-col-resize.dragging::after { background: transparent; }
+  .header-col-resize.dragging::after { background: rgba(0,0,0,0.16); }
   body.col-resizing { cursor: col-resize; user-select: none; }
   body.col-resizing * { cursor: col-resize !important; }
 
@@ -286,13 +286,35 @@
   }
   .resource-summary {
     width: var(--resource-summary-width);
+    flex: 0 0 var(--resource-summary-width);
     min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 3px;
     padding: 0.5rem 0.4rem 0.3rem 0.5rem;
-    border-right: 1px solid rgba(0,0,0,0.06);
+    border-right: 1px solid rgba(0,0,0,0.10);
+    position: relative;
   }
+  .summary-col-resize {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    width: 7px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 90;
+  }
+  .summary-col-resize::after {
+    content: '';
+    position: absolute;
+    right: 3px;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: rgba(0,0,0,0.08);
+  }
+  .summary-col-resize:hover::after,
+  .summary-col-resize.dragging::after { background: rgba(0,0,0,0.16); }
   .track-panel {
     flex: 1;
     min-width: 0;
@@ -1464,6 +1486,9 @@ function daysPerCell() { return zoom === 'week' ? 5 : 1; }
 function cellVisualW() { return dayPx() * daysPerCell(); }
 const ROW_HEADER_W = 300;       // default header column width
 const RESOURCE_SUMMARY_W = 112; // default width of the name/capacity/tags cell
+const SUMMARY_W_MIN = 88;
+const SUMMARY_W_MAX = 360;
+const TRACK_PANEL_MIN_W = 96;
 const HEADER_W_MIN = 240;       // min width that still wraps name/capacity/tags nicely
 const HEADER_W_MAX = 720;
 const COLORS = 18;
@@ -1701,6 +1726,7 @@ function sanitizeState(data) {
     zoom: validZooms.has(data.zoom) ? data.zoom : 'day',
     panelWidth: Math.max(200, Math.min(800, toPositiveInt(data.panelWidth, 280))),
     headerWidth: Math.max(HEADER_W_MIN, Math.min(HEADER_W_MAX, toPositiveInt(data.headerWidth, ROW_HEADER_W))),
+    resourceSummaryWidth: Math.max(SUMMARY_W_MIN, Math.min(SUMMARY_W_MAX, toPositiveInt(data.resourceSummaryWidth, RESOURCE_SUMMARY_W))),
     collapsedRows: data.collapsedRows && typeof data.collapsedRows === 'object' ? data.collapsedRows : {},
   };
 }
@@ -1710,7 +1736,7 @@ function snapshotState() {
   return {
     version: STATE_VERSION,
     rows, blocks, rowHeights, nextBlockId, nextRowId,
-    contingencyPct, zoom, panelWidth, headerWidth, collapsedRows,
+    contingencyPct, zoom, panelWidth, headerWidth, resourceSummaryWidth, collapsedRows,
     projectStart: projectStart.toISOString(),
     savedAt: now,
     updatedAt: now,
@@ -1852,6 +1878,7 @@ function applyRemoteState(data) {
   if (data.collapsedRows) collapsedRows = data.collapsedRows;
   if (data.zoom)     zoom = data.zoom;
   if (typeof data.panelWidth === 'number') panelWidth = data.panelWidth;
+  if (typeof data.resourceSummaryWidth === 'number') resourceSummaryWidth = data.resourceSummaryWidth;
   if (typeof data.headerWidth === 'number') { headerWidth = data.headerWidth; applyHeaderWidth(); }
   if (data.rowHeights) {
     rowHeights = data.rowHeights;
@@ -1891,6 +1918,7 @@ let nextRowId = 6;
 let contingencyPct = 0;
 let panelWidth = 280;
 let headerWidth = ROW_HEADER_W; // resizable left header-column width (px)
+let resourceSummaryWidth = RESOURCE_SUMMARY_W; // resizable first resource cell (name/capacity/tags)
 let collapsedRows = {}; // { [rowId]: true } — sections collapsed in the data panel
 
 // --- Header drag-to-pan ---
@@ -2746,6 +2774,7 @@ function _render() {
 
     const summary = document.createElement('div');
     summary.className = 'resource-summary';
+    summary.appendChild(makeSummaryResizeHandle());
 
     const input = document.createElement('input');
     input.className = 'row-label-input';
@@ -3300,29 +3329,37 @@ function renderPanel() {
 }
 
 // --- Row vertical resize ---
-function applyHeaderWidth() {
-  headerWidth = Math.max(HEADER_W_MIN, Math.min(HEADER_W_MAX, Math.round(headerWidth)));
-  const summaryWidth = Math.max(88, Math.min(320, Math.round(headerWidth * RESOURCE_SUMMARY_W / ROW_HEADER_W)));
-  document.documentElement.style.setProperty('--row-header-width', headerWidth + 'px');
-  document.documentElement.style.setProperty('--resource-summary-width', summaryWidth + 'px');
+function clampResourceSummaryWidth() {
+  const maxForHeader = Math.max(SUMMARY_W_MIN, headerWidth - TRACK_PANEL_MIN_W);
+  resourceSummaryWidth = Math.max(SUMMARY_W_MIN, Math.min(SUMMARY_W_MAX, maxForHeader, Math.round(resourceSummaryWidth)));
 }
 
-// Drag the divider on the right edge of the left header column to resize it.
+function applyHeaderWidth() {
+  headerWidth = Math.max(HEADER_W_MIN, Math.min(HEADER_W_MAX, Math.round(headerWidth)));
+  clampResourceSummaryWidth();
+  document.documentElement.style.setProperty('--row-header-width', headerWidth + 'px');
+  document.documentElement.style.setProperty('--resource-summary-width', resourceSummaryWidth + 'px');
+}
+
+// Drag the divider on the right edge of the full left header column to resize it.
 let _headerResizeActive = false;
+let _summaryResizeActive = false;
 function startHeaderResize(e) {
   e.preventDefault();
   e.stopPropagation();
   if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-  if (_headerResizeActive) return;
+  if (_headerResizeActive || _summaryResizeActive) return;
   _headerResizeActive = true;
   const startX = e.clientX;
   const startW = headerWidth;
+  const startSummaryW = resourceSummaryWidth;
   document.body.classList.add('col-resizing');
   const handle = e.currentTarget;
   if (handle && handle.classList) handle.classList.add('dragging');
 
   function onMove(me) {
     headerWidth = startW + (me.clientX - startX);
+    resourceSummaryWidth = startSummaryW * (headerWidth / Math.max(1, startW));
     applyHeaderWidth();
   }
   function onUp() {
@@ -3337,11 +3374,47 @@ function startHeaderResize(e) {
   document.addEventListener('mouseup', onUp, true);
 }
 
+function startSummaryResize(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+  if (_headerResizeActive || _summaryResizeActive) return;
+  _summaryResizeActive = true;
+  const startX = e.clientX;
+  const startW = resourceSummaryWidth;
+  document.body.classList.add('col-resizing');
+  const handle = e.currentTarget;
+  if (handle && handle.classList) handle.classList.add('dragging');
+
+  function onMove(me) {
+    resourceSummaryWidth = startW + (me.clientX - startX);
+    applyHeaderWidth();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove, true);
+    document.removeEventListener('mouseup', onUp, true);
+    document.body.classList.remove('col-resizing');
+    if (handle && handle.classList) handle.classList.remove('dragging');
+    _summaryResizeActive = false;
+    saveState();
+  }
+  document.addEventListener('mousemove', onMove, true);
+  document.addEventListener('mouseup', onUp, true);
+}
+
 function makeHeaderResizeHandle() {
   const h = document.createElement('div');
   h.className = 'header-col-resize';
   h.title = 'Drag to resize the resource header column';
   h.addEventListener('mousedown', startHeaderResize);
+  return h;
+}
+
+function makeSummaryResizeHandle() {
+  const h = document.createElement('div');
+  h.className = 'summary-col-resize';
+  h.title = 'Drag to resize the resource name/tags column';
+  h.addEventListener('mousedown', startSummaryResize);
   return h;
 }
 
@@ -4265,6 +4338,7 @@ async function init() {
     zoom = saved.zoom || 'day';
     if (typeof saved.panelWidth === 'number') panelWidth = saved.panelWidth;
     if (typeof saved.headerWidth === 'number') headerWidth = saved.headerWidth;
+    if (typeof saved.resourceSummaryWidth === 'number') resourceSummaryWidth = saved.resourceSummaryWidth;
     if (saved.collapsedRows && typeof saved.collapsedRows === 'object') collapsedRows = saved.collapsedRows;
     // projectStart is generated dynamically; intentionally ignore saved.projectStart.
     const contingencyInput = document.getElementById('contingency');
