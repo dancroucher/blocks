@@ -1713,7 +1713,7 @@ function sanitizeState(data) {
             label: typeof track.label === 'string' ? track.label : (idx === 0 ? 'Main' : `Track ${idx + 1}`),
             height: Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, toPositiveInt(track.height || row.height, ROW_H_DEFAULT))),
           }))
-        : [{ id: `r${rowId}-t1`, label: 'Main', height: Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, toPositiveInt(row.height, ROW_H_DEFAULT))) }];
+        : [{ id: `r${rowId}-t1`, label: 'Main', height: Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, toPositiveInt((data.rowHeights && data.rowHeights[rowId]) || row.height, ROW_H_DEFAULT))) }];
       return {
         ...row,
         id: rowId,
@@ -1912,14 +1912,10 @@ function applyRemoteState(data) {
   if (typeof data.panelWidth === 'number') panelWidth = data.panelWidth;
   if (typeof data.resourceSummaryWidth === 'number') resourceSummaryWidth = data.resourceSummaryWidth;
   if (typeof data.headerWidth === 'number') { headerWidth = data.headerWidth; applyHeaderWidth(); }
-  if (data.rowHeights) {
-    rowHeights = data.rowHeights;
-  }
-  // Sync rowHeights with row.height values from rows
-  rows.forEach(row => {
-    if (rowHeights[row.id] && getRowTracks(row).length === 1) row.tracks[0].height = rowHeights[row.id];
-    else if (row.height && getRowTracks(row).length === 1) row.tracks[0].height = row.height;
-  });
+  if (data.rowHeights) rowHeights = data.rowHeights;
+  // Track heights are authoritative on row.tracks (seeded from legacy rowHeights
+  // during sanitizeState). Do NOT re-apply the stale rowHeights map here — it
+  // never updates on resize and would reset every just-resized row.
   normalizeRows();
   normalizeBlocks();
 
@@ -1928,7 +1924,8 @@ function applyRemoteState(data) {
   if (contingencyInput) contingencyInput.value = contingencyPct;
   syncViewButtons();
 
-  // Re-render without full state write-back
+  // Re-render without writing the just-received state back to Firestore.
+  _skipSaveOnNextPostRender = true;
   _renderScheduled = false;
   render();
   renderPanel();
@@ -2335,6 +2332,7 @@ function dateInputToCol(value) {
 // single actual render in the next animation frame.
 let _renderScheduled = false;
 let _postRenderTimer = null;
+let _skipSaveOnNextPostRender = false;
 function render() {
   if (_renderScheduled) return;
   _renderScheduled = true;
@@ -2352,7 +2350,11 @@ function schedulePostRenderWork() {
     setupGridRowSortable();
     setupTrackSortables();
     renderPanel();
-    saveState();
+    // A render triggered by applying remote state must not write that state
+    // straight back to Firestore — otherwise two open clients ping-pong saves
+    // (A saves → B applies → B saves → A applies → …) roughly every round-trip.
+    if (_skipSaveOnNextPostRender) _skipSaveOnNextPostRender = false;
+    else saveState();
   }, 0);
 }
 function renderMapControls() {
@@ -3539,12 +3541,14 @@ function createBlock(rowId, startCol, duration, label, durationIsScheduled = fal
   };
   blocks.push(block);
   render();
+  saveState();
   return block;
 }
 
 function deleteBlock(id) {
   blocks = blocks.filter(b => b.id !== id);
   render();
+  saveState();
 }
 
 function deleteResource(rowId) {
@@ -4464,10 +4468,8 @@ async function init() {
     rows = saved.rows || rows;
     normalizeRows();
     rowHeights = saved.rowHeights || {};
-    rows.forEach(row => {
-      if (rowHeights[row.id] && getRowTracks(row).length === 1) row.tracks[0].height = rowHeights[row.id];
-      else if (row.height && getRowTracks(row).length === 1) row.tracks[0].height = row.height;
-    });
+    // Track heights come through saved.rows (sanitizeState seeds legacy rows from
+    // rowHeights). Re-applying the stale rowHeights map here would undo resizes.
     blocks = saved.blocks || [];
     // v1 state had no version field and used calendar-day columns.
     if (!saved.version || saved.version < 2) {
