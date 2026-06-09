@@ -29,6 +29,7 @@
     --row-alt: #fcfbf9;
     --cell-size: 40px;
     --row-header-width: 300px;
+    --resource-summary-width: 112px;
     --alt-bg: #f8f8f8;
   }
 
@@ -253,7 +254,7 @@
     background: transparent;
   }
   .header-col-resize:hover::after,
-  .header-col-resize.dragging::after { background: var(--accent); }
+  .header-col-resize.dragging::after { background: transparent; }
   body.col-resizing { cursor: col-resize; user-select: none; }
   body.col-resizing * { cursor: col-resize !important; }
 
@@ -284,7 +285,7 @@
     padding-left: 0.4rem;
   }
   .resource-summary {
-    width: 112px;
+    width: var(--resource-summary-width);
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -517,7 +518,7 @@
   .track-row-resize {
     z-index: 65;
   }
-  .track-row-resize:hover { border-bottom-color: var(--accent); }
+  .track-row-resize:hover { border-bottom-color: transparent; }
   .resource-track-stack {
     display: flex;
     flex-direction: column;
@@ -678,6 +679,25 @@
     z-index: 3;
     line-height: 1.2;
   }
+  .block.block-compact {
+    flex-direction: row;
+    justify-content: flex-start;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+  .block.block-compact .block-label {
+    flex: 1 1 auto;
+    max-width: none;
+  }
+  .block.block-compact .block-days-badge {
+    flex: 0 1 auto;
+    min-width: 0;
+    max-width: 50%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .capacity-adjusted {
     color: #777;
     opacity: 0.75;
@@ -785,8 +805,8 @@
   }
   .panel-resize-handle:hover,
   .panel-resize-handle.dragging {
-    background: var(--accent);
-    opacity: 0.4;
+    background: transparent;
+    opacity: 1;
   }
   body.panel-resizing {
     cursor: ew-resize;
@@ -1443,12 +1463,14 @@ function isDayLikeZoom() { return zoom === 'day' || zoom === 'day-large' || zoom
 function daysPerCell() { return zoom === 'week' ? 5 : 1; }
 function cellVisualW() { return dayPx() * daysPerCell(); }
 const ROW_HEADER_W = 300;       // default header column width
+const RESOURCE_SUMMARY_W = 112; // default width of the name/capacity/tags cell
 const HEADER_W_MIN = 240;       // min width that still wraps name/capacity/tags nicely
 const HEADER_W_MAX = 720;
 const COLORS = 18;
 const ROW_H_MIN = 30;
 const ROW_H_DEFAULT = 40;
 const ROW_H_MAX = 360;
+const BLOCK_COMPACT_ROW_H = 38;
 const MAX_TRACKS_PER_ROW = 8;
 const RESOURCE_HEADER_MIN_H = 56;
 const ADD_TRACK_ROW_H = 22; // half-height "+ Track" row at the bottom of each resource
@@ -1488,11 +1510,22 @@ firebaseInit();
 
 // Dynamic timeline window, inspired by calendar timeline demos: the grid is
 // generated from dates relative to "now" rather than a hard-coded project span.
-// It starts at Jan 1 of the current year and runs through Dec 31 two years out.
+// It covers the current year through two years out, expanded to complete
+// Monday–Friday weeks so the first and last week headers are never partial.
 // Blocks remain weekday-column indexed within this generated window.
+function startOfWorkWeek(d) {
+  const out = new Date(d); out.setHours(0,0,0,0);
+  out.setDate(out.getDate() - ((out.getDay() + 6) % 7));
+  return out;
+}
+function endOfWorkWeek(d) {
+  const out = startOfWorkWeek(d);
+  out.setDate(out.getDate() + 4);
+  return out;
+}
 const TIMELINE_BASE_YEAR = new Date().getFullYear();
-const PROJECT_START_DATE = new Date(TIMELINE_BASE_YEAR, 0, 1);
-const PROJECT_END_DATE   = new Date(TIMELINE_BASE_YEAR + 2, 11, 31);
+const PROJECT_START_DATE = startOfWorkWeek(new Date(TIMELINE_BASE_YEAR, 0, 1));
+const PROJECT_END_DATE   = endOfWorkWeek(new Date(TIMELINE_BASE_YEAR + 2, 11, 31));
 function countWeekdaysInclusive(from, to) {
   const a = new Date(from); a.setHours(0,0,0,0);
   const b = new Date(to);   b.setHours(0,0,0,0);
@@ -2188,8 +2221,8 @@ function todayWeekdayCol() {
   return n - 1;
 }
 
-// Grid is weekday-only: col 0 = projectStart (a Monday), col 1 = next weekday,
-// weekends never get a column. `colToDate` advances one weekday at a time.
+// Grid is weekday-only: col 0 = projectStart (always a Monday), col 1 = next
+// weekday, weekends never get a column. `colToDate` advances one weekday at a time.
 function colToDate(col) {
   const d = new Date(projectStart);
   let added = 0;
@@ -2853,7 +2886,10 @@ function _render() {
       const cells = trackCells.get(block.trackId) || trackCells.get(getDefaultTrackId(row));
       if (!cells) return;
       const bEl = document.createElement('div');
-      bEl.className = `block block-color-${block.color}${isDataBlock(block) ? ' block-data' : ''}`;
+      const renderTrackId = cells.dataset.trackId || block.trackId;
+      const renderTrack = rowTracks.find(track => track.id === renderTrackId);
+      const compactClass = ((renderTrack?.height || ROW_H_DEFAULT) <= BLOCK_COMPACT_ROW_H) ? ' block-compact' : '';
+      bEl.className = `block block-color-${block.color}${isDataBlock(block) ? ' block-data' : ''}${compactClass}`;
       const baseDuration = getBlockBaseDuration(block);
       const capacityDays = Math.max(0, block.duration - baseDuration);
       bEl.style.left = (block.start * dayPx()) + 'px';
@@ -3266,7 +3302,9 @@ function renderPanel() {
 // --- Row vertical resize ---
 function applyHeaderWidth() {
   headerWidth = Math.max(HEADER_W_MIN, Math.min(HEADER_W_MAX, Math.round(headerWidth)));
+  const summaryWidth = Math.max(88, Math.min(320, Math.round(headerWidth * RESOURCE_SUMMARY_W / ROW_HEADER_W)));
   document.documentElement.style.setProperty('--row-header-width', headerWidth + 'px');
+  document.documentElement.style.setProperty('--resource-summary-width', summaryWidth + 'px');
 }
 
 // Drag the divider on the right edge of the left header column to resize it.
@@ -3307,6 +3345,12 @@ function makeHeaderResizeHandle() {
   return h;
 }
 
+function setBlocksCompactForTrack(trackId, trackHeight) {
+  document.querySelectorAll(`.track-row-cells[data-track-id="${trackId}"] .block`).forEach(blockEl => {
+    blockEl.classList.toggle('block-compact', trackHeight <= BLOCK_COMPACT_ROW_H);
+  });
+}
+
 function applyRowHeights() {
   rows.forEach(row => {
     const rowEl = document.querySelector(`.resource-group[data-row-id="${row.id}"]`);
@@ -3319,6 +3363,7 @@ function applyRowHeights() {
         el.style.setProperty('--track-h', h + 'px');
         if (el.classList.contains('track-grid-row')) el.style.setProperty('--row-h', h + 'px');
       });
+      setBlocksCompactForTrack(track.id, h);
     });
   });
 }
