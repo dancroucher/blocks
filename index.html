@@ -362,10 +362,18 @@
   .track-list > .track-label-row:last-child { border-bottom: none; }
   .track-drag-handle {
     cursor: grab;
-    color: #c2c2c2;
-    font-size: 0.85rem;
+    color: #bbb;
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0 4px 0 0;
+    flex: 0 0 auto;
     user-select: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 16px;
   }
+  .track-drag-handle:hover { color: #999; }
   .track-label-input {
     flex: 1;
     min-width: 0;
@@ -2078,7 +2086,7 @@ function buildTrackList(row) {
 
     const handle = document.createElement('span');
     handle.className = 'track-drag-handle';
-    handle.textContent = '⋮⋮';
+    handle.textContent = '⠿';
     handle.title = 'Drag to reorder track';
     item.appendChild(handle);
 
@@ -3103,10 +3111,19 @@ function setupTrackSortables() {
     _trackSortables.push(Sortable.create(list, {
       draggable: '.track-label-row',
       handle: '.track-drag-handle',
-      animation: 160,
+      animation: 180,
+      ghostClass: 'row-sortable-ghost',
+      chosenClass: 'row-sortable-chosen',
+      dragClass: 'row-sortable-drag',
+      fallbackOnBody: true,
+      swapThreshold: 0.65,
       preventOnFilter: false,
       filter: '.track-delete-btn',
+      onStart() {
+        document.body.classList.add('row-reordering-sortable');
+      },
       onEnd() {
+        document.body.classList.remove('row-reordering-sortable');
         const orderedIds = [...list.querySelectorAll('.track-label-row[data-track-id]')].map(el => el.dataset.trackId);
         const byId = new Map(getRowTracks(row).map(track => [track.id, track]));
         const nextTracks = orderedIds.map(id => byId.get(id)).filter(Boolean);
@@ -3450,7 +3467,6 @@ function applyRowHeights() {
   rows.forEach(row => {
     const rowEl = document.querySelector(`.resource-group[data-row-id="${row.id}"]`);
     if (!rowEl) return;
-    enforceResourceMinTrackHeights(row);
     const renderedH = Math.max(getResourceGroupHeight(row), getResourceContentMinHeight(row));
     rowEl.style.setProperty('--row-h', renderedH + 'px');
     rowEl.style.minHeight = renderedH + 'px';
@@ -3628,20 +3644,6 @@ function getResourceContentMinHeight(row) {
   return Math.max(RESOURCE_HEADER_MIN_H, Math.ceil(padY + childH + gaps + 10));
 }
 
-function enforceResourceMinTrackHeights(row) {
-  const tracks = getRowTracks(row);
-  if (!tracks.length) return;
-  const minTrackTotal = Math.max(ROW_H_MIN * tracks.length, getResourceContentMinHeight(row) - getAddRowH(row));
-  let total = tracks.reduce((sum, track) => sum + (track.height || ROW_H_DEFAULT), 0);
-  if (total >= minTrackTotal) return;
-  let deficit = minTrackTotal - total;
-  tracks.forEach((track, idx) => {
-    const add = idx === tracks.length - 1 ? deficit : Math.ceil(deficit / (tracks.length - idx));
-    track.height = Math.min(ROW_H_MAX, (track.height || ROW_H_DEFAULT) + add);
-    deficit -= add;
-  });
-}
-
 function startRowResize(e, rowId) {
   e.preventDefault();
   e.stopPropagation();
@@ -3662,11 +3664,15 @@ function startRowResize(e, rowId) {
   function applyDelta(targetRow, deltaY) {
     const targetTracks = getRowTracks(targetRow);
     const baseHeights = startHeights.get(targetRow.id) || targetTracks.map(t => t.height || ROW_H_DEFAULT);
-    const deltaPerTrack = deltaY / Math.max(1, targetTracks.length);
+    const baseTotal = baseHeights.reduce((sum, h) => sum + (h || ROW_H_DEFAULT), 0);
+    const minTrackTotal = Math.max(ROW_H_MIN * targetTracks.length, getResourceContentMinHeight(targetRow) - getAddRowH(targetRow));
+    const maxTrackTotal = ROW_H_MAX * targetTracks.length;
+    const targetTotal = Math.max(minTrackTotal, Math.min(maxTrackTotal, baseTotal + deltaY));
+    const clampedDelta = targetTotal - baseTotal;
+    const deltaPerTrack = clampedDelta / Math.max(1, targetTracks.length);
     targetTracks.forEach((track, idx) => {
       track.height = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round((baseHeights[idx] || ROW_H_DEFAULT) + deltaPerTrack)));
     });
-    enforceResourceMinTrackHeights(targetRow);
   }
 
   function onMove(me) {
