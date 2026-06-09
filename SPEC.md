@@ -7,6 +7,7 @@ Single shared document, Firebase Auth required. Initial deployment supports one 
 ## Terminology
 - Map rows are called **resources**.
 - Resources are usually individual people.
+- Each resource contains one or more **tracks** (sub-rows / lanes). Blocks belong to a track within a resource.
 
 ## Architecture
 
@@ -20,11 +21,24 @@ Single shared document, Firebase Auth required. Initial deployment supports one 
   - Firestore rules deny public access, deny deletes, validate basic state shape, and allow immutable backup creation
 
 ### App State (Firestore document)
+State version is currently **4** (`v4 = resource tracks`). `rows[].tracks` and `blocks[].trackId` are introduced in v4; older documents are migrated forward on load.
 ```json
 {
-  "version": 2,
-  "rows": [...],
-  "blocks": [...],
+  "version": 4,
+  "rows": [
+    {
+      "id": 1,
+      "label": "Alice",
+      "capacity": 100,
+      "tags": [],
+      "tracks": [
+        { "id": "r1-t1", "label": "Main", "height": 40 }
+      ]
+    }
+  ],
+  "blocks": [
+    { "id": 1, "rowId": 1, "trackId": "r1-t1", "start": 0, "baseDuration": 3, "duration": 3, "label": "", "kind": "grid", "color": 0 }
+  ],
   "nextBlockId": 10,
   "nextRowId": 6,
   "contingencyPct": 0,
@@ -111,6 +125,44 @@ service cloud.firestore {
 - The API key is not a secret; security depends on Firebase Auth and Firestore rules
 - Approved account: `dan.croucher@gmail.com`
 
+## Resources & Tracks (v4)
+
+Each resource (row) holds an ordered list of **tracks** rendered as grouped grid
+rows under a single resource header. Blocks are assigned to a specific track via
+`block.trackId`.
+
+### Data model
+- `row.tracks`: `[{ id, label, height }]`, 1–`MAX_TRACKS_PER_ROW` (8) entries.
+  - `id`: stable string, e.g. `r{rowId}-t{n}` (or a generated unique id).
+  - `label`: track name (editable inline; first track defaults to "Main").
+  - `height`: px, clamped to `ROW_H_MIN` (30) … `ROW_H_MAX` (360); default `ROW_H_DEFAULT` (40).
+- `block.trackId`: which track the block sits in. Falls back to the resource's first track if missing.
+- Resource visual height = sum of its track heights + the add-track row, floored at `RESOURCE_HEADER_MIN_H` (56).
+- Legacy rows without `tracks` are migrated to a single "Main" track on load.
+
+### Layout
+- A resource renders as a horizontal group: a sticky left **header column**
+  (`--row-header-width` = 300px) beside the stacked **track lanes** (timeline).
+- The header column splits into a fixed **summary** (resource name, capacity %,
+  tags) and a **track list** (one label row per track) that is vertically
+  aligned with its lanes.
+- Sub-track dividers are per-element borders on the track label rows and lanes
+  only — the summary (left) section has no horizontal lines.
+
+### Interaction
+- **Resize one track**: drag the line dividing it from the track below (handle
+  present on both the timeline lane and the header label row; accent on hover).
+  The bottom-most divider only resizes a track when a "+ Track" row sits below
+  it; otherwise that edge is the resource resize handle.
+- **Resize whole resource**: drag the handle at the bottom of the resource
+  (all tracks scale together); hold **Shift** to apply to all resources.
+- **Add track**: a half-height "+ Track" row (`ADD_TRACK_ROW_H` = 22px) at the
+  bottom of each resource (hidden at max tracks). Left-aligned, dim grey label.
+- **Reorder tracks**: drag the ⋮⋮ handle on a track label row (SortableJS).
+- **Rename track**: inline-editable input on each track label row.
+- **Delete track / resource**: × on each track label row; the resource delete ×
+  sits in the top-left corner of the resource header.
+
 ## Implementation Notes
 
 ### JS SDK (compat)
@@ -139,6 +191,8 @@ firebase.initializeApp({
 ```
 
 ## Changelog
+- 2026-06-05 — Resource-header typography tuning: larger resource and sub-track names, more padding above/below the name and between capacity and tags, fixed-height tag chips (consistent regardless of upper/lowercase), and a left-aligned, dimmer "+ Track" label
+- 2026-06-04 — Sub-tracks (state v4): resources hold multiple tracks rendered as grouped grid rows with per-block `trackId`; per-track resize by dragging the dividing line (mirrors resource resize), resource-level resize (Shift = all resources), half-height "+ Track" add row, inline-editable track names, track reordering, and the resource delete button moved to the header top-left; dividers no longer cross the summary section
 - 2026-06-01 — Timeline window now generates dynamically from the current year through two years ahead; Ctrl/Cmd wheel and Ctrl/Cmd +/- zoom the map around the pointer/viewport center; added Day+, and ½ Day close zoom levels
 - 2026-05-31 — Added Firebase Auth gate, single-user allowlist, immutable backups, safer Firestore rules
 - 2026-04-12 — Firebase real-time sync added (Firestore primary + IndexedDB fallback)

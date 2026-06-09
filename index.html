@@ -233,6 +233,30 @@
 
   .row.resizing { user-select: none; }
 
+  /* Horizontal resize handle on the right edge of the left header column */
+  .header-col-resize {
+    position: absolute;
+    top: 0;
+    right: -3px;
+    width: 7px;
+    height: 100%;
+    cursor: col-resize;
+    z-index: 80;
+  }
+  .header-col-resize::after {
+    content: '';
+    position: absolute;
+    right: 3px;
+    top: 0;
+    width: 2px;
+    height: 100%;
+    background: transparent;
+  }
+  .header-col-resize:hover::after,
+  .header-col-resize.dragging::after { background: var(--accent); }
+  body.col-resizing { cursor: col-resize; user-select: none; }
+  body.col-resizing * { cursor: col-resize !important; }
+
   .row-header {
     width: var(--row-header-width);
     min-width: var(--row-header-width);
@@ -1418,7 +1442,9 @@ function dayPx() {
 function isDayLikeZoom() { return zoom === 'day' || zoom === 'day-large' || zoom === 'day-half'; }
 function daysPerCell() { return zoom === 'week' ? 5 : 1; }
 function cellVisualW() { return dayPx() * daysPerCell(); }
-const ROW_HEADER_W = 300;
+const ROW_HEADER_W = 300;       // default header column width
+const HEADER_W_MIN = 240;       // min width that still wraps name/capacity/tags nicely
+const HEADER_W_MAX = 720;
 const COLORS = 18;
 const ROW_H_MIN = 30;
 const ROW_H_DEFAULT = 40;
@@ -1641,6 +1667,7 @@ function sanitizeState(data) {
     contingencyPct: Math.max(0, Math.min(100, toNonNegativeInt(data.contingencyPct, 0))),
     zoom: validZooms.has(data.zoom) ? data.zoom : 'day',
     panelWidth: Math.max(200, Math.min(800, toPositiveInt(data.panelWidth, 280))),
+    headerWidth: Math.max(HEADER_W_MIN, Math.min(HEADER_W_MAX, toPositiveInt(data.headerWidth, ROW_HEADER_W))),
     collapsedRows: data.collapsedRows && typeof data.collapsedRows === 'object' ? data.collapsedRows : {},
   };
 }
@@ -1650,7 +1677,7 @@ function snapshotState() {
   return {
     version: STATE_VERSION,
     rows, blocks, rowHeights, nextBlockId, nextRowId,
-    contingencyPct, zoom, panelWidth, collapsedRows,
+    contingencyPct, zoom, panelWidth, headerWidth, collapsedRows,
     projectStart: projectStart.toISOString(),
     savedAt: now,
     updatedAt: now,
@@ -1792,6 +1819,7 @@ function applyRemoteState(data) {
   if (data.collapsedRows) collapsedRows = data.collapsedRows;
   if (data.zoom)     zoom = data.zoom;
   if (typeof data.panelWidth === 'number') panelWidth = data.panelWidth;
+  if (typeof data.headerWidth === 'number') { headerWidth = data.headerWidth; applyHeaderWidth(); }
   if (data.rowHeights) {
     rowHeights = data.rowHeights;
   }
@@ -1829,6 +1857,7 @@ let nextBlockId = 1;
 let nextRowId = 6;
 let contingencyPct = 0;
 let panelWidth = 280;
+let headerWidth = ROW_HEADER_W; // resizable left header-column width (px)
 let collapsedRows = {}; // { [rowId]: true } — sections collapsed in the data panel
 
 // --- Header drag-to-pan ---
@@ -2234,6 +2263,7 @@ function renderMapControls() {
       <button class="map-nav-btn" onclick="scrollTimeline(1)" title="Scroll right">›</button>
     </div>
   `;
+  controls.appendChild(makeHeaderResizeHandle());
   return controls;
 }
 
@@ -2669,6 +2699,7 @@ function _render() {
 
     const header = document.createElement('div');
     header.className = 'row-header resource-group-header';
+    header.appendChild(makeHeaderResizeHandle());
 
     const headerMain = document.createElement('div');
     headerMain.className = 'row-header-main';
@@ -3233,6 +3264,49 @@ function renderPanel() {
 }
 
 // --- Row vertical resize ---
+function applyHeaderWidth() {
+  headerWidth = Math.max(HEADER_W_MIN, Math.min(HEADER_W_MAX, Math.round(headerWidth)));
+  document.documentElement.style.setProperty('--row-header-width', headerWidth + 'px');
+}
+
+// Drag the divider on the right edge of the left header column to resize it.
+let _headerResizeActive = false;
+function startHeaderResize(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+  if (_headerResizeActive) return;
+  _headerResizeActive = true;
+  const startX = e.clientX;
+  const startW = headerWidth;
+  document.body.classList.add('col-resizing');
+  const handle = e.currentTarget;
+  if (handle && handle.classList) handle.classList.add('dragging');
+
+  function onMove(me) {
+    headerWidth = startW + (me.clientX - startX);
+    applyHeaderWidth();
+  }
+  function onUp() {
+    document.removeEventListener('mousemove', onMove, true);
+    document.removeEventListener('mouseup', onUp, true);
+    document.body.classList.remove('col-resizing');
+    if (handle && handle.classList) handle.classList.remove('dragging');
+    _headerResizeActive = false;
+    saveState();
+  }
+  document.addEventListener('mousemove', onMove, true);
+  document.addEventListener('mouseup', onUp, true);
+}
+
+function makeHeaderResizeHandle() {
+  const h = document.createElement('div');
+  h.className = 'header-col-resize';
+  h.title = 'Drag to resize the resource header column';
+  h.addEventListener('mousedown', startHeaderResize);
+  return h;
+}
+
 function applyRowHeights() {
   rows.forEach(row => {
     const rowEl = document.querySelector(`.resource-group[data-row-id="${row.id}"]`);
@@ -3715,7 +3789,7 @@ document.addEventListener('mousemove', (e) => {
         rowDragIndicator.style.width = panelRect.width + 'px';
       } else {
         rowDragIndicator.style.left = '0';
-        rowDragIndicator.style.width = ROW_HEADER_W + 'px';
+        rowDragIndicator.style.width = headerWidth + 'px';
       }
     }
   }
@@ -4145,6 +4219,7 @@ async function init() {
     contingencyPct = saved.contingencyPct || 0;
     zoom = saved.zoom || 'day';
     if (typeof saved.panelWidth === 'number') panelWidth = saved.panelWidth;
+    if (typeof saved.headerWidth === 'number') headerWidth = saved.headerWidth;
     if (saved.collapsedRows && typeof saved.collapsedRows === 'object') collapsedRows = saved.collapsedRows;
     // projectStart is generated dynamically; intentionally ignore saved.projectStart.
     const contingencyInput = document.getElementById('contingency');
@@ -4165,6 +4240,7 @@ async function init() {
   rowDragIndicator.className = 'row-reordering-indicator';
   document.body.appendChild(rowDragIndicator);
   listenForChanges(); // start real-time sync
+  applyHeaderWidth(); // apply saved header-column width before first render
   applyRowHeights(); // apply saved row heights before first render
   render();
   const gridArea = document.getElementById('grid-area');
