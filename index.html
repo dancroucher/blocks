@@ -555,7 +555,8 @@
     align-self: stretch;
   }
   .resource-row-resize {
-    z-index: 70;
+    z-index: 200;
+    pointer-events: auto;
   }
   .track-row-resize {
     z-index: 65;
@@ -2797,6 +2798,7 @@ function _render() {
     resourceResize.className = 'row-resize resource-row-resize';
     resourceResize.title = 'Drag to resize all tracks in this resource. Hold Shift to apply to all resources.';
     resourceResize.addEventListener('mousedown', (e) => startRowResize(e, row.id));
+    resourceResize.addEventListener('pointerdown', (e) => startRowResize(e, row.id));
     group.appendChild(resourceResize);
 
     const header = document.createElement('div');
@@ -3680,17 +3682,24 @@ function getResourceContentMinHeight(row) {
   return Math.max(RESOURCE_HEADER_MIN_H, Math.ceil(padY + childH + gaps + 10));
 }
 
+let _rowResizeActive = false;
 function startRowResize(e, rowId) {
   e.preventDefault();
   e.stopPropagation();
   if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+  if (_rowResizeActive) return;
+  _rowResizeActive = true;
   const row = rows.find(r => r.id === rowId);
-  if (!row) return;
+  if (!row) { _rowResizeActive = false; return; }
   const tracks = getRowTracks(row);
-  if (!tracks.length) return;
+  if (!tracks.length) { _rowResizeActive = false; return; }
 
   const startY = e.clientY;
   const startHeights = new Map(rows.map(r => [r.id, getRowTracks(r).map(t => t.height || ROW_H_DEFAULT)]));
+  const startRenderedHeights = new Map(rows.map(r => {
+    const trackTotal = getRowTracks(r).reduce((sum, t) => sum + (t.height || ROW_H_DEFAULT), 0);
+    return [r.id, Math.max(trackTotal + getAddRowH(r), getResourceContentMinHeight(r))];
+  }));
   let resizeAllOnRelease = e.shiftKey;
 
   const handle = e.currentTarget;
@@ -3703,26 +3712,29 @@ function startRowResize(e, rowId) {
     const baseHeights = startHeights.get(targetRow.id) || targetTracks.map(t => t.height || ROW_H_DEFAULT);
     const count = Math.max(1, targetTracks.length);
     const baseTrackTotal = baseHeights.reduce((sum, h) => sum + (h || ROW_H_DEFAULT), 0);
-    const contentTrackFloor = Math.max(ROW_H_MIN * count, getResourceContentMinHeight(targetRow) - getAddRowH(targetRow));
-    const maxTrackTotal = ROW_H_MAX * count;
-    let targetTrackTotal = baseTrackTotal + deltaY;
+    const addH = getAddRowH(targetRow);
+    const contentMinH = getResourceContentMinHeight(targetRow);
+    const startRenderedH = startRenderedHeights.get(targetRow.id) || Math.max(baseTrackTotal + addH, contentMinH);
+    const maxRenderedH = ROW_H_MAX * count + addH;
+    const targetRenderedH = Math.max(contentMinH, Math.min(maxRenderedH, startRenderedH + deltaY));
 
-    if (deltaY < 0) {
-      // Shrink tracks only until the rendered resource reaches the header/tag
-      // content floor. If it already starts below that floor, don't shrink
-      // tracks further while the visible row is unable to get smaller.
-      const shrinkFloor = baseTrackTotal > contentTrackFloor ? contentTrackFloor : baseTrackTotal;
-      targetTrackTotal = Math.max(shrinkFloor, targetTrackTotal);
+    let targetTrackTotal;
+    if (targetRenderedH <= contentMinH && deltaY <= 0) {
+      // Already at the visible content floor: extra upward mouse movement must
+      // not keep changing subtrack/add-track layout.
+      targetTrackTotal = baseTrackTotal;
+    } else {
+      // Convert desired visible resource height back to track height. This makes
+      // growth immediate even when header/tag content currently creates slack.
+      targetTrackTotal = targetRenderedH - addH;
     }
-    targetTrackTotal = Math.max(ROW_H_MIN * count, Math.min(maxTrackTotal, targetTrackTotal));
+    targetTrackTotal = Math.max(ROW_H_MIN * count, Math.min(ROW_H_MAX * count, targetTrackTotal));
 
     const scale = baseTrackTotal > 0 ? targetTrackTotal / baseTrackTotal : 1;
     let used = 0;
     targetTracks.forEach((track, idx) => {
       const isLast = idx === targetTracks.length - 1;
-      const nextH = isLast
-        ? targetTrackTotal - used
-        : Math.round((baseHeights[idx] || ROW_H_DEFAULT) * scale);
+      const nextH = isLast ? targetTrackTotal - used : Math.round((baseHeights[idx] || ROW_H_DEFAULT) * scale);
       track.height = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round(nextH)));
       used += track.height;
     });
@@ -3741,6 +3753,7 @@ function startRowResize(e, rowId) {
     document.querySelector(`.resource-group[data-row-id="${rowId}"]`)?.classList.remove('resizing');
     document.body.classList.remove('row-resizing');
     if (handle && handle.classList) handle.classList.remove('dragging');
+    _rowResizeActive = false;
 
     const deltaY = upEvent.clientY - startY;
     if (resizeAllOnRelease || (upEvent && upEvent.shiftKey)) rows.forEach(targetRow => applyDelta(targetRow, deltaY));
