@@ -3451,7 +3451,9 @@ function applyRowHeights() {
     const rowEl = document.querySelector(`.resource-group[data-row-id="${row.id}"]`);
     if (!rowEl) return;
     enforceResourceMinTrackHeights(row);
-    rowEl.style.setProperty('--row-h', getResourceGroupHeight(row) + 'px');
+    const renderedH = Math.max(getResourceGroupHeight(row), getResourceContentMinHeight(row));
+    rowEl.style.setProperty('--row-h', renderedH + 'px');
+    rowEl.style.minHeight = renderedH + 'px';
 
     getRowTracks(row).forEach(track => {
       const h = track.height || ROW_H_DEFAULT;
@@ -3559,7 +3561,18 @@ function startEditingBlockLabel(bEl, labelEl, block) {
 }
 
 // --- Row drag-to-reorder ---
+function cssPx(value) {
+  const n = parseFloat(value || 0);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function elementOuterHeight(el) {
+  const cs = getComputedStyle(el);
+  return elementRequiredHeight(el) + cssPx(cs.marginTop) + cssPx(cs.marginBottom);
+}
+
 function elementRequiredHeight(el) {
+  if (el.classList && el.classList.contains('row-header-tags')) return wrappedTagsHeight(el);
   let h = Math.max(el.scrollHeight || 0, el.offsetHeight || 0);
   const kids = Array.from(el.children || []).filter(child => getComputedStyle(child).position !== 'absolute');
   if (kids.length) {
@@ -3574,19 +3587,45 @@ function elementRequiredHeight(el) {
   return h;
 }
 
+function wrappedTagsHeight(tagsEl) {
+  const children = Array.from(tagsEl.children || []).filter(child => getComputedStyle(child).position !== 'absolute');
+  if (!children.length) return 0;
+  const cs = getComputedStyle(tagsEl);
+  const gap = cssPx(cs.columnGap || cs.gap) || 3;
+  const rowGap = cssPx(cs.rowGap || cs.gap) || 3;
+  const available = Math.max(1, tagsEl.clientWidth || tagsEl.getBoundingClientRect().width || resourceSummaryWidth);
+  let rows = 1;
+  let x = 0;
+  let rowH = 0;
+  let totalH = 0;
+  children.forEach(child => {
+    const w = Math.ceil(child.getBoundingClientRect().width || child.offsetWidth || 0);
+    const h = Math.ceil(child.getBoundingClientRect().height || child.offsetHeight || 20);
+    if (x > 0 && x + gap + w > available) {
+      totalH += rowH + rowGap;
+      rows++;
+      x = 0;
+      rowH = 0;
+    }
+    x += (x ? gap : 0) + w;
+    rowH = Math.max(rowH, h);
+  });
+  totalH += rowH;
+  return Math.max(totalH, Math.max(tagsEl.scrollHeight || 0, tagsEl.offsetHeight || 0));
+}
+
 function getResourceContentMinHeight(row) {
   const summary = document.querySelector(`.resource-group[data-row-id="${row.id}"] .resource-summary`);
   if (!summary) return RESOURCE_HEADER_MIN_H;
   // Keep enough resource height for wrapped name/capacity/tags content. Measure
-  // child content explicitly because flex children can visually overflow while
-  // a row is being resized, especially the wrapping tag chips.
+  // direct children and explicitly calculate tag wrapping from chip widths.
   const styles = getComputedStyle(summary);
-  const padY = parseFloat(styles.paddingTop || 0) + parseFloat(styles.paddingBottom || 0);
-  const gap = parseFloat(styles.rowGap || styles.gap || 0) || 0;
+  const padY = cssPx(styles.paddingTop) + cssPx(styles.paddingBottom);
+  const gap = cssPx(styles.rowGap || styles.gap) || 3;
   const children = Array.from(summary.children).filter(el => !el.classList.contains('summary-col-resize'));
-  const childH = children.reduce((sum, el) => sum + elementRequiredHeight(el), 0);
+  const childH = children.reduce((sum, el) => sum + elementOuterHeight(el), 0);
   const gaps = Math.max(0, children.length - 1) * gap;
-  return Math.max(RESOURCE_HEADER_MIN_H, Math.ceil(padY + childH + gaps + 8));
+  return Math.max(RESOURCE_HEADER_MIN_H, Math.ceil(padY + childH + gaps + 10));
 }
 
 function enforceResourceMinTrackHeights(row) {
