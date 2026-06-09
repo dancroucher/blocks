@@ -225,6 +225,7 @@
     height: 7px;
     cursor: row-resize;
     z-index: 10;
+    touch-action: none;
   }
   .row-resize::after {
     content: '';
@@ -251,6 +252,7 @@
     height: 100%;
     cursor: col-resize;
     z-index: 80;
+    touch-action: none;
   }
   .header-col-resize::after {
     content: '';
@@ -311,6 +313,7 @@
     height: 100%;
     cursor: col-resize;
     z-index: 90;
+    touch-action: none;
   }
   .summary-col-resize::after {
     content: '';
@@ -2116,7 +2119,7 @@ function buildTrackList(row) {
       const resize = document.createElement('div');
       resize.className = 'row-resize track-row-resize';
       resize.title = 'Drag to resize this track';
-      resize.addEventListener('mousedown', e => startTrackResize(e, row.id, track.id));
+      resize.addEventListener('pointerdown', e => startTrackResize(e, row.id, track.id));
       item.appendChild(resize);
     }
 
@@ -2797,7 +2800,6 @@ function _render() {
     const resourceResize = document.createElement('div');
     resourceResize.className = 'row-resize resource-row-resize';
     resourceResize.title = 'Drag to resize all tracks in this resource. Hold Shift to apply to all resources.';
-    resourceResize.addEventListener('mousedown', (e) => startRowResize(e, row.id));
     resourceResize.addEventListener('pointerdown', (e) => startRowResize(e, row.id));
     group.appendChild(resourceResize);
 
@@ -2937,7 +2939,7 @@ function _render() {
         const trackResize = document.createElement('div');
         trackResize.className = 'row-resize track-row-resize';
         trackResize.title = 'Drag to resize this track';
-        trackResize.addEventListener('mousedown', (e) => startTrackResize(e, row.id, track.id));
+        trackResize.addEventListener('pointerdown', (e) => startTrackResize(e, row.id, track.id));
         trackRow.appendChild(trackResize);
       }
 
@@ -3416,74 +3418,71 @@ function applyHeaderWidth() {
   document.documentElement.style.setProperty('--resource-summary-width', resourceSummaryWidth + 'px');
 }
 
-// Drag the divider on the right edge of the full left header column to resize it.
-let _headerResizeActive = false;
-let _summaryResizeActive = false;
-function startHeaderResize(e) {
+// Shared drag binding for every resize handle. Uses Pointer Events end-to-end:
+// mixing mousedown with pointerdown (as the old handlers did) makes the browser
+// suppress the compat mouse events the move/up listeners were waiting on, which
+// silently wedged the handles. Pointer capture-free window listeners plus
+// pointercancel guarantee the drag always cleans up — no stuck "active" flags.
+function beginPointerDrag(e, { onMove, onEnd, cursorClass } = {}) {
+  if (e.button != null && e.button > 0) return false; // primary button / touch only
   e.preventDefault();
   e.stopPropagation();
-  if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-  if (_headerResizeActive || _summaryResizeActive) return;
-  _headerResizeActive = true;
-  const startX = e.clientX;
+  const startX = e.clientX, startY = e.clientY;
+  if (cursorClass) document.body.classList.add(cursorClass);
+  const move = (ev) => { if (onMove) onMove(ev.clientX - startX, ev.clientY - startY, ev); };
+  const end = (ev) => {
+    window.removeEventListener('pointermove', move);
+    window.removeEventListener('pointerup', end);
+    window.removeEventListener('pointercancel', end);
+    if (cursorClass) document.body.classList.remove(cursorClass);
+    if (onEnd) onEnd(ev);
+  };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', end);
+  window.addEventListener('pointercancel', end);
+  return true;
+}
+
+// Drag the divider on the right edge of the full left header column to resize it.
+function startHeaderResize(e) {
   const startW = headerWidth;
   const startSummaryW = resourceSummaryWidth;
-  document.body.classList.add('col-resizing');
   const handle = e.currentTarget;
-  if (handle && handle.classList) handle.classList.add('dragging');
-
-  function onMove(me) {
-    headerWidth = startW + (me.clientX - startX);
-    resourceSummaryWidth = startSummaryW * (headerWidth / Math.max(1, startW));
-    applyHeaderWidth();
-    applyRowHeights();
-  }
-  function onUp() {
-    document.removeEventListener('mousemove', onMove, true);
-    document.removeEventListener('mouseup', onUp, true);
-    document.body.classList.remove('col-resizing');
-    if (handle && handle.classList) handle.classList.remove('dragging');
-    _headerResizeActive = false;
-    saveState();
-  }
-  document.addEventListener('mousemove', onMove, true);
-  document.addEventListener('mouseup', onUp, true);
+  const started = beginPointerDrag(e, {
+    cursorClass: 'col-resizing',
+    onMove(dx) {
+      headerWidth = startW + dx;
+      resourceSummaryWidth = startSummaryW * (headerWidth / Math.max(1, startW));
+      applyHeaderWidth();
+      applyRowHeights();
+    },
+    onEnd() { handle?.classList?.remove('dragging'); saveState(); },
+  });
+  if (!started) return;
+  handle?.classList?.add('dragging');
 }
 
 function startSummaryResize(e) {
-  e.preventDefault();
-  e.stopPropagation();
-  if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-  if (_headerResizeActive || _summaryResizeActive) return;
-  _summaryResizeActive = true;
-  const startX = e.clientX;
   const startW = resourceSummaryWidth;
-  document.body.classList.add('col-resizing');
   const handle = e.currentTarget;
-  if (handle && handle.classList) handle.classList.add('dragging');
-
-  function onMove(me) {
-    resourceSummaryWidth = startW + (me.clientX - startX);
-    applyHeaderWidth();
-    applyRowHeights();
-  }
-  function onUp() {
-    document.removeEventListener('mousemove', onMove, true);
-    document.removeEventListener('mouseup', onUp, true);
-    document.body.classList.remove('col-resizing');
-    if (handle && handle.classList) handle.classList.remove('dragging');
-    _summaryResizeActive = false;
-    saveState();
-  }
-  document.addEventListener('mousemove', onMove, true);
-  document.addEventListener('mouseup', onUp, true);
+  const started = beginPointerDrag(e, {
+    cursorClass: 'col-resizing',
+    onMove(dx) {
+      resourceSummaryWidth = startW + dx;
+      applyHeaderWidth();
+      applyRowHeights();
+    },
+    onEnd() { handle?.classList?.remove('dragging'); saveState(); },
+  });
+  if (!started) return;
+  handle?.classList?.add('dragging');
 }
 
 function makeHeaderResizeHandle() {
   const h = document.createElement('div');
   h.className = 'header-col-resize';
   h.title = 'Drag to resize the resource header column';
-  h.addEventListener('mousedown', startHeaderResize);
+  h.addEventListener('pointerdown', startHeaderResize);
   return h;
 }
 
@@ -3491,7 +3490,7 @@ function makeSummaryResizeHandle() {
   const h = document.createElement('div');
   h.className = 'summary-col-resize';
   h.title = 'Drag to resize the resource name/tags column';
-  h.addEventListener('mousedown', startSummaryResize);
+  h.addEventListener('pointerdown', startSummaryResize);
   return h;
 }
 
@@ -3682,29 +3681,17 @@ function getResourceContentMinHeight(row) {
   return Math.max(RESOURCE_HEADER_MIN_H, Math.ceil(padY + childH + gaps + 10));
 }
 
-let _rowResizeActive = false;
 function startRowResize(e, rowId) {
-  e.preventDefault();
-  e.stopPropagation();
-  if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-  if (_rowResizeActive) return;
-  _rowResizeActive = true;
   const row = rows.find(r => r.id === rowId);
-  if (!row) { _rowResizeActive = false; return; }
-  const tracks = getRowTracks(row);
-  if (!tracks.length) { _rowResizeActive = false; return; }
+  if (!row || !getRowTracks(row).length) return;
 
-  const startY = e.clientY;
   const startHeights = new Map(rows.map(r => [r.id, getRowTracks(r).map(t => t.height || ROW_H_DEFAULT)]));
-  let resizeAllOnRelease = e.shiftKey;
-
+  let resizeAll = e.shiftKey;
   const handle = e.currentTarget;
-  if (handle && handle.classList) handle.classList.add('dragging');
-  document.querySelector(`.resource-group[data-row-id="${rowId}"]`)?.classList.add('resizing');
-  document.body.classList.add('row-resizing');
+  const groupEl = document.querySelector(`.resource-group[data-row-id="${rowId}"]`);
 
   // Track heights are the single source of truth: move the combined track total
-  // by the mouse delta and distribute it across the tracks proportionally. The
+  // by the drag delta and distribute it across the tracks proportionally. The
   // header content height (name/capacity/tags) is a pure render-time floor in
   // getResourceGroupHeight/applyRowHeights — it must NOT feed back into this
   // math, or shrinking freezes and growing jumps.
@@ -3725,65 +3712,49 @@ function startRowResize(e, rowId) {
     });
   }
 
-  function onMove(me) {
-    if (me.shiftKey) resizeAllOnRelease = true;
-    const deltaY = me.clientY - startY;
-    applyDelta(row, deltaY);
-    applyRowHeights();
-  }
-
-  function onUp(upEvent) {
-    document.removeEventListener('mousemove', onMove);
-    document.removeEventListener('mouseup', onUp);
-    document.querySelector(`.resource-group[data-row-id="${rowId}"]`)?.classList.remove('resizing');
-    document.body.classList.remove('row-resizing');
-    if (handle && handle.classList) handle.classList.remove('dragging');
-    _rowResizeActive = false;
-
-    const deltaY = upEvent.clientY - startY;
-    if (resizeAllOnRelease || (upEvent && upEvent.shiftKey)) rows.forEach(targetRow => applyDelta(targetRow, deltaY));
-    else applyDelta(row, deltaY);
-    render();
-    saveState();
-  }
-
-  document.addEventListener('mousemove', onMove);
-  document.addEventListener('mouseup', onUp);
+  const started = beginPointerDrag(e, {
+    cursorClass: 'row-resizing',
+    onMove(dx, dy, ev) {
+      if (ev.shiftKey) resizeAll = true;          // Shift = resize every resource
+      if (resizeAll) rows.forEach(r => applyDelta(r, dy));
+      else applyDelta(row, dy);
+      applyRowHeights();
+    },
+    onEnd() {
+      groupEl?.classList.remove('resizing');
+      handle?.classList?.remove('dragging');
+      render();
+      saveState();
+    },
+  });
+  if (!started) return;
+  handle?.classList?.add('dragging');
+  groupEl?.classList.add('resizing');
 }
 
-let _trackResizeActive = false;
 function startTrackResize(e, rowId, trackId) {
-  e.preventDefault();
-  e.stopPropagation();
-  if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-  if (_trackResizeActive) return;
-  _trackResizeActive = true;
   const row = rows.find(r => r.id === rowId);
   const track = getTrack(row, trackId);
-  if (!row || !track) { _trackResizeActive = false; return; }
-  const startY = e.clientY;
+  if (!row || !track) return;
   const startH = track.height || ROW_H_DEFAULT;
   const handle = e.currentTarget;
-  if (handle && handle.classList) handle.classList.add('dragging');
-  document.body.classList.add('row-resizing');
 
-  function onMove(me) {
-    // Resize this track directly. The header-content floor is applied at render
-    // time (applyRowHeights), so it must not constrain the stored track height.
-    track.height = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round(startH + (me.clientY - startY))));
-    applyRowHeights();
-  }
-  function onUp() {
-    document.removeEventListener('mousemove', onMove, true);
-    document.removeEventListener('mouseup', onUp, true);
-    document.body.classList.remove('row-resizing');
-    if (handle && handle.classList) handle.classList.remove('dragging');
-    _trackResizeActive = false;
-    render();
-    saveState();
-  }
-  document.addEventListener('mousemove', onMove, true);
-  document.addEventListener('mouseup', onUp, true);
+  const started = beginPointerDrag(e, {
+    cursorClass: 'row-resizing',
+    onMove(dx, dy) {
+      // Resize this track directly. The header-content floor is applied at render
+      // time (applyRowHeights), so it must not constrain the stored track height.
+      track.height = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round(startH + dy)));
+      applyRowHeights();
+    },
+    onEnd() {
+      handle?.classList?.remove('dragging');
+      render();
+      saveState();
+    },
+  });
+  if (!started) return;
+  handle?.classList?.add('dragging');
 }
 
 function startRowDrag(e, rowId, source) {
