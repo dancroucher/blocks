@@ -1399,11 +1399,13 @@ function firebaseInit() {
 }
 firebaseInit();
 
-// Dynamic timeline window, inspired by calendar timeline demos: the grid is
-// generated from dates relative to "now" rather than a hard-coded project span.
-// It covers the current year through two years out, expanded to complete
-// Monday–Friday weeks so the first and last week headers are never partial.
-// Blocks remain weekday-column indexed within this generated window.
+// Timeline window. Block columns are weekday indices relative to projectStart,
+// so the anchor must NEVER move once data exists — re-deriving it from the
+// current year (the old behavior) would shift every block by a year's worth of
+// columns at each new year. The anchor is pinned to the persisted
+// `projectStart`; only the window END is dynamic (always at least two years
+// past today), expanded to complete Monday–Friday weeks so the first and last
+// week headers are never partial.
 function startOfWorkWeek(d) {
   const out = new Date(d); out.setHours(0,0,0,0);
   out.setDate(out.getDate() - ((out.getDay() + 6) % 7));
@@ -1414,9 +1416,6 @@ function endOfWorkWeek(d) {
   out.setDate(out.getDate() + 4);
   return out;
 }
-const TIMELINE_BASE_YEAR = new Date().getFullYear();
-const PROJECT_START_DATE = startOfWorkWeek(new Date(TIMELINE_BASE_YEAR, 0, 1));
-const PROJECT_END_DATE   = endOfWorkWeek(new Date(TIMELINE_BASE_YEAR + 2, 11, 31));
 function countWeekdaysInclusive(from, to) {
   const a = new Date(from); a.setHours(0,0,0,0);
   const b = new Date(to);   b.setHours(0,0,0,0);
@@ -1427,7 +1426,20 @@ function countWeekdaysInclusive(from, to) {
   }
   return n;
 }
-const TOTAL_COLS = countWeekdaysInclusive(PROJECT_START_DATE, PROJECT_END_DATE);
+let projectStart = null;     // Monday anchoring col 0; pinned to saved state
+let PROJECT_END_DATE = null;
+let TOTAL_COLS = 0;
+function setTimelineAnchor(savedISO) {
+  const currentYear = new Date().getFullYear();
+  const parsed = savedISO ? new Date(savedISO) : null;
+  const anchor = parsed && !Number.isNaN(parsed.getTime())
+    ? startOfWorkWeek(parsed)
+    : startOfWorkWeek(new Date(currentYear, 0, 1));
+  projectStart = anchor;
+  PROJECT_END_DATE = endOfWorkWeek(new Date(Math.max(anchor.getFullYear(), currentYear) + 2, 11, 31));
+  TOTAL_COLS = countWeekdaysInclusive(projectStart, PROJECT_END_DATE);
+}
+setTimelineAnchor(null); // default window until saved state arrives
 const STATE_VERSION = 4; // v4 = resource tracks
 
 // Format: "[base]d + [conting]d ([total]d)" when contingency > 0, else "[base]d".
@@ -1744,6 +1756,10 @@ function applyRemoteState(data) {
   if (data.zoom)     zoom = data.zoom;
   if (typeof data.resourceSummaryWidth === 'number') resourceSummaryWidth = data.resourceSummaryWidth;
   if (typeof data.headerWidth === 'number') { headerWidth = data.headerWidth; applyHeaderWidth(); }
+  // Block columns are indexed against the sender's anchor; adopt it if it differs.
+  if (typeof data.projectStart === 'string' && data.projectStart !== projectStart.toISOString()) {
+    setTimelineAnchor(data.projectStart);
+  }
   // Track heights are authoritative on row.tracks (seeded from the legacy
   // rowHeights map during sanitizeState). The map itself is never applied here.
   normalizeRows();
@@ -2076,9 +2092,7 @@ let gridWrapper = null;
 
 
 // --- Date helpers ---
-// Project timeline is generated dynamically (see PROJECT_START_DATE / PROJECT_END_DATE).
-const projectStart = new Date(PROJECT_START_DATE);
-projectStart.setHours(0,0,0,0);
+// The timeline anchor (projectStart) and window are set via setTimelineAnchor.
 
 // Returns the weekday-col index for today, or -1 if today isn't on the grid
 // (weekend or outside [projectStart, projectEnd]).
@@ -3882,7 +3896,9 @@ async function init() {
   const saved = await loadState();
   _saveReady = true;
   if (saved) {
-    // Restore state (Firestore or IndexedDB)
+    // Restore state (Firestore or IndexedDB). Pin the column anchor to the
+    // one the data was saved against — see setTimelineAnchor.
+    setTimelineAnchor(saved.projectStart);
     rows = saved.rows || rows;
     normalizeRows();
     // Track heights come through saved.rows (sanitizeState seeds legacy rows
@@ -3899,7 +3915,6 @@ async function init() {
     zoom = saved.zoom || 'day';
     if (typeof saved.headerWidth === 'number') headerWidth = saved.headerWidth;
     if (typeof saved.resourceSummaryWidth === 'number') resourceSummaryWidth = saved.resourceSummaryWidth;
-    // projectStart is generated dynamically; intentionally ignore saved.projectStart.
     const contingencyInput = document.getElementById('contingency');
     if (contingencyInput) contingencyInput.value = contingencyPct;
     syncViewButtons();
