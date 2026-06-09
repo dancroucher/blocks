@@ -1,258 +1,193 @@
-# Blocks — Code Review
+# Blocks — Code Review (consolidated)
 
-**File**: `index.html` (3,631 lines, ~123 KB, single-file app)
+**File**: `index.html` (4,529 lines, single-file app) + `firestore.rules`
 **Branch**: `preview`
-**Date**: 2026-06-01
-
-A pragmatic, single-author private tool. Most of the code is well-structured. The
-findings below are sorted by severity.
+**Date**: 2026-06-09 (supersedes the 2026-06-01 review; statuses of the old
+findings are folded in below)
 
 ---
 
-## Strengths
+## Resolved since 2026-06-01
 
-- **Real-time sync done right.** `_clientId` echo prevention (L1487), immutable
-  backups (L1393), throttled auto-backup (AUTO_BACKUP_MIN_INTERVAL_MS, L1304),
-  separate Firestore + IndexedDB paths. Clean.
-- **XSS-safe by default.** User-controlled strings (`row.label`, `block.label`,
-  tag chips) are consistently set via `textContent` (25 occurrences) — not
-  `innerHTML`. Good.
-- **rAF-batched render** (L1809-1817) avoids layout thrash on 26 call sites.
-- **State migration path** from v1 (calendar) → v2 (weekday) and v3 (grid/data
-  kinds) is present.
-- **Auth gate + Firestore rules agree** — both allowlist `dan.croucher@gmail.com`.
-- **`firebaseInit()` early-returns** if SDK fails to load (L1252) — no crash.
-- **No `eval`, no `document.write`, no `outerHTML`, no `insertAdjacentHTML`**.
-- **Row reordering** is properly debounced through render.
-- **No duplicate function declarations** and no shadowed `let`/`const`.
-
----
-
-## Critical / high
-
-### 1. XSS in tag datalist (L1654)
-```js
-dl.innerHTML = existing.map(t => `<option value="${t}">`).join('');
-```
-Tag strings are user-controlled, stored unescaped in Firestore, and interpolated
-into an attribute value with no escaping. A tag like `"><img src=x onerror=…`
-breaks out of the attribute.
-
-**Today**: single approved user, so not exploitable in practice.
-**Tomorrow**: SPEC mentions "approved user email" as the *initial* deployment
-model, implying multi-user is planned. **Fix now.**
-
-Suggested fix — build the datalist with `createElement`:
-```js
-existing.forEach(t => {
-  const o = document.createElement('option');
-  o.value = t;
-  dl.appendChild(o);
-});
-```
-
-### 2. `applyRemoteState` overwrites unsaved local state (L1500-1529)
-```js
-if (data.rows)     { rows           = data.rows; }
-if (data.blocks)   { blocks         = data.blocks; }
-```
-If a local change is in the 200 ms debounce window of `saveState()` and a remote
-update arrives, the local change is silently lost. With 200 ms debounce this is
-unlikely to bite, but a drag that lasts seconds (a real risk during
-move/resize) easily overlaps a remote snapshot. **Race condition** with no
-conflict resolution.
-
-Suggested fix: include the local change in a 3-way merge, or at minimum show a
-"remote overwrite" toast and let the user re-issue their change. Easier fix:
-queue local mutations and replay on conflict.
-
-### 3. `snapshotState` mixes `serverTimestamp()` sentinel with IndexedDB
-serialization (L1381-1391, L1473)
-```js
-updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
-...
-db.transaction(STORE, 'readwrite').objectStore(STORE).put(snapshot, STATE_KEY);
-```
-`snapshotState()` is passed to **both** Firestore (which understands the
-sentinel) and IndexedDB (structured-clone). The Firestore sentinel is a plain
-object with a method-shaped marker; it may serialize as `{}` or throw on
-`put()`. You only see this when the Firestore `set` succeeds *and* the
-IndexedDB write fails — easy to miss in testing.
-
-Suggested fix: build two snapshots, or strip server timestamps before
-IndexedDB:
-```js
-const persistable = { ...snapshot, updatedAt: Date.now() };
-db.transaction(...).put(persistable, STATE_KEY);
-```
+- ~~#1 XSS in tag datalist~~ — fixed; datalist built with `replaceChildren` +
+  `createElement` (L2178).
+- ~~#3 serverTimestamp sentinel in IndexedDB~~ — fixed; `snapshotState()` is
+  plain, `firestoreSnapshot()` adds the sentinel only for the Firestore path
+  (L1766–1789).
+- ~~#5 permissive sanitizeState~~ — fixed; per-row/track/block validation and
+  coercion (L1699–1764).
+- ~~#7 empty stub functions~~ — removed.
+- ~~#6 Firestore rules lack range checks~~ — added in the repo rules file…
+  but see **A1**: the rules file is now wrong in a worse way.
+- #2 remote-overwrite race — *improved* (`_hasPendingLocalSave` guard,
+  `_skipSaveOnNextPostRender` anti-ping-pong) but not closed; see **A3**.
+- #4 migrateV1ToV2 anchor dependence — subsumed by **A2**, which is the same
+  anchor problem and is live, not latent.
 
 ---
 
-## Medium
+## A — Act now (real bugs)
 
-### 4. `migrateV1ToV2` is anchor-dependent (L3537-3556)
-```js
-const calIsWeekend = (col) => (col % 7) === 5 || (col % 7) === 6;
-```
-This assumes calendar col 0 = Sunday. If the v1 data was indexed against a
-project-start year that began on a different weekday, the migrated blocks land
-in the wrong weekday column. Latent — only matters when migrating legacy v1
-data.
+### A1. `firestore.rules` no longer matches what the app writes
+`snapshotState()` now sends `headerWidth` and `resourceSummaryWidth` and
+(deliberately, since 28855a7) omits `rowHeights`. The rules file:
 
-Suggested fix: store `projectStart` (an ISO date) on the v1 doc and recompute
-weekday columns from that anchor.
+- `requiredStateKeys()` still **requires** `rowHeights` → `hasAll()` fails;
+- `hasOnly([...])` doesn't include `headerWidth` / `resourceSummaryWidth` →
+  fails again.
 
-### 5. `sanitizeState` is too permissive (L1375-1379)
-```js
-function sanitizeState(data) {
-  if (!data || typeof data !== 'object') return null;
-  if (!Array.isArray(data.rows) || !Array.isArray(data.blocks)) return null;
-  return data;
-}
-```
-Validates only the top-level arrays. A malformed individual row/block (missing
-`id`, `start`, or `duration` of wrong type) crashes `normalizeBlocks`,
-`render()`, etc. Firestore rules are stricter, but they only check that
-`rows`/`blocks` are lists and `version` is int.
+If this file is deployed, **every save and every backup is rejected**. Since
+multi-client sync demonstrably works, the *deployed* rules must be an older,
+looser version — meaning the f47b005 hardening (key allowlists, range checks)
+is probably not in effect in production either. `git log` confirms the rules
+file was last touched ~60 commits ago.
 
-Suggested fix: validate each row/block shape and either drop or coerce bad
-entries.
+**Action**: update the rules — drop `rowHeights` from required keys (keep it
+in `hasOnly` so stale clients can still write), add `headerWidth` (int,
+240–720) and `resourceSummaryWidth` (int, 88–360) to both key lists with range
+checks — then `firebase deploy --only firestore:rules` and verify a save
+succeeds from the live app.
 
-### 6. Firestore rules don't validate numeric ranges
-```js
-allow create, update: if isAllowedUser()
-  && request.resource.data.version is int
-  && request.resource.data.rows is list
-  && request.resource.data.blocks is list;
-```
-No bound checks on `contingencyPct` (0–100?), `panelWidth` (0–window?),
-`zoom` (must be in `MAP_ZOOM_LEVELS`?), or block `duration`/`start` (must be
-non-negative integers). A compromised approved account can poison the doc and
-brick the client for everyone.
+### A2. Year rollover silently shifts every block
+`PROJECT_START_DATE` is derived from `new Date().getFullYear()` (L1583–1585)
+and `saved.projectStart` is *deliberately ignored* on load (L4499). Block
+`start` values are weekday indices **relative to that anchor**. On
+1 Jan 2027 the anchor jumps a year forward, so every stored block renders
+~261 weekday columns earlier than where it was placed. The data isn't
+corrupted, but the display is, and the first save after that re-persists the
+same indices against a comment claiming they're anchor-relative.
 
-Suggested fix:
-```js
-&& request.resource.data.contingencyPct is int
-&& request.resource.data.contingencyPct >= 0
-&& request.resource.data.contingencyPct <= 100
-```
+**Action**: on load, compare `saved.projectStart` with the current anchor and
+shift every `block.start` by the weekday delta between the two (one-time
+migration per anchor change). Keep persisting `projectStart` as now.
 
-### 7. Empty stub functions at the end of file (L3624-3625)
-```js
-function applyPanelWidth() {}
-function setupPanelResize() {}
-```
-Dead code. The SPEC describes a resizable panel, but the implementation never
-landed. Either implement or remove.
+### A3. Remote apply can still land mid-interaction
+The `_hasPendingLocalSave || _saveTimer` guard only covers the 200 ms debounce
+window. During an active drag (`dragState`, `createState`, row/track resize)
+nothing is pending yet, so a remote snapshot can call `applyRemoteState`,
+replace `rows`/`blocks`, and orphan the `row` / `startHeights` objects captured
+by `startRowResize`/`startTrackResize` — the exact detached-object bug class
+ea60cf6 just fixed from the other direction. Separately, when the guard *does*
+trip, the remote update is dropped entirely ("Local changes kept") rather than
+deferred.
 
-### 8. `_render` is a 452-line monolith (L2056-2507)
-Too much in one function: header rendering, row rendering, block rendering,
-today indicator, weekend shading, tag chips, capacity input, etc. Hard to test
-or modify safely. **Same story** for `renderPanel` (154 lines) and
-`renderCombinedBlocksView`.
-
-Suggested fix: extract per-region helpers (`renderHeader`, `renderRows`,
-`renderBlocks`, `renderTodayIndicator`) called from a top-level `_render`.
-
-### 9. `render` is called 26 times across the file
-Every state mutation triggers a re-render. rAF batching keeps it cheap, but
-compound operations (e.g. `deleteResource` does `render()` + `renderPanel()`)
-double-paint. Track the latest set of "dirty regions" and re-render only those.
-
-### 10. `nextRowId` initial value is 6, but `rows` is hard-coded with IDs 1-5
-`let nextRowId = 6;` (L1543) and 5 default rows (L1533-1538). This works but
-the next ID is implicit from the array literal. Easy to break on a refactor.
-`makeRow` already takes the ID; consider `nextRowId++` inline.
+**Action**: stash the latest remote snapshot instead of applying/dropping it
+when any drag state or pending save exists, and apply it on pointerup/after
+save completes.
 
 ---
 
-## Minor
+## B — Dead and redundant code (delete)
 
-### 11. `console.log` in production (9 found)
-- 8 are conditional `console.warn` for errors — fine.
-- 1 `console.log('State loaded from Firestore')` (L1427) — useful for
-  debugging, but pollutes the console in production. Gate behind a debug flag
-  or remove.
+### B1. The side data-panel is gone but half its code remains
+There is no `#data-panel` or `#panel-blocks` element in the DOM (the Data tab
+renders a table view instead). Dead as a result:
 
-### 12. `console.log('migrated', ...)` (L3589)
-Same — the migration only runs once, so the message is just noise after the
-first migration. Replace with a one-time flag.
+- `renderPanel()`'s entire list branch (L3270–3400) — `if (!list) return`
+  always returns; only the stats half (used by the table view) runs.
+- `startEditingPanelRowLabel`, `startEditingPanelBlockLabel` (only called from
+  the dead branch).
+- `startRowDrag(…, 'panel')` source path, including
+  `document.getElementById('data-panel').getBoundingClientRect()` (L4063)
+  which would **throw** if it were ever reached.
+- CSS: `.data-panel`, `.panel-resize-handle`, `body.panel-resizing`,
+  `.panel-blocks`, `.panel-block-item` (+ `.block-name`/`.block-meta`
+  children), `.panel-name-input`, `.panel-block-name-text`, `.panel-row-label`.
+  (Keep `.panel-header/.panel-stats/.panel-settings/.panel-section-*` — the
+  table view reuses those.)
+- `panelWidth` state: persisted, synced, range-checked in rules… and controls
+  nothing. Keep writing it for rules back-compat until A1 lands, then drop it
+  everywhere in one pass.
 
-### 13. `addTagToRow` has no input length / charset limit (L1597-1604)
-Tags persist to Firestore and re-render on every device. No upper bound on
-length, no normalization (uppercase vs `Frontend` vs `frontend` become
-different tags). Consider `tag = tag.toLowerCase().slice(0, 32)` and trim
-whitespace.
+**Action**: delete the above; rename the surviving `renderPanel` to
+`renderStats` to stop implying a panel exists.
 
-### 14. Tag chips duplicate on every `buildTagInput` call (L1652-1654)
-The `datalist` is appended to `document.body` and never removed. The
-`innerHTML` is reset, but creating a fresh `<datalist>` is leaky if the
-function is called many times. The current `if (!dl)` guard handles it.
+### B2. Custom row-drag fallback is broken and unreachable in practice
+The hand-rolled reorder machinery (`startRowDrag`, the `rowDragState` branches
+in document `mousemove`/`mouseup`, `rowDragIndicator` — ~250 lines) only
+activates when the SortableJS CDN fails. Under the current DOM it's broken
+anyway: it queries `.row[data-row-id]`, which now matches **track lanes**, not
+`.resource-group` rows, so it would drag a single lane; and its drop indicator
+can never appear because `.row-reordering-indicator { display:none !important; }`
+(L1160) overrides the inline `display:block`.
 
-### 15. `ALLOWED_EMAILS` is case-folded in `isAllowedUser` (L1319) but
-Firestore rules compare raw `request.auth.token.email`. If Google ever returns
-the email with different casing than the rule, sign-in works in the UI but
-every Firestore request is denied. Test this on a real sign-in.
+**Action**: delete the fallback and its CSS (`row-reordering`, `row-dragging`,
+`row-lifted`, `row-drag-placeholder`, both `.row-reordering-indicator` blocks,
+the duplicated conflicting `.panel-section-header.row-dragging` rules). If
+offline reorder matters, vendor Sortable.min.js into the repo instead — it's
+15 KB and removes the CDN failure mode entirely.
 
-### 16. `duplicateBlock` (L3429-3436) does not copy `kind` explicitly beyond
-the default in `createBlock`. The `clone.kind` inherits from `block.kind ||
-'grid'`, which is fine, but the rest of the block (`baseDuration`, custom
-`color`, any future fields) needs to be revisited each time `createBlock`
-gains a new field. Consider a `cloneBlock(source, opts)` helper.
+### B3. Dead functions
+`togglePanel`, `renameBlock`, `cycleColor`, `duplicateBlock` have **no
+callers** (the context menu no longer wires them). Note `duplicateBlock` is a
+feature loss — decide whether to re-add "Duplicate" to the context menu or
+delete the function; the other three just go.
 
-### 17. `setSyncStatus('saving', 'Loading')` is set inside `showSignedIn`
-(L1372) but the actual load happens in `loadState()`. The status may say
-"Loading" while the real status is "Saved" for a moment. Cosmetic.
+### B4. Legacy `rowHeights` remnants
+Persistence stopped in 28855a7, but the global `let rowHeights`, the
+assignment in `applyRemoteState` (L1920 — directly above a comment saying not
+to use it), `delete rowHeights[rowId]` in `deleteResource`, and the `init`
+assignment all survive. Only the `sanitizeState` read (legacy seed,
+L1716/L1754) is still needed. The vestigial `row.height` field (`makeRow` sets
+`height: 0`) can go in the same pass once rules allow it.
 
-### 18. `let nextRowId = 6` vs the default `rows` array
-Adding/removing default rows requires editing both the array and the constant.
-Refactor to compute the next ID from the array length.
+### B5. Double-save convention
+`schedulePostRenderWork()` calls `saveState()` after **every** render, yet
+most mutators also call `saveState()` explicitly — so nearly every edit
+schedules two debounced saves, and pure view changes (zoom, Escape-cancel of a
+label edit) write to Firestore at all. Small but everywhere:
+`deleteBlock(id); saveState();` double-saves twice over.
 
-### 19. `fmtBlockDuration` is called via `innerHTML` (L1934, L2379, L2703,
-L3056, L3076, L3091) — currently safe because it only formats numbers, but
-it's a footgun if a future contributor adds a label or string. Consider
-returning a `DocumentFragment` or using `textContent` + sibling `<span>`s.
-
-### 20. `renderMapControls` (L1818) uses `innerHTML` with template literal.
-All interpolations are computed strings (`MAP_ZOOM_LEVELS[i]`, numeric values).
-Safe today, but again a footgun.
-
-### 21. `setupAuthUI` (L1346) calls `location.reload()` after sign-in and
-sign-out (L1354, L1362). Reloading on sign-out is a heavy hammer that throws
-away all client state. A targeted UI swap (show auth screen, hide app) would
-be cheaper and feel snappier.
-
-### 22. Drag state machine is implicit
-`dragState`, `createState`, `rowDragState`, `panState` are global mutable
-objects. A bug in any handler can leave a stale drag state and lock the UI.
-Consider a small `DragController` class with explicit `begin`/`end` methods
-and a final `tearDown` on every path.
-
----
-
-## Summary of severity
-
-| # | Severity | Area |
-|---|----------|------|
-| 1 | High | XSS in tag datalist (L1654) |
-| 2 | High | Local-vs-remote race (L1500) |
-| 3 | High | `serverTimestamp` in IndexedDB (L1388, L1473) |
-| 4 | Med  | migrateV1ToV2 anchor bug (L3537) |
-| 5 | Med  | Permissive sanitizeState (L1375) |
-| 6 | Med  | Firestore rules missing range checks |
-| 7 | Med  | Empty stub functions (L3624-3625) |
-| 8 | Med  | `_render` is 452 lines (L2056-2507) |
-| 9 | Med  | 26 `render()` call sites |
-| 10–22 | Low / nit | see above |
-
-The codebase is in good shape for a personal tool. Items 1, 2, 3 are the only
-ones I'd treat as real bugs; the rest are quality-of-life.
+**Action**: pick one convention. Recommended: mutators call `saveState()`
+explicitly; remove the implicit save from `schedulePostRenderWork` (first
+fixing the few spots that silently rely on it: add-row click,
+`updateContingency`, Sortable `onEnd` paths already save — audit the rest).
+This also removes the need for the `_skipSaveOnNextPostRender` flag.
 
 ---
 
-## Suggested first PR
+## C — Smaller / hygiene
 
-1. Replace the tag datalist `innerHTML` with `createElement` (item 1).
-2. Add range checks to Firestore rules (item 6).
-3. Strip `serverTimestamp` before the IndexedDB `put` (item 3).
-4. Remove the empty stub functions (item 7).
+1. **`block._lastClickAt` is persisted** — the dblclick detector writes a
+   transient field onto block objects, which then goes to Firestore and
+   IndexedDB (and currently passes rules only because blocks aren't
+   key-checked). Track last-click in a local Map keyed by id, or strip `_`
+   fields in `snapshotState`.
+2. **View state is shared state** — `zoom`, `headerWidth`,
+   `resourceSummaryWidth` sync across clients, so changing zoom on the laptop
+   changes the desktop. This was the breeding ground for the recent sync-loop
+   bugs. Consider moving pure view prefs to `localStorage` and slimming the
+   shared doc to data.
+3. **Block move/resize still uses mouse events** (`startMove`, `startResize`,
+   document `mousemove`/`mouseup`) while every other handle was migrated to
+   Pointer Events in 02dbe0d. Works on desktop; no touch, and it's the last
+   place the wedged-handle bug class could recur. Migrate to
+   `beginPointerDrag`.
+4. **Console noise** — `console.log('State loaded from Firestore')` (L1825)
+   and the v1-migration log (L4488) still ship.
+5. **Tags**: no length cap or case normalization on input (`addTagToRow`);
+   `sanitizeState` caps count (50) but not string length.
+6. **Unused var** `weekDay` (L2702).
+7. **`fmtDays`/`fmtBlockDuration` via innerHTML** — still numbers-only, still
+   a footgun if a label ever gets interpolated. Unchanged from old #19/20.
+8. **`location.reload()` on sign-in/out** — unchanged from old #21; heavy but
+   harmless.
+9. **`_render` is ~470 lines** — unchanged in spirit from old #8. Quality
+   only; extract per-region helpers when next touching it.
+10. **`applyRemoteState` forces `_renderScheduled = false`** before `render()`
+    — if a rAF was already queued this double-renders. Harmless with the rAF
+    batch but the flag reset is a smell; let the existing batch coalesce.
+
+---
+
+## Suggested sequencing
+
+1. **PR 1 (rules)**: A1 — reconcile + deploy `firestore.rules`; verify save,
+   backup, and a stale-client write.
+2. **PR 2 (dead code)**: B1–B4 + C4/C6 — pure deletion, ~400+ lines and ~80
+   lines of CSS, no behavior change. Do this before any further resize work;
+   it shrinks the surface the sync bugs live in.
+3. **PR 3 (anchor)**: A2 — projectStart migration on load. Test by faking
+   `TIMELINE_BASE_YEAR + 1`.
+4. **PR 4 (sync)**: A3 + B5 + C1/C2 — one save convention, deferred remote
+   apply, transient fields out of the doc, view prefs local.

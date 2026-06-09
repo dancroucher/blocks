@@ -829,43 +829,7 @@
   .block-color-16 { background: #1c587d; color: #eaf4fa; } /* yale blue 700 */
   .block-color-17 { background: #133a53; color: #eaf4fa; } /* yale blue 800 */
 
-  /* Data panel */
-  .data-panel {
-    width: 280px;
-    min-width: 200px;
-    max-width: 800px;
-    background: var(--bg);
-    border-left: 1px solid var(--border);
-    overflow-y: auto;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    position: relative;
-  }
-
-  .data-panel.hidden { display: none; }
-  .data-panel { display: none; }
-
-  .panel-resize-handle {
-    position: absolute;
-    top: 0;
-    left: -3px;
-    width: 6px;
-    height: 100%;
-    cursor: ew-resize;
-    z-index: 20;
-    background: transparent;
-  }
-  .panel-resize-handle:hover,
-  .panel-resize-handle.dragging {
-    background: transparent;
-    opacity: 1;
-  }
-  body.panel-resizing {
-    cursor: ew-resize;
-    user-select: none;
-  }
-
+  /* Stats/settings styles shared with the table (Data) view */
   .panel-header {
     padding: 0.6rem 1rem;
     font-size: 0.85rem;
@@ -890,61 +854,6 @@
 
   .panel-stat .label { color: var(--dim); }
   .panel-stat .value { color: var(--accent); font-weight: 500; }
-
-  .panel-blocks {
-    flex: 1;
-    overflow-y: auto;
-  }
-
-  .panel-block-item {
-    padding: 0.6rem 1rem;
-    border-bottom: 1px solid var(--border);
-    font-size: 0.85rem;
-    cursor: pointer;
-    transition: background 0.1s;
-  }
-
-  .panel-block-item:hover { background: var(--surface); }
-
-  .panel-block-item .block-name {
-    font-weight: 500;
-    margin-bottom: 0.2rem;
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-  }
-
-  /* Editable name hints in the panel */
-  .panel-block-name-text:hover,
-  .panel-row-label:hover {
-    text-decoration: underline;
-    text-decoration-style: dotted;
-    cursor: text;
-  }
-
-  .panel-name-input {
-    background: transparent;
-    border: none;
-    outline: none;
-    font: inherit;
-    color: inherit;
-    padding: 0;
-    margin: 0;
-    width: 100%;
-    min-width: 40px;
-  }
-
-  .panel-block-item .block-dot {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    display: inline-block;
-  }
-
-  .panel-block-item .block-meta {
-    color: var(--dim);
-    font-size: 0.75rem;
-  }
 
   .panel-section-header {
     padding: 0.5rem 1rem;
@@ -999,19 +908,6 @@
   .section-totals .totals-conting { color: var(--contingency); }
   .section-totals .totals-total { color: var(--text); font-weight: 700; }
   .section-totals .totals-col { min-width: 40px; text-align: right; }
-
-  .section-days {
-    font-size: 0.75rem;
-    font-weight: 400;
-    color: var(--dim);
-  }
-
-  .block-days {
-    margin-left: auto;
-    font-size: 0.75rem;
-    font-weight: 400;
-    color: var(--dim);
-  }
 
   .panel-settings {
     padding: 0.6rem 1rem;
@@ -1089,64 +985,7 @@
     min-width: 20px;
   }
   .row-drag-handle:hover { color: #999; }
-  body.row-reordering,
   body.row-reordering-sortable { cursor: grabbing !important; user-select: none; }
-  body.row-reordering .row:not(.row-dragging) {
-    opacity: 0.7;
-    transition: opacity 0.1s, transform 0.2s ease;
-  }
-  body.row-reordering .row:not(.row-dragging):not(.row-drag-placeholder) {
-    will-change: transform;
-  }
-  body.row-reordering .panel-section-header:not(.row-dragging) {
-    opacity: 0.7;
-    transition: opacity 0.1s;
-  }
-  .row-reordering-indicator {
-    position: fixed;
-    height: 2px;
-    background: var(--accent);
-    pointer-events: none;
-    z-index: 1000;
-    display: none;
-  }
-  /* Row drag effects — lifted row + drop shadow + scaled ghost */
-  .row.row-dragging {
-    opacity: 1;
-    box-shadow: 0 12px 36px rgba(0,0,0,0.22), 0 4px 12px rgba(0,0,0,0.15);
-    z-index: 200;
-    position: absolute;
-    left: 0; right: 0;
-    pointer-events: none;
-    will-change: transform;
-    transition: box-shadow 0.15s ease;
-  }
-  .row.row-dragging.row-lifted {
-    box-shadow: 0 20px 50px rgba(0,0,0,0.28), 0 6px 16px rgba(0,0,0,0.18);
-  }
-  /* Placeholder row that maintains list height during drag */
-  .row.row-drag-placeholder {
-    visibility: hidden;
-    pointer-events: none;
-  }
-  .row.row-drag-placeholder.row-drag-placeholder-active {
-    visibility: visible;
-  }
-  .panel-section-header.row-dragging {
-    opacity: 1;
-    box-shadow: 0 12px 36px rgba(0,0,0,0.22);
-    z-index: 200;
-  }
-  .panel-section-header.row-dragging.row-lifted {
-    box-shadow: 0 20px 50px rgba(0,0,0,0.28);
-    transition: box-shadow 0.15s ease;
-  }
-  .panel-section-header.row-dragging {
-    opacity: 0.9;
-    transform: scale(1.02) translateX(4px);
-    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
-    z-index: 100;
-  }
   .row-sortable-chosen {
     box-shadow: 0 12px 36px rgba(0,0,0,0.18);
   }
@@ -1157,10 +996,6 @@
   .row-sortable-drag {
     box-shadow: 0 20px 50px rgba(0,0,0,0.24);
   }
-  .row-reordering-indicator {
-    display: none !important;
-  }
-
 
   /* Context menu */
   .context-menu {
@@ -1514,7 +1349,6 @@ function dayPx() {
 // is only meaningful for day/week.
 function isDayLikeZoom() { return zoom === 'day' || zoom === 'day-large' || zoom === 'day-half'; }
 function daysPerCell() { return zoom === 'week' ? 5 : 1; }
-function cellVisualW() { return dayPx() * daysPerCell(); }
 const ROW_HEADER_W = 300;       // default header column width
 const RESOURCE_SUMMARY_W = 112; // default width of the name/capacity/tags cell
 const RESOURCE_NAME_MAX_CHARS = 16;
@@ -1718,7 +1552,6 @@ function sanitizeState(data) {
         ...row,
         id: rowId,
         label: clampResourceName(row.label),
-        height: toNonNegativeInt(row.height, 0),
         capacity: Math.max(1, Math.min(999, toPositiveInt(row.capacity, 100))),
         tags: Array.isArray(row.tags)
           ? row.tags.filter(tag => typeof tag === 'string').map(tag => tag.trim()).filter(Boolean).slice(0, 50)
@@ -1751,15 +1584,12 @@ function sanitizeState(data) {
     version: toPositiveInt(data.version, STATE_VERSION),
     rows: cleanRows,
     blocks: cleanBlocks,
-    rowHeights: data.rowHeights && typeof data.rowHeights === 'object' ? data.rowHeights : {},
     nextBlockId: toPositiveInt(data.nextBlockId, cleanBlocks.reduce((m, b) => Math.max(m, b.id), 0) + 1),
     nextRowId: toPositiveInt(data.nextRowId, cleanRows.reduce((m, r) => Math.max(m, r.id), 0) + 1),
     contingencyPct: Math.max(0, Math.min(100, toNonNegativeInt(data.contingencyPct, 0))),
     zoom: validZooms.has(data.zoom) ? data.zoom : 'day',
-    panelWidth: Math.max(200, Math.min(800, toPositiveInt(data.panelWidth, 280))),
     headerWidth: Math.max(HEADER_W_MIN, Math.min(HEADER_W_MAX, toPositiveInt(data.headerWidth, ROW_HEADER_W))),
     resourceSummaryWidth: Math.max(SUMMARY_W_MIN, Math.min(SUMMARY_W_MAX, toPositiveInt(data.resourceSummaryWidth, RESOURCE_SUMMARY_W))),
-    collapsedRows: data.collapsedRows && typeof data.collapsedRows === 'object' ? data.collapsedRows : {},
   };
 }
 
@@ -1773,7 +1603,7 @@ function snapshotState() {
     // from it and write the reset back to the shared doc. Omitting it clears the
     // field from Firestore so even old clients see no rowHeights to apply.
     rows, blocks, nextBlockId, nextRowId,
-    contingencyPct, zoom, panelWidth, headerWidth, resourceSummaryWidth, collapsedRows,
+    contingencyPct, zoom, headerWidth, resourceSummaryWidth,
     projectStart: projectStart.toISOString(),
     savedAt: now,
     updatedAt: now,
@@ -1822,7 +1652,6 @@ async function loadState() {
     try {
       const snap = await _db.doc(DOC_PATH).get();
       if (snap.exists) {
-        console.log('State loaded from Firestore');
         return sanitizeState(snap.data());
       }
     } catch (e) {
@@ -1912,15 +1741,11 @@ function applyRemoteState(data) {
   if (data.nextBlockId != null) nextBlockId = data.nextBlockId;
   if (data.nextRowId != null)   nextRowId   = data.nextRowId;
   if (data.contingencyPct != null) contingencyPct = data.contingencyPct;
-  if (data.collapsedRows) collapsedRows = data.collapsedRows;
   if (data.zoom)     zoom = data.zoom;
-  if (typeof data.panelWidth === 'number') panelWidth = data.panelWidth;
   if (typeof data.resourceSummaryWidth === 'number') resourceSummaryWidth = data.resourceSummaryWidth;
   if (typeof data.headerWidth === 'number') { headerWidth = data.headerWidth; applyHeaderWidth(); }
-  if (data.rowHeights) rowHeights = data.rowHeights;
-  // Track heights are authoritative on row.tracks (seeded from legacy rowHeights
-  // during sanitizeState). Do NOT re-apply the stale rowHeights map here — it
-  // never updates on resize and would reset every just-resized row.
+  // Track heights are authoritative on row.tracks (seeded from the legacy
+  // rowHeights map during sanitizeState). The map itself is never applied here.
   normalizeRows();
   normalizeBlocks();
 
@@ -1933,7 +1758,7 @@ function applyRemoteState(data) {
   _skipSaveOnNextPostRender = true;
   _renderScheduled = false;
   render();
-  renderPanel();
+  renderStats();
 }
 
 let zoom = 'day'; // day, week, month, table
@@ -1946,14 +1771,11 @@ let rows = [
   makeRow(5),
 ];
 let blocks = [];
-let rowHeights = {}; // { rowId: height }
 let nextBlockId = 1;
 let nextRowId = 6;
 let contingencyPct = 0;
-let panelWidth = 280;
 let headerWidth = ROW_HEADER_W; // resizable left header-column width (px)
 let resourceSummaryWidth = RESOURCE_SUMMARY_W; // resizable first resource cell (name/capacity/tags)
-let collapsedRows = {}; // { [rowId]: true } — sections collapsed in the data panel
 
 // --- Header drag-to-pan ---
 let panState = null; // { startX, startScrollLeft }
@@ -1993,7 +1815,7 @@ function makeTrack(rowId, index = 0) {
 }
 function makeDefaultTrack(rowId) { return { id: `r${rowId}-t1`, label: 'Main', height: ROW_H_DEFAULT }; }
 function clampResourceName(value) { return (typeof value === 'string' ? value : '').slice(0, RESOURCE_NAME_MAX_CHARS); }
-function makeRow(id) { return { id, label: '', height: 0, capacity: 100, tags: [], tracks: [makeDefaultTrack(id)] }; }
+function makeRow(id) { return { id, label: '', capacity: 100, tags: [], tracks: [makeDefaultTrack(id)] }; }
 function getRowTracks(row) {
   if (!row) return [];
   if (!Array.isArray(row.tracks) || !row.tracks.length) row.tracks = [makeDefaultTrack(row.id)];
@@ -2107,7 +1929,7 @@ function buildTrackList(row) {
     input.value = track.label || '';
     input.placeholder = 'Track';
     input.addEventListener('mousedown', e => e.stopPropagation());
-    input.addEventListener('input', e => { track.label = e.target.value; renderPanel(); saveState(); });
+    input.addEventListener('input', e => { track.label = e.target.value; renderStats(); saveState(); });
     item.appendChild(input);
 
     const del = document.createElement('button');
@@ -2206,10 +2028,6 @@ function fmtBlockDuration(block) {
   }
   return baseText;
 }
-function fmtContingencyDuration(baseDays, scheduledDays) {
-  if (scheduledDays !== baseDays) return `+${baseDays}d <span class="capacity-adjusted">(+${scheduledDays}d)</span>`;
-  return `+${baseDays}d`;
-}
 function normalizeBlocks() {
   blocks.forEach(block => {
     let row = rows.find(r => r.id === block.rowId) || rows[0];
@@ -2252,12 +2070,10 @@ function setRowCapacity(row, nextCapacity) {
 // Drag state
 let dragState = null; // { type: 'move'|'resize-left'|'resize-right', blockId, startX, origStart, origDuration }
 let createState = null; // { rowId, startCol }
-let rowDragState = null; // { rowId, insertBefore, source: 'grid'|'panel', moved, startX, startY }
 
 // Grid wrapper reference (updated on each render)
 let gridWrapper = null;
 
-const ROW_DRAG_THRESHOLD_PX = 4;
 
 // --- Date helpers ---
 // Project timeline is generated dynamically (see PROJECT_START_DATE / PROJECT_END_DATE).
@@ -2358,7 +2174,7 @@ function schedulePostRenderWork() {
     _postRenderTimer = null;
     setupGridRowSortable();
     setupTrackSortables();
-    renderPanel();
+    renderStats();
     // A render triggered by applying remote state must not write that state
     // straight back to Firestore — otherwise two open clients ping-pong saves
     // (A saves → B applies → B saves → A applies → …) roughly every round-trip.
@@ -2491,7 +2307,7 @@ function appendBlockEditRow(tbody, block) {
   const delBtn = document.createElement('button');
   delBtn.className = 'danger';
   delBtn.textContent = 'Delete';
-  delBtn.onclick = () => { deleteBlock(block.id); saveState(); };
+  delBtn.onclick = () => deleteBlock(block.id);
   delTd.appendChild(delBtn);
   tr.appendChild(delTd);
 
@@ -2699,7 +2515,6 @@ function _render() {
       const d = colToDate(c);
       // Find start of this week (Monday)
       let span = 0;
-      const weekDay = d.getDay();
       // Count days until next Monday or end
       while (c + span < TOTAL_COLS) {
         const d2 = colToDate(c + span);
@@ -2825,7 +2640,6 @@ function _render() {
     gridHandle.className = 'row-drag-handle';
     gridHandle.textContent = '⠿';
     gridHandle.title = 'Drag to reorder resource';
-    if (typeof Sortable === 'undefined') gridHandle.addEventListener('mousedown', (e) => startRowDrag(e, row.id, 'grid'));
     headerMain.appendChild(gridHandle);
 
     const summary = document.createElement('div');
@@ -2841,7 +2655,7 @@ function _render() {
       e.target.value = clampResourceName(e.target.value);
       row.label = e.target.value;
       applyHeaderWidth();
-      renderPanel();
+      renderStats();
       saveState();
     };
     summary.appendChild(input);
@@ -3127,7 +2941,7 @@ function setupGridRowSortable() {
       const changed = nextRows.some((row, idx) => row.id !== rows[idx].id);
       if (!changed) return;
       rows = nextRows;
-      renderPanel();
+      renderStats();
       saveState();
     },
   });
@@ -3169,84 +2983,8 @@ function setupTrackSortables() {
   });
 }
 
-// --- Panel inline editing ---
-function startEditingPanelRowLabel(labelSpan, row) {
-  if (labelSpan.querySelector('input')) return;
-  const prev = row.label;
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'panel-name-input';
-  input.maxLength = RESOURCE_NAME_MAX_CHARS;
-  input.value = clampResourceName(row.label);
-  input.placeholder = 'Row ' + row.id;
-  input.addEventListener('mousedown', e => e.stopPropagation());
-  input.addEventListener('click', e => e.stopPropagation());
-  input.addEventListener('dblclick', e => e.stopPropagation());
-  labelSpan.textContent = '';
-  labelSpan.appendChild(input);
-  requestAnimationFrame(() => { input.focus(); input.select(); });
-
-  let done = false;
-  const finish = (commit) => {
-    if (done) return;
-    done = true;
-    if (commit) row.label = clampResourceName(input.value.trim());
-    labelSpan.textContent = row.label || 'Row ' + row.id;
-    if (commit && row.label !== prev) {
-      saveState();
-      // Sync grid row header input
-      const gridInput = document.querySelector(`.resource-group[data-row-id="${row.id}"] .row-header .row-label-input`);
-      if (gridInput) gridInput.value = row.label;
-      applyHeaderWidth();
-    }
-  };
-  input.addEventListener('blur', () => finish(true));
-  input.addEventListener('keydown', (e) => {
-    e.stopPropagation();
-    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
-    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
-  });
-}
-
-function startEditingPanelBlockLabel(nameSpan, block) {
-  if (nameSpan.querySelector('input')) return;
-  const prev = block.label;
-  const input = document.createElement('input');
-  input.type = 'text';
-  input.className = 'panel-name-input';
-  input.value = block.label || '';
-  input.placeholder = 'Untitled';
-  input.addEventListener('mousedown', e => e.stopPropagation());
-  input.addEventListener('click', e => e.stopPropagation());
-  input.addEventListener('dblclick', e => e.stopPropagation());
-  nameSpan.textContent = '';
-  nameSpan.appendChild(input);
-  requestAnimationFrame(() => { input.focus(); input.select(); });
-
-  let done = false;
-  const finish = (commit) => {
-    if (done) return;
-    done = true;
-    if (commit) block.label = input.value.trim();
-    nameSpan.textContent = block.label || 'Untitled';
-    if (commit && block.label !== prev) {
-      saveState();
-      // Sync grid block label without full re-render
-      const gridLabel = document.querySelector(`[data-block-id="${block.id}"] .block-label`);
-      if (gridLabel) gridLabel.textContent = block.label;
-    }
-  };
-  input.addEventListener('blur', () => finish(true));
-  input.addEventListener('keydown', (e) => {
-    e.stopPropagation();
-    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
-    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
-  });
-}
-
-function renderPanel() {
+function renderStats() {
   const stats = document.getElementById('panel-stats');
-  const list = document.getElementById('panel-blocks');
   if (!stats) return;
   const totalBlocks = blocks.length;
   const rowsUsed = new Set(blocks.map(b => b.rowId)).size;
@@ -3267,137 +3005,6 @@ function renderPanel() {
     <div class="panel-stat"><span class="label">Total Blocks</span><span class="value">${totalBlocks}</span></div>
   `;
 
-  if (!list) return;
-  list.innerHTML = '';
-
-  // Group blocks by row
-  rows.forEach(row => {
-    const rowBlocks = blocks.filter(b => b.rowId === row.id);
-    if (rowBlocks.length === 0) return;
-
-    const rowDays = rowBlocks.reduce((s, b) => s + getBlockBaseDuration(b), 0);
-    const rowScheduledDays = rowBlocks.reduce((s, b) => s + b.duration, 0);
-    const rowContingency = contingencyPct > 0 ? rowBlocks.reduce((s, b) => s + Math.round(b.duration * contingencyPct / 100), 0) : 0;
-
-    // Section header (collapsible)
-    const isCollapsed = !!collapsedRows[row.id];
-    const section = document.createElement('div');
-    section.className = 'panel-section-header' + (isCollapsed ? ' collapsed' : '');
-    section.dataset.rowId = row.id;
-
-    const panelHandle = document.createElement('div');
-    panelHandle.className = 'row-drag-handle';
-    panelHandle.textContent = '⠿';
-    panelHandle.title = 'Drag to reorder';
-    panelHandle.addEventListener('mousedown', (e) => startRowDrag(e, row.id, 'panel'));
-    section.appendChild(panelHandle);
-
-    const sectionTitle = document.createElement('span');
-    sectionTitle.className = 'section-title';
-
-    const caret = document.createElement('span');
-    caret.className = 'caret';
-    caret.textContent = '▼';
-    sectionTitle.appendChild(caret);
-
-    const rowLabelSpan = document.createElement('span');
-    rowLabelSpan.className = 'panel-row-label';
-    rowLabelSpan.textContent = row.label || 'Row ' + row.id;
-    rowLabelSpan.title = 'Double-click to rename';
-    rowLabelSpan.addEventListener('dblclick', (e) => {
-      e.stopPropagation();
-      startEditingPanelRowLabel(rowLabelSpan, row);
-    });
-    sectionTitle.appendChild(rowLabelSpan);
-
-    const sectionDays = document.createElement('span');
-    sectionDays.className = 'section-days-3col';
-    const totalRowDays = rowScheduledDays + rowContingency;
-    sectionDays.innerHTML = `<span class="sec-base">${getRowCapacity(row)}% · ${rowDays}d${rowScheduledDays !== rowDays ? ` <span class="capacity-adjusted">(${rowScheduledDays}d)</span>` : ''}</span><span class="sec-conting">+${rowContingency}d</span><span class="sec-total">${totalRowDays}d</span>`;
-
-    section.appendChild(sectionTitle);
-    section.appendChild(sectionDays);
-
-    section.addEventListener('click', (e) => {
-      if (e.target.closest('.panel-row-label') || e.target.tagName === 'INPUT') return;
-      if (e.target.closest('.row-drag-handle')) return;
-      if (collapsedRows[row.id]) delete collapsedRows[row.id];
-      else collapsedRows[row.id] = true;
-      renderPanel();
-      saveState();
-    });
-    list.appendChild(section);
-
-    // Body container for this row's blocks
-    const body = document.createElement('div');
-    body.className = 'panel-section-body' + (isCollapsed ? ' collapsed' : '');
-    list.appendChild(body);
-
-    // Blocks in this row
-    rowBlocks.forEach(block => {
-      const startDate = formatDate(colToDate(block.start));
-      const endDate = formatDate(colToDate(block.start + block.duration - 1));
-
-      const extraDays = contingencyPct > 0 ? Math.round(block.duration * contingencyPct / 100) : 0;
-
-      const item = document.createElement('div');
-      item.className = 'panel-block-item';
-
-      const nameRow = document.createElement('div');
-      nameRow.className = 'block-name';
-
-      const dot = document.createElement('span');
-      dot.className = `block-dot block-color-${block.color}`;
-
-      const nameSpan = document.createElement('span');
-      nameSpan.className = 'panel-block-name-text';
-      nameSpan.textContent = block.label || 'Untitled';
-      nameSpan.title = 'Double-click to rename';
-      nameSpan.style.flex = '1';
-      nameSpan.style.minWidth = '0';
-      nameSpan.style.overflow = 'hidden';
-      nameSpan.style.textOverflow = 'ellipsis';
-      nameSpan.style.whiteSpace = 'nowrap';
-      nameSpan.addEventListener('dblclick', (e) => {
-        e.stopPropagation();
-        startEditingPanelBlockLabel(nameSpan, block);
-      });
-
-      const daysSpan = document.createElement('span');
-      daysSpan.className = 'block-days';
-      daysSpan.innerHTML = fmtBlockDuration(block);
-
-      nameRow.appendChild(dot);
-      nameRow.appendChild(nameSpan);
-      nameRow.appendChild(daysSpan);
-
-      const metaDiv = document.createElement('div');
-      metaDiv.className = 'block-meta';
-      const track = getTrack(row, block.trackId);
-      metaDiv.textContent = `${track?.label || 'Track'} · ${startDate} → ${endDate}`;
-
-      item.appendChild(nameRow);
-      item.appendChild(metaDiv);
-
-      item.addEventListener('click', (e) => {
-        if (e.target.tagName === 'INPUT') return;
-        const gridArea = document.getElementById('grid-area');
-        gridArea.scrollLeft = block.start * dayPx() - 200;
-      });
-      body.appendChild(item);
-    });
-
-    // Row totals bar
-    const totals = document.createElement('div');
-    totals.className = 'section-totals';
-    totals.innerHTML = `
-      <span class="totals-label">Total</span>
-      <span class="totals-col totals-base">${rowDays}d</span>
-      <span class="totals-col totals-conting">+${rowContingency}d</span>
-      <span class="totals-col totals-total">${totalRowDays}d</span>
-    `;
-    body.appendChild(totals);
-  });
 }
 
 // --- Row vertical resize ---
@@ -3569,11 +3176,9 @@ function deleteResource(rowId) {
   if (!confirm(`Delete resource "${resourceName}"?${detail}`)) return;
   rows = rows.filter(r => r.id !== rowId);
   blocks = blocks.filter(b => b.rowId !== rowId);
-  delete rowHeights[rowId];
-  delete collapsedRows[rowId];
   if (!rows.length) rows.push(makeRow(nextRowId++));
   render();
-  renderPanel();
+  renderStats();
   saveState();
 }
 
@@ -3612,7 +3217,7 @@ function startEditingBlockLabel(bEl, labelEl, block) {
         saveState();
       }
       labelEl.textContent = block.label || '';
-      renderPanel();
+      renderStats();
     }
     if (input.parentNode) input.parentNode.removeChild(input);
     labelEl.style.display = '';
@@ -3770,45 +3375,6 @@ function startTrackResize(e, rowId, trackId) {
   });
   if (!started) return;
   handle?.classList?.add('dragging');
-}
-
-function startRowDrag(e, rowId, source) {
-  e.preventDefault();
-  e.stopPropagation();
-  const fromIdx = rows.findIndex(r => r.id === rowId);
-  if (fromIdx === -1) return;
-  const rowEl = document.querySelector(`.row[data-row-id="${rowId}"]`);
-  const rowH = rowEl ? (parseInt(rowEl.style.height) || rowEl.getBoundingClientRect().height) : 40;
-  // Anchor the row to its exact pickup position in the document
-  const rect = rowEl.getBoundingClientRect();
-  rowEl.style.position = 'absolute';
-  rowEl.style.width = rect.width + 'px';
-  rowEl.style.top = rect.top + 'px';
-  rowEl.style.left = rect.left + 'px';
-  rowEl.style.zIndex = '300';
-  rowEl.style.margin = '0';
-  rowEl.classList.add('row-dragging');
-  requestAnimationFrame(() => rowEl.classList.add('row-lifted'));
-  // Create placeholder at end of list (not in-place)
-  const wrapper = document.getElementById('grid-wrapper');
-  if (wrapper) {
-    let ph = wrapper.querySelector('.row-drag-placeholder');
-    if (ph) ph.remove();
-    ph = document.createElement('div');
-    ph.className = 'row row-drag-placeholder';
-    ph.style.height = rowH + 'px';
-    ph.style.visibility = 'hidden';
-    wrapper.appendChild(ph);
-    requestAnimationFrame(() => { ph.style.visibility = 'visible'; });
-  }
-  rowDragState = {
-    rowId, fromIdx, insertBefore: null, source,
-    startMouseY: e.clientY,
-    startElTop: rect.top,
-    rowH,
-  };
-  document.body.classList.add('row-reordering');
-  if (rowDragIndicator) rowDragIndicator.style.display = 'block';
 }
 
 // --- Drag: Move ---
@@ -3972,104 +3538,6 @@ document.addEventListener('mousemove', (e) => {
     if (bEl) updateBlockStartTooltip(bEl, block);
   }
 
-  // Row reorder drag
-  if (rowDragState) {
-    const { rowId, source } = rowDragState;
-    const isPanel = source === 'panel';
-    const elList = isPanel
-      ? [...document.querySelectorAll('.panel-section-header[data-row-id]')]
-      : [...document.querySelectorAll('.row[data-row-id]')];
-    const dragged = document.querySelector(`.${isPanel ? 'panel-section-header' : 'row'}[data-row-id="${rowId}"]`);
-
-    // Hit-test: panel source → other panel section headers; grid source → other grid rows.
-    let insertBefore = null;
-    let indicatorY = null;
-    let targetEl = null;
-
-    for (let i = 0; i < elList.length; i++) {
-      const rect = elList[i].getBoundingClientRect();
-      const rId = parseInt(elList[i].dataset.rowId);
-      if (rId === rowId) continue;
-      const midY = rect.top + rect.height / 2;
-      if (e.clientY < midY) {
-        insertBefore = rId;
-        indicatorY = rect.top;
-        targetEl = elList[i];
-        break;
-      }
-      indicatorY = rect.bottom;
-    }
-
-    // Move dragged row to follow cursor
-    const dy = e.clientY - rowDragState.startMouseY;
-    dragged.style.transform = `translateY(${dy}px)`;
-    dragged.style.transition = 'none';
-
-    // Compute where the dragged row's center is in document space
-    const draggedRect = dragged.getBoundingClientRect();
-    const draggedCenterDocY = draggedRect.top + draggedRect.height / 2;
-
-    // Find which row slot the dragged center is over — traverse the LIVE DOM order
-    // (which reflects the current rows[] order plus our transforms)
-    const liveRows = [...document.querySelectorAll('.row[data-row-id]')].filter(r =>
-      !r.classList.contains('row-drag-placeholder') && String(r.dataset.rowId) !== String(rowId)
-    );
-
-    let newInsertBefore = null;
-    for (const r of liveRows) {
-      const rect = r.getBoundingClientRect();
-      if (draggedCenterDocY < rect.top + rect.height / 2) {
-        newInsertBefore = parseInt(r.dataset.rowId);
-        break;
-      }
-    }
-
-    // Compute shift direction and magnitude from current insertBefore (not fromIdx)
-    // This is the key: rows only shift by ONE slot at a time as insertBefore changes
-    const prevInsertBefore = rowDragState.insertBefore;
-    const prevInsertIdx = prevInsertBefore !== null
-      ? rows.findIndex(r => r.id === prevInsertBefore)
-      : rows.length;
-    const newInsertIdx = newInsertBefore !== null
-      ? rows.findIndex(r => r.id === newInsertBefore)
-      : rows.length;
-
-    // Reset all non-dragged rows to their natural position first
-    liveRows.forEach(r => {
-      r.style.transform = '';
-      r.style.transition = 'transform 0.2s ease, opacity 0.15s ease';
-      r.style.opacity = '';
-    });
-
-    // Then shift rows between prev and new insert positions
-    const minI = Math.min(prevInsertIdx, newInsertIdx);
-    const maxI = Math.max(prevInsertIdx, newInsertIdx);
-    if (newInsertIdx < rows.length) {
-      liveRows.forEach(r => {
-        const idx = rows.findIndex(row => String(row.id) === String(r.dataset.rowId));
-        if (idx > minI && idx <= maxI) {
-          const dir = newInsertIdx < prevInsertIdx ? 1 : -1;
-          r.style.transform = `translateY(${dir * rowDragState.rowH}px)`;
-        }
-      });
-    }
-
-    rowDragState.insertBefore = newInsertBefore;
-    rowDragState.insertIdx = newInsertIdx;
-
-    if (indicatorY !== null && rowDragIndicator) {
-      rowDragIndicator.style.top = (indicatorY - 1) + 'px';
-      if (isPanel) {
-        const panelRect = document.getElementById('data-panel').getBoundingClientRect();
-        rowDragIndicator.style.left = panelRect.left + 'px';
-        rowDragIndicator.style.width = panelRect.width + 'px';
-      } else {
-        rowDragIndicator.style.left = '0';
-        rowDragIndicator.style.width = headerWidth + 'px';
-      }
-    }
-  }
-
   // Create by drag preview
   if (createState) {
     const cells = document.querySelector(`.row-cells[data-row-id="${createState.rowId}"][data-track-id="${createState.trackId}"]`);
@@ -4087,54 +3555,6 @@ document.addEventListener('mousemove', (e) => {
 });
 
 document.addEventListener('mouseup', (e) => {
-  if (rowDragState) {
-    const { rowId, insertBefore } = rowDragState;
-    document.body.classList.remove('row-reordering');
-    if (rowDragIndicator) rowDragIndicator.style.display = 'none';
-
-    // Reset all transforms
-    document.querySelectorAll('.row').forEach(r => {
-      r.style.transform = '';
-      r.style.transition = '';
-      r.style.opacity = '';
-    });
-
-    // Reset dragged row styling
-    const dragged = document.querySelector('.row.row-dragging');
-    if (dragged) {
-      dragged.style.position = '';
-      dragged.style.top = '';
-      dragged.style.left = '';
-      dragged.style.width = '';
-      dragged.style.zIndex = '';
-      dragged.style.transform = '';
-      dragged.classList.remove('row-dragging', 'row-lifted');
-    }
-
-    // Remove placeholder
-    const ph = document.querySelector('.row-drag-placeholder');
-    if (ph) ph.remove();
-
-    // Apply state change
-    const fromIdx = rows.findIndex(r => r.id === rowId);
-    if (fromIdx !== -1) {
-      const [moved] = rows.splice(fromIdx, 1);
-      const toIdx = insertBefore !== null ? rows.findIndex(r => r.id === insertBefore) : rows.length;
-      rows.splice(toIdx === -1 ? rows.length : toIdx, 0, moved);
-      // Reorder DOM to match rows[]
-      const wrapper = document.getElementById('grid-wrapper');
-      const addRowEl = wrapper.querySelector('.add-row-btn')?.closest('.row');
-      rows.forEach(row => {
-        const el = wrapper.querySelector(`.row[data-row-id="${row.id}"]`);
-        if (el && el !== addRowEl) wrapper.insertBefore(el, addRowEl);
-      });
-      renderPanel();
-      saveState();
-    }
-
-    rowDragState = null;
-    return;
-  }
 
   if (dragState) {
     const wasMoved = dragState.moved;
@@ -4266,6 +3686,12 @@ function showBlockContextMenu(e, blockId) {
   lockItem.appendChild(document.createTextNode('Lock'));
   menu.appendChild(lockItem);
 
+  const dup = document.createElement('div');
+  dup.className = 'context-menu-item';
+  dup.textContent = 'Duplicate';
+  dup.addEventListener('click', () => duplicateBlock(blockId));
+  menu.appendChild(dup);
+
   // Separator
   const sep = document.createElement('div');
   sep.className = 'context-menu-separator';
@@ -4275,7 +3701,7 @@ function showBlockContextMenu(e, blockId) {
   const del = document.createElement('div');
   del.className = 'context-menu-item danger';
   del.textContent = 'Delete';
-  del.addEventListener('click', () => { deleteBlock(blockId); saveState(); });
+  del.addEventListener('click', () => deleteBlock(blockId));
   menu.appendChild(del);
 }
 
@@ -4285,22 +3711,6 @@ document.addEventListener('click', (e) => {
   }
 });
 
-function renameBlock(id) {
-  document.getElementById('context-menu').style.display = 'none';
-  const block = blocks.find(b => b.id === id);
-  if (!block) return;
-  const name = prompt('Block name:', block.label || '');
-  if (name !== null) { block.label = name; render(); }
-}
-
-function cycleColor(id) {
-  document.getElementById('context-menu').style.display = 'none';
-  const block = blocks.find(b => b.id === id);
-  if (!block) return;
-  block.color = (block.color + 1) % COLORS;
-  render();
-}
-
 function duplicateBlock(id) {
   document.getElementById('context-menu').style.display = 'none';
   const block = blocks.find(b => b.id === id);
@@ -4308,6 +3718,7 @@ function duplicateBlock(id) {
   const clone = createBlock(block.rowId, block.start + block.duration + 1, getBlockBaseDuration(block), block.label, false, block.kind || 'grid', block.trackId);
   clone.color = block.color;
   render();
+  saveState();
 }
 
 // --- Zoom ---
@@ -4396,10 +3807,6 @@ function scrollTimeline(direction) {
   gridArea.scrollBy({ left: direction * amount, behavior: 'smooth' });
 }
 
-function togglePanel() {
-  setZoom('table');
-}
-
 // --- Settings ---
 function updateContingency() {
   const input = document.getElementById('contingency');
@@ -4478,24 +3885,20 @@ async function init() {
     // Restore state (Firestore or IndexedDB)
     rows = saved.rows || rows;
     normalizeRows();
-    rowHeights = saved.rowHeights || {};
-    // Track heights come through saved.rows (sanitizeState seeds legacy rows from
-    // rowHeights). Re-applying the stale rowHeights map here would undo resizes.
+    // Track heights come through saved.rows (sanitizeState seeds legacy rows
+    // from the old rowHeights map); the map itself is never used at runtime.
     blocks = saved.blocks || [];
     // v1 state had no version field and used calendar-day columns.
     if (!saved.version || saved.version < 2) {
       blocks = migrateV1ToV2(blocks);
-      console.log('migrated', blocks.length, 'blocks from v1 (calendar) to v2 (weekday)');
     }
     normalizeBlocks();
     nextBlockId = saved.nextBlockId || (blocks.reduce((m, b) => Math.max(m, b.id), 0) + 1);
     nextRowId = saved.nextRowId || (rows.reduce((m, r) => Math.max(m, r.id), 0) + 1);
     contingencyPct = saved.contingencyPct || 0;
     zoom = saved.zoom || 'day';
-    if (typeof saved.panelWidth === 'number') panelWidth = saved.panelWidth;
     if (typeof saved.headerWidth === 'number') headerWidth = saved.headerWidth;
     if (typeof saved.resourceSummaryWidth === 'number') resourceSummaryWidth = saved.resourceSummaryWidth;
-    if (saved.collapsedRows && typeof saved.collapsedRows === 'object') collapsedRows = saved.collapsedRows;
     // projectStart is generated dynamically; intentionally ignore saved.projectStart.
     const contingencyInput = document.getElementById('contingency');
     if (contingencyInput) contingencyInput.value = contingencyPct;
@@ -4511,9 +3914,6 @@ async function init() {
     saveState(); // write seed data to Firestore immediately
   }
 
-  rowDragIndicator = document.createElement('div');
-  rowDragIndicator.className = 'row-reordering-indicator';
-  document.body.appendChild(rowDragIndicator);
   listenForChanges(); // start real-time sync
   applyHeaderWidth(); // apply saved header-column width before first render
   applyRowHeights(); // apply saved row heights before first render
