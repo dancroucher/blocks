@@ -222,14 +222,22 @@
     bottom: -3px;
     left: 0;
     right: 0;
-    height: 6px;
+    height: 7px;
     cursor: row-resize;
     z-index: 10;
-    border-bottom: 2px solid transparent;
   }
-  .row-resize:hover,
-  .row-resize.dragging {
-    border-bottom-color: transparent;
+  .row-resize::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 3px;
+    height: 2px;
+    background: rgba(0,0,0,0.08);
+  }
+  .row-resize:hover::after,
+  .row-resize.dragging::after {
+    background: rgba(0,0,0,0.16);
   }
 
   .row.resizing { user-select: none; }
@@ -473,21 +481,22 @@
 
   .capacity-control {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 0.2rem;
+    gap: 0 0.05rem;
     color: var(--dim);
     font-size: 0.68rem;
     font-weight: 400;
-    line-height: 1.2;
+    line-height: 1.15;
   }
 
   .row-header input.capacity-input {
-    width: 3.2em;
+    width: 2.7em;
     text-align: right;
     font-size: 0.68rem;
     font-weight: 400;
     color: var(--dim);
-    padding: 0 1px;
+    padding: 0;
     appearance: textfield;
     -moz-appearance: textfield;
   }
@@ -540,7 +549,7 @@
   .track-row-resize {
     z-index: 65;
   }
-  .track-row-resize:hover { border-bottom-color: transparent; }
+  .track-row-resize:hover::after { background: rgba(0,0,0,0.16); }
   .resource-track-stack {
     display: flex;
     flex-direction: column;
@@ -604,6 +613,7 @@
     flex-direction: column;
     justify-content: center;
     align-items: flex-start;
+    gap: 3px;
     padding: 0 10px;
     font-size: 0.85rem;
     font-weight: 500;
@@ -709,8 +719,8 @@
     min-width: 0;
   }
   .block.block-compact .block-label {
-    flex: 1 1 auto;
-    max-width: none;
+    flex: 0 1 auto;
+    max-width: calc(100% - 2.5rem);
   }
   .block.block-compact .block-days-badge {
     flex: 0 1 auto;
@@ -719,6 +729,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    text-align: left;
   }
   .capacity-adjusted {
     color: #777;
@@ -3548,6 +3559,8 @@ function startRowResize(e, rowId) {
   const startHeights = new Map(rows.map(r => [r.id, getRowTracks(r).map(t => t.height || ROW_H_DEFAULT)]));
   let resizeAllOnRelease = e.shiftKey;
 
+  const handle = e.currentTarget;
+  if (handle && handle.classList) handle.classList.add('dragging');
   document.querySelector(`.resource-group[data-row-id="${rowId}"]`)?.classList.add('resizing');
   document.body.classList.add('row-resizing');
 
@@ -3572,6 +3585,7 @@ function startRowResize(e, rowId) {
     document.removeEventListener('mouseup', onUp);
     document.querySelector(`.resource-group[data-row-id="${rowId}"]`)?.classList.remove('resizing');
     document.body.classList.remove('row-resizing');
+    if (handle && handle.classList) handle.classList.remove('dragging');
 
     const deltaY = upEvent.clientY - startY;
     if (resizeAllOnRelease || (upEvent && upEvent.shiftKey)) rows.forEach(targetRow => applyDelta(targetRow, deltaY));
@@ -3596,6 +3610,8 @@ function startTrackResize(e, rowId, trackId) {
   if (!row || !track) { _trackResizeActive = false; return; }
   const startY = e.clientY;
   const startH = track.height || ROW_H_DEFAULT;
+  const handle = e.currentTarget;
+  if (handle && handle.classList) handle.classList.add('dragging');
   document.body.classList.add('row-resizing');
 
   function onMove(me) {
@@ -3606,6 +3622,7 @@ function startTrackResize(e, rowId, trackId) {
     document.removeEventListener('mousemove', onMove, true);
     document.removeEventListener('mouseup', onUp, true);
     document.body.classList.remove('row-resizing');
+    if (handle && handle.classList) handle.classList.remove('dragging');
     _trackResizeActive = false;
     render();
     saveState();
