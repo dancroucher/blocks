@@ -2328,6 +2328,7 @@ function dateInputToCol(value) {
 // rAF-batched render: multiple synchronous render() calls collapse into a
 // single actual render in the next animation frame.
 let _renderScheduled = false;
+let _postRenderTimer = null;
 function render() {
   if (_renderScheduled) return;
   _renderScheduled = true;
@@ -2335,6 +2336,18 @@ function render() {
     _renderScheduled = false;
     _render();
   });
+}
+function schedulePostRenderWork() {
+  if (_postRenderTimer) clearTimeout(_postRenderTimer);
+  // Keep expensive non-visual work out of the interaction frame. This avoids
+  // grid-wrapper clicks/drags being charged with Sortable setup + panel render.
+  _postRenderTimer = setTimeout(() => {
+    _postRenderTimer = null;
+    setupGridRowSortable();
+    setupTrackSortables();
+    renderPanel();
+    saveState();
+  }, 0);
 }
 function renderMapControls() {
   const controls = document.createElement('div');
@@ -2597,8 +2610,7 @@ function _render() {
   wrapper.innerHTML = '';
   if (zoom === 'table') {
     renderTableView(wrapper);
-    renderPanel();
-    saveState();
+    schedulePostRenderWork();
     return;
   }
 
@@ -3054,11 +3066,8 @@ function _render() {
 
   wrapper.appendChild(addRowWrapper);
 
-  setupGridRowSortable();
-  setupTrackSortables();
   applyRowHeights();
-  renderPanel();
-  saveState();
+  schedulePostRenderWork();
 }
 
 let _gridRowSortable = null;
@@ -3654,6 +3663,10 @@ function startRowResize(e, rowId) {
 
   const startY = e.clientY;
   const startHeights = new Map(rows.map(r => [r.id, getRowTracks(r).map(t => t.height || ROW_H_DEFAULT)]));
+  const startRenderedHeights = new Map(rows.map(r => {
+    const trackTotal = getRowTracks(r).reduce((sum, t) => sum + (t.height || ROW_H_DEFAULT), 0);
+    return [r.id, Math.max(trackTotal + getAddRowH(r), getResourceContentMinHeight(r))];
+  }));
   let resizeAllOnRelease = e.shiftKey;
 
   const handle = e.currentTarget;
@@ -3664,12 +3677,19 @@ function startRowResize(e, rowId) {
   function applyDelta(targetRow, deltaY) {
     const targetTracks = getRowTracks(targetRow);
     const baseHeights = startHeights.get(targetRow.id) || targetTracks.map(t => t.height || ROW_H_DEFAULT);
-    const baseTotal = baseHeights.reduce((sum, h) => sum + (h || ROW_H_DEFAULT), 0);
-    const minTrackTotal = Math.max(ROW_H_MIN * targetTracks.length, getResourceContentMinHeight(targetRow) - getAddRowH(targetRow));
-    const maxTrackTotal = ROW_H_MAX * targetTracks.length;
-    const targetTotal = Math.max(minTrackTotal, Math.min(maxTrackTotal, baseTotal + deltaY));
-    const clampedDelta = targetTotal - baseTotal;
-    const deltaPerTrack = clampedDelta / Math.max(1, targetTracks.length);
+    const baseTrackTotal = baseHeights.reduce((sum, h) => sum + (h || ROW_H_DEFAULT), 0);
+    const addH = getAddRowH(targetRow);
+    const contentMinH = getResourceContentMinHeight(targetRow);
+    const startRenderedH = startRenderedHeights.get(targetRow.id) || Math.max(baseTrackTotal + addH, contentMinH);
+    const maxRenderedH = ROW_H_MAX * targetTracks.length + addH;
+    const targetRenderedH = Math.max(contentMinH, Math.min(maxRenderedH, startRenderedH + deltaY));
+    // Only convert the actual visible row-height delta into track-height delta.
+    // If header content is enforcing the minimum, extra mouse travel past that
+    // limit should not keep pushing subtrack/add-track sizes around.
+    const renderedDelta = targetRenderedH - startRenderedH;
+    const targetTrackTotal = Math.max(ROW_H_MIN * targetTracks.length, Math.min(ROW_H_MAX * targetTracks.length, baseTrackTotal + renderedDelta));
+    const trackDelta = targetTrackTotal - baseTrackTotal;
+    const deltaPerTrack = trackDelta / Math.max(1, targetTracks.length);
     targetTracks.forEach((track, idx) => {
       track.height = Math.max(ROW_H_MIN, Math.min(ROW_H_MAX, Math.round((baseHeights[idx] || ROW_H_DEFAULT) + deltaPerTrack)));
     });
