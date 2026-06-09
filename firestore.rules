@@ -8,32 +8,48 @@ service cloud.firestore {
         ];
     }
 
+    // Core data keys every client must write.
     function requiredStateKeys() {
       return [
         'version', 'rows', 'blocks', 'nextBlockId', 'nextRowId',
-        'contingencyPct', 'zoom', 'panelWidth', 'collapsedRows',
-        'projectStart', 'savedAt', 'updatedAt', 'updatedBy', 'rowHeights'
+        'contingencyPct', 'projectStart', 'savedAt', 'updatedAt', 'updatedBy'
+      ];
+    }
+
+    // Keys older clients still write (rowHeights, panelWidth, view prefs).
+    // Allowed but no longer required, so stale open tabs keep working.
+    function optionalStateKeys() {
+      return [
+        'zoom', 'panelWidth', 'headerWidth', 'resourceSummaryWidth',
+        'collapsedRows', 'rowHeights'
       ];
     }
 
     function validBaseStateKeys() {
       return request.resource.data.keys().hasAll(requiredStateKeys())
-        && request.resource.data.keys().hasOnly([
-          'version', 'rows', 'blocks', 'nextBlockId', 'nextRowId',
-          'contingencyPct', 'zoom', 'panelWidth', 'collapsedRows',
-          'projectStart', 'savedAt', 'updatedAt', 'updatedBy', 'rowHeights',
-          '_clientId'
-        ]);
+        && request.resource.data.keys().hasOnly(
+          requiredStateKeys().concat(optionalStateKeys()).concat(['_clientId'])
+        );
     }
 
     function validBackupStateKeys() {
       return request.resource.data.keys().hasAll(requiredStateKeys())
-        && request.resource.data.keys().hasOnly([
-          'version', 'rows', 'blocks', 'nextBlockId', 'nextRowId',
-          'contingencyPct', 'zoom', 'panelWidth', 'collapsedRows',
-          'projectStart', 'savedAt', 'updatedAt', 'updatedBy', 'rowHeights',
-          'backupReason', 'backupCreatedAt'
-        ]);
+        && request.resource.data.keys().hasOnly(
+          requiredStateKeys().concat(optionalStateKeys())
+            .concat(['backupReason', 'backupCreatedAt'])
+        );
+    }
+
+    function optionalIntInRange(key, lo, hi) {
+      return !(key in request.resource.data)
+        || (request.resource.data[key] is int
+            && request.resource.data[key] >= lo
+            && request.resource.data[key] <= hi);
+    }
+
+    function optionalMap(key) {
+      return !(key in request.resource.data)
+        || request.resource.data[key] is map;
     }
 
     function hasValidStateShape() {
@@ -50,14 +66,15 @@ service cloud.firestore {
         && request.resource.data.contingencyPct is int
         && request.resource.data.contingencyPct >= 0
         && request.resource.data.contingencyPct <= 100
-        && request.resource.data.zoom in ['month', 'week', 'day', 'day-large', 'day-half', 'table']
-        && request.resource.data.panelWidth is int
-        && request.resource.data.panelWidth >= 200
-        && request.resource.data.panelWidth <= 800
-        && request.resource.data.collapsedRows is map
-        && request.resource.data.rowHeights is map
         && request.resource.data.projectStart is string
-        && request.resource.data.savedAt is int;
+        && request.resource.data.savedAt is int
+        && (!('zoom' in request.resource.data)
+            || request.resource.data.zoom in ['month', 'week', 'day', 'day-large', 'day-half', 'table'])
+        && optionalIntInRange('panelWidth', 200, 800)
+        && optionalIntInRange('headerWidth', 240, 720)
+        && optionalIntInRange('resourceSummaryWidth', 88, 360)
+        && optionalMap('collapsedRows')
+        && optionalMap('rowHeights');
     }
 
     match /projects/blocks {
