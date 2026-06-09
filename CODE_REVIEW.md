@@ -5,6 +5,19 @@
 **Date**: 2026-06-09 (supersedes the 2026-06-01 review; statuses of the old
 findings are folded in below)
 
+> **Status update (later the same day)** — all four suggested PRs landed on
+> `preview`:
+> 1. `5970fb6` — A1 rules reconciled (**deploy still required**:
+>    `firebase deploy --only firestore:rules`).
+> 2. `b2b5f53` — B1–B4 dead code deleted (+ C4 console noise, C6 unused var;
+>    Duplicate restored to the block context menu).
+> 3. `9ba7675` — A2 anchor pinned to saved `projectStart`.
+> 4. `3aa1751` — A3 deferred remote apply, B5 single save convention,
+>    C1 transients stripped, C2 view prefs in localStorage, C10 flag hack gone.
+>
+> Still open: C3 (block move/resize on Pointer Events), C5 (tag length cap),
+> C7 (innerHTML footguns), C8 (auth reload), C9 (`_render` size).
+
 ---
 
 ## Resolved since 2026-06-01
