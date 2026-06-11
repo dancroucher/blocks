@@ -128,6 +128,21 @@
     overflow: auto;
     min-height: 0;
     min-width: 0;
+    container-type: inline-size;
+  }
+
+  /* Compact the table when the data pane is narrow (e.g. an 80/20 split) so
+     every column stays visible instead of scrolling horizontally */
+  @container (max-width: 620px) {
+    .table-view { padding: 0.6rem; }
+    .block-table th,
+    .block-table td { padding: 0.26rem 0.18rem; font-size: 0.74rem; }
+    .combined-blocks .block-table th { font-size: 0.6rem; letter-spacing: 0.02em; }
+    .block-table input,
+    .block-table select { font-size: 0.74rem; padding: 0.16rem 0.2rem; min-width: 0; }
+    .block-table input[type="date"]::-webkit-calendar-picker-indicator { display: none; }
+    .combined-meta { font-size: 0.68rem; white-space: normal; }
+    .combined-name-cell { gap: 0.3rem; }
   }
 
   .split-divider {
@@ -152,8 +167,9 @@
     min-width: 220px;
   }
   .main.mode-split .data-area { min-width: 260px; }
-  /* Let the data pane scroll horizontally instead of forcing 900px on a narrow pane */
-  .main.mode-split .table-view { min-width: 640px; }
+  /* In split mode the table sizes to the pane; the container query below
+     compacts it when the pane gets narrow instead of forcing a scrollbar */
+  .main.mode-split .table-view { min-width: 0; }
 
   /* Column headers (timeline) */
   .col-headers-wrap {
@@ -1150,6 +1166,7 @@
     color: var(--text);
   }
   .block-table .danger { color: #dc2626; }
+  .block-table .block-del-btn { padding: 0.15rem 0.45rem; font-size: 0.9rem; line-height: 1.1; }
   .combined-blocks { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: #fff; }
   .combined-blocks .panel-section-header { cursor: default; border-top: 14px solid var(--bg); background: #e9ecef; }
   .combined-blocks .panel-section-header:first-child { border-top: none; }
@@ -1342,8 +1359,8 @@
   <h1>BL■CKS</h1>
   <div class="topbar-controls">
     <button id="btn-map" class="active" onclick="setView('map')">Map</button>
-    <button id="btn-split" onclick="setView('split')">Split</button>
     <button id="btn-table" onclick="setView('data')">Data</button>
+    <button id="btn-split" onclick="setView('split')">Split</button>
   </div>
   <div class="topbar-status">
     <div class="sync-pill" id="sync-status" data-status="offline"><span class="sync-dot"></span><span id="sync-status-text">Locked</span></div>
@@ -2061,7 +2078,7 @@ function buildTrackList(row) {
     input.value = track.label || '';
     input.placeholder = 'Track';
     input.addEventListener('mousedown', e => e.stopPropagation());
-    input.addEventListener('input', e => { track.label = e.target.value; renderStats(); saveState(); });
+    input.addEventListener('input', e => { track.label = e.target.value; renderDataPane(); renderStats(); saveState(); });
     item.appendChild(input);
 
     const del = document.createElement('button');
@@ -2433,8 +2450,9 @@ function appendBlockEditRow(tbody, block) {
 
   const delTd = document.createElement('td');
   const delBtn = document.createElement('button');
-  delBtn.className = 'danger';
-  delBtn.textContent = 'Delete';
+  delBtn.className = 'danger block-del-btn';
+  delBtn.textContent = '×';
+  delBtn.title = 'Delete block';
   delBtn.onclick = () => deleteBlock(block.id);
   delTd.appendChild(delBtn);
   tr.appendChild(delTd);
@@ -2515,12 +2533,12 @@ function renderCombinedBlocksView(view) {
         const table = document.createElement('table');
         table.className = 'block-table';
         table.innerHTML = `<thead><tr>
-          <th style="width:34%">Name</th>
-          <th style="width:14%">Start</th>
-          <th style="width:14%">End</th>
-          <th style="width:12%">Base days</th>
+          <th style="width:36%">Name</th>
+          <th style="width:16%">Start</th>
+          <th style="width:16%">End</th>
+          <th style="width:11%">Base days</th>
           <th style="width:16%">Shown days</th>
-          <th style="width:10%"></th>
+          <th style="width:5%"></th>
         </tr></thead>`;
         const tbody = document.createElement('tbody');
         trackBlocks.forEach(block => appendBlockEditRow(tbody, block));
@@ -2572,14 +2590,21 @@ function applyViewLayout() {
   main.style.setProperty('--split-pct', splitPct + '%');
 }
 
+// Rebuild just the data pane — map-side label edits call this directly so the
+// table reflects renames without paying for (or disturbing) a full map render.
+function renderDataPane() {
+  const dataWrapper = document.getElementById('data-wrapper');
+  if (!dataWrapper) return;
+  dataWrapper.innerHTML = '';
+  if (viewMode !== 'map') renderTableView(dataWrapper);
+}
+
 function _render() {
   applyViewLayout();
 
   // Data pane — rendered whenever visible; render() re-runs both panes so
   // table edits show up on the map immediately in split mode.
-  const dataWrapper = document.getElementById('data-wrapper');
-  dataWrapper.innerHTML = '';
-  if (viewMode !== 'map') renderTableView(dataWrapper);
+  renderDataPane();
 
   const wrapper = document.getElementById('grid-wrapper');
   gridWrapper = wrapper;
@@ -2797,6 +2822,7 @@ function _render() {
       e.target.value = clampResourceName(e.target.value);
       row.label = e.target.value;
       applyHeaderWidth();
+      renderDataPane();
       renderStats();
       saveState();
     };
@@ -3364,6 +3390,7 @@ function startEditingBlockLabel(bEl, labelEl, block) {
         saveState();
       }
       labelEl.textContent = block.label || '';
+      renderDataPane();
       renderStats();
     }
     if (input.parentNode) input.parentNode.removeChild(input);
