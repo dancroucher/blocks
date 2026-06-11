@@ -15,8 +15,8 @@ findings are folded in below)
 > 4. `3aa1751` — A3 deferred remote apply, B5 single save convention,
 >    C1 transients stripped, C2 view prefs in localStorage, C10 flag hack gone.
 >
-> Still open: C3 (block move/resize on Pointer Events), C5 (tag length cap),
-> C7 (innerHTML footguns), C8 (auth reload), C9 (`_render` size).
+> Still open: C5 (tag length cap), C7 (innerHTML footguns), C8 (auth reload),
+> C9 (`_render` size). C3 landed 2026-06-11; rules deploy confirmed live.
 
 ---
 
@@ -171,11 +171,11 @@ This also removes the need for the `_skipSaveOnNextPostRender` flag.
    changes the desktop. This was the breeding ground for the recent sync-loop
    bugs. Consider moving pure view prefs to `localStorage` and slimming the
    shared doc to data.
-3. **Block move/resize still uses mouse events** (`startMove`, `startResize`,
-   document `mousemove`/`mouseup`) while every other handle was migrated to
-   Pointer Events in 02dbe0d. Works on desktop; no touch, and it's the last
-   place the wedged-handle bug class could recur. Migrate to
-   `beginPointerDrag`.
+3. ~~**Block move/resize still uses mouse events**~~ — done (2026-06-11):
+   `startMove`/`startResize` now go through `beginPointerDrag`; the document
+   `mousemove`/`mouseup` listeners only serve create-by-drag, which stays on
+   mouse events deliberately (cancelling its pointerdown would suppress the
+   compat mousedown that grid panning and label blur-to-commit rely on).
 4. **Console noise** — `console.log('State loaded from Firestore')` (L1825)
    and the v1-migration log (L4488) still ship.
 5. **Tags**: no length cap or case normalization on input (`addTagToRow`);

@@ -690,6 +690,7 @@
     font-weight: 500;
     color: inherit;
     user-select: none;
+    touch-action: none;
     transition: box-shadow 0.15s, opacity 0.15s;
     overflow: visible;
     z-index: 2;
@@ -2983,15 +2984,15 @@ function _render() {
       if (!isDataBlock(block)) {
         const hl = document.createElement('div');
         hl.className = 'handle-left';
-        hl.addEventListener('mousedown', (e) => startResize(e, block.id, 'left'));
+        hl.addEventListener('pointerdown', (e) => startResize(e, block.id, 'left'));
         bEl.appendChild(hl);
 
         const hr = document.createElement('div');
         hr.className = 'handle-right';
-        hr.addEventListener('mousedown', (e) => startResize(e, block.id, 'right'));
+        hr.addEventListener('pointerdown', (e) => startResize(e, block.id, 'right'));
         bEl.appendChild(hr);
 
-        bEl.addEventListener('mousedown', (e) => {
+        bEl.addEventListener('pointerdown', (e) => {
           if (e.target.classList.contains('handle-left') || e.target.classList.contains('handle-right')) return;
           if (e.target.classList.contains('block-label-input')) return;
           startMove(e, block.id);
@@ -3552,12 +3553,14 @@ function startTrackResize(e, rowId, trackId) {
 }
 
 // --- Drag: Move ---
+// Block move/resize run through beginPointerDrag like every other handle, so
+// pointercancel and pen/touch input clean up the same way. dragState stays a
+// global because inDrag() and the deferred-remote-apply guard read it.
 function startMove(e, blockId) {
-  e.preventDefault();
   const block = blocks.find(b => b.id === blockId);
   if (!block || isDataBlock(block)) return;
 
-  dragState = {
+  const state = {
     type: 'move',
     blockId,
     startX: e.clientX,
@@ -3568,16 +3571,18 @@ function startMove(e, blockId) {
   };
   // Don't add .dragging or call render() yet — wait until real movement so
   // single clicks (and dblclicks) don't rebuild the DOM and lose element identity.
+  // (click/dblclick still fire even though beginPointerDrag cancels pointerdown.)
+  if (beginPointerDrag(e, { onMove: (dx, dy, ev) => moveBlockDrag(ev), onEnd: endBlockDrag })) {
+    dragState = state;
+  }
 }
 
 // --- Drag: Resize ---
 function startResize(e, blockId, side) {
-  e.preventDefault();
-  e.stopPropagation();
   const block = blocks.find(b => b.id === blockId);
   if (!block || isDataBlock(block)) return;
 
-  dragState = {
+  const state = {
     type: side === 'left' ? 'resize-left' : 'resize-right',
     blockId,
     startX: e.clientX,
@@ -3588,6 +3593,9 @@ function startResize(e, blockId, side) {
     origCapacity: getRowCapacity(rows.find(r => r.id === block.rowId)),
     moved: false,
   };
+  if (beginPointerDrag(e, { onMove: (dx, dy, ev) => moveBlockDrag(ev), onEnd: endBlockDrag })) {
+    dragState = state;
+  }
 }
 
 const DRAG_THRESHOLD_PX = 4;
@@ -3608,7 +3616,7 @@ function removeBlockStartTooltip(bEl) {
   if (tip) tip.remove();
 }
 
-document.addEventListener('mousemove', (e) => {
+function moveBlockDrag(e) {
   if (dragState) {
     const block = blocks.find(b => b.id === dragState.blockId);
     if (!block) return;
@@ -3711,7 +3719,12 @@ document.addEventListener('mousemove', (e) => {
 
     if (bEl) updateBlockStartTooltip(bEl, block);
   }
+}
 
+// Create-by-drag stays on document mouse events: cancelling its pointerdown
+// would suppress the compat mousedown that grid panning (#grid-area) and
+// label blur-to-commit rely on.
+document.addEventListener('mousemove', (e) => {
   // Create by drag preview
   if (createState) {
     const cells = document.querySelector(`.row-cells[data-row-id="${createState.rowId}"][data-track-id="${createState.trackId}"]`);
@@ -3728,8 +3741,7 @@ document.addEventListener('mousemove', (e) => {
   }
 });
 
-document.addEventListener('mouseup', (e) => {
-
+function endBlockDrag() {
   if (dragState) {
     const wasMoved = dragState.moved;
     const draggedId = dragState.blockId;
@@ -3746,7 +3758,9 @@ document.addEventListener('mouseup', (e) => {
       render();
     }
   }
+}
 
+document.addEventListener('mouseup', (e) => {
   if (createState) {
     const rect = document.querySelector(`.row-cells[data-row-id="${createState.rowId}"][data-track-id="${createState.trackId}"]`);
     if (rect) {
@@ -3768,7 +3782,8 @@ document.addEventListener('mouseup', (e) => {
     createState = null;
   }
 
-  // Apply any remote update stashed while a block drag/create was in flight.
+  // Apply any remote update stashed while a create drag was in flight.
+  // (Block move/resize flushes via beginPointerDrag's end handler.)
   flushPendingRemote();
 });
 
