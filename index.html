@@ -120,6 +120,41 @@
     flex: 1;
   }
 
+  /* Data pane (table view) — own scroll container so the map keeps its
+     scrollLeft when both are shown side by side */
+  .data-area {
+    flex: 1;
+    position: relative;
+    overflow: auto;
+    min-height: 0;
+    min-width: 0;
+  }
+
+  .split-divider {
+    flex: 0 0 6px;
+    cursor: col-resize;
+    background: var(--border);
+    position: relative;
+    z-index: 6;
+  }
+  .split-divider:hover,
+  body.split-resizing .split-divider { background: var(--accent, #555); }
+  body.split-resizing { cursor: col-resize; user-select: none; }
+  body.split-resizing .grid-area,
+  body.split-resizing .data-area { pointer-events: none; }
+
+  .main.mode-map .data-area,
+  .main.mode-map .split-divider { display: none; }
+  .main.mode-data .grid-area,
+  .main.mode-data .split-divider { display: none; }
+  .main.mode-split .grid-area {
+    flex: 0 0 var(--split-pct, 58%);
+    min-width: 220px;
+  }
+  .main.mode-split .data-area { min-width: 260px; }
+  /* Let the data pane scroll horizontally instead of forcing 900px on a narrow pane */
+  .main.mode-split .table-view { min-width: 640px; }
+
   /* Column headers (timeline) */
   .col-headers-wrap {
     position: sticky;
@@ -1306,8 +1341,9 @@
 <div class="topbar">
   <h1>BL■CKS</h1>
   <div class="topbar-controls">
-    <button id="btn-map" class="active" onclick="setZoom(mapZoom || 'day')">Map</button>
-    <button id="btn-table" onclick="setZoom('table')">Data</button>
+    <button id="btn-map" class="active" onclick="setView('map')">Map</button>
+    <button id="btn-split" onclick="setView('split')">Split</button>
+    <button id="btn-table" onclick="setView('data')">Data</button>
   </div>
   <div class="topbar-status">
     <div class="sync-pill" id="sync-status" data-status="offline"><span class="sync-dot"></span><span id="sync-status-text">Locked</span></div>
@@ -1315,11 +1351,14 @@
   </div>
 </div>
 
-<div class="main">
+<div class="main mode-map" id="main">
   <div class="grid-area" id="grid-area">
     <div class="grid-wrapper" id="grid-wrapper"></div>
   </div>
-
+  <div class="split-divider" id="split-divider" title="Drag to resize"></div>
+  <div class="data-area" id="data-area">
+    <div class="data-wrapper" id="data-wrapper"></div>
+  </div>
 </div>
 
 <div class="context-menu" id="context-menu" style="display:none;"></div>
@@ -1801,8 +1840,10 @@ function applyRemoteState(data) {
   renderStats();
 }
 
-let zoom = 'day'; // day, week, month, table
-let mapZoom = 'day'; // last non-table view used by the Map tab
+let zoom = 'day'; // map zoom level only: day, week, month, day-large, day-half
+const VIEW_MODES = ['map', 'split', 'data'];
+let viewMode = 'map'; // which pane(s) are shown: map, split (both), data
+let splitPct = 58; // map pane width in split mode, % of .main
 
 // --- Per-client view prefs (localStorage, not the shared Firestore doc) ---
 // Zoom and column widths are how *this* browser looks at the timeline; syncing
@@ -1810,7 +1851,7 @@ let mapZoom = 'day'; // last non-table view used by the Map tab
 const VIEW_PREFS_KEY = 'blocks-view-prefs';
 function saveViewPrefs() {
   try {
-    localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify({ zoom, mapZoom, headerWidth, resourceSummaryWidth }));
+    localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify({ viewMode, zoom, splitPct, headerWidth, resourceSummaryWidth }));
   } catch (e) { /* private mode / quota — view prefs just won't stick */ }
 }
 function loadViewPrefs(saved) {
@@ -1818,10 +1859,12 @@ function loadViewPrefs(saved) {
   try { prefs = JSON.parse(localStorage.getItem(VIEW_PREFS_KEY)); } catch (e) {}
   // Fall back to the shared doc's legacy view fields (pre-local-prefs saves).
   const src = prefs || saved || {};
-  const validZooms = new Set(MAP_ZOOM_LEVELS.concat('table'));
-  if (validZooms.has(src.zoom)) zoom = src.zoom;
-  if (MAP_ZOOM_LEVELS.includes(src.mapZoom)) mapZoom = src.mapZoom;
-  else if (zoom !== 'table') mapZoom = zoom;
+  if (VIEW_MODES.includes(src.viewMode)) viewMode = src.viewMode;
+  // Legacy prefs: zoom === 'table' meant the Data view, with the map zoom in mapZoom.
+  else if (src.zoom === 'table') viewMode = 'data';
+  if (MAP_ZOOM_LEVELS.includes(src.zoom)) zoom = src.zoom;
+  else if (MAP_ZOOM_LEVELS.includes(src.mapZoom)) zoom = src.mapZoom;
+  if (typeof src.splitPct === 'number') splitPct = Math.max(20, Math.min(80, src.splitPct));
   if (typeof src.headerWidth === 'number') headerWidth = src.headerWidth;
   if (typeof src.resourceSummaryWidth === 'number') resourceSummaryWidth = src.resourceSummaryWidth;
 }
@@ -1844,7 +1887,7 @@ let resourceSummaryWidth = RESOURCE_SUMMARY_W; // resizable first resource cell 
 let panState = null; // { startX, startScrollLeft }
 
 function startPan(e) {
- if (zoom === 'table') return;
+ if (viewMode === 'data') return;
  if (e.target.closest('input, select, button, textarea')) return;
  if (e.target.closest('.block') || e.target.closest('.handle-left') || e.target.closest('.handle-right')) return;
  const gridEl = document.getElementById('grid-area');
@@ -1871,6 +1914,32 @@ document.addEventListener('mousemove', (e) => {
 });
 
 document.addEventListener('mouseup', endPan);
+
+// --- Split-view divider drag ---
+(function setupSplitDivider() {
+ const divider = document.getElementById('split-divider');
+ const main = document.getElementById('main');
+ if (!divider || !main) return;
+ let dragging = false;
+ divider.addEventListener('mousedown', (e) => {
+ e.preventDefault();
+ dragging = true;
+ document.body.classList.add('split-resizing');
+ });
+ document.addEventListener('mousemove', (e) => {
+ if (!dragging) return;
+ const rect = main.getBoundingClientRect();
+ if (!rect.width) return;
+ splitPct = Math.max(20, Math.min(80, ((e.clientX - rect.left) / rect.width) * 100));
+ main.style.setProperty('--split-pct', splitPct + '%');
+ });
+ document.addEventListener('mouseup', () => {
+ if (!dragging) return;
+ dragging = false;
+ document.body.classList.remove('split-resizing');
+ saveViewPrefs();
+ });
+})();
 
 
 function makeTrack(rowId, index = 0) {
@@ -2496,12 +2565,26 @@ function renderTableView(wrapper) {
   wrapper.appendChild(view);
 }
 
+function applyViewLayout() {
+  const main = document.getElementById('main');
+  if (!main) return;
+  VIEW_MODES.forEach(mode => main.classList.toggle(`mode-${mode}`, mode === viewMode));
+  main.style.setProperty('--split-pct', splitPct + '%');
+}
+
 function _render() {
+  applyViewLayout();
+
+  // Data pane — rendered whenever visible; render() re-runs both panes so
+  // table edits show up on the map immediately in split mode.
+  const dataWrapper = document.getElementById('data-wrapper');
+  dataWrapper.innerHTML = '';
+  if (viewMode !== 'map') renderTableView(dataWrapper);
+
   const wrapper = document.getElementById('grid-wrapper');
   gridWrapper = wrapper;
   wrapper.innerHTML = '';
-  if (zoom === 'table') {
-    renderTableView(wrapper);
+  if (viewMode === 'data') {
     schedulePostRenderWork();
     return;
   }
@@ -3788,13 +3871,22 @@ function duplicateBlock(id) {
   saveState();
 }
 
-// --- Zoom ---
+// --- View mode & zoom ---
+function setView(mode) {
+  if (!VIEW_MODES.includes(mode) || mode === viewMode) return;
+  viewMode = mode;
+  syncViewButtons();
+  render();
+  saveViewPrefs();
+}
+
 function syncViewButtons() {
   const btn = document.querySelector('.zoom-select-btn');
   if (btn) btn.childNodes[0].nodeValue = ZOOM_LABELS[zoom] || zoom;
   document.querySelectorAll('.zoom-menu button').forEach(item => item.classList.toggle('active', item.textContent === (ZOOM_LABELS[zoom] || zoom)));
-  document.getElementById('btn-table')?.classList.toggle('active', zoom === 'table');
-  document.getElementById('btn-map')?.classList.toggle('active', zoom !== 'table');
+  document.getElementById('btn-map')?.classList.toggle('active', viewMode === 'map');
+  document.getElementById('btn-split')?.classList.toggle('active', viewMode === 'split');
+  document.getElementById('btn-table')?.classList.toggle('active', viewMode === 'data');
 }
 
 const MAP_ZOOM_LEVELS = ['month', 'week', 'day', 'day-large', 'day-half'];
@@ -3802,20 +3894,19 @@ const ZOOM_LABELS = { month: 'Month', week: 'Week', day: 'Day', 'day-large': 'Da
 let _lastZoomWheelAt = 0;
 
 function setZoom(z, anchorClientX = null) {
+  if (!MAP_ZOOM_LEVELS.includes(z)) return;
   const gridArea = document.getElementById('grid-area');
-  const oldZoom = zoom;
   const oldDayPx = dayPx();
   let anchorOffset = null;
   let anchorCol = null;
 
-  if (gridArea && oldZoom !== 'table' && z !== 'table') {
+  if (gridArea && viewMode !== 'data') {
     const rect = gridArea.getBoundingClientRect();
     anchorOffset = anchorClientX == null ? gridArea.clientWidth / 2 : Math.max(0, Math.min(gridArea.clientWidth, anchorClientX - rect.left));
     anchorCol = (gridArea.scrollLeft + anchorOffset) / oldDayPx;
   }
 
   zoom = z;
-  if (z !== 'table') mapZoom = z;
   syncViewButtons();
   render();
 
@@ -3830,7 +3921,7 @@ function setZoom(z, anchorClientX = null) {
 }
 
 function zoomRelative(direction, anchorClientX = null) {
-  if (zoom === 'table') return;
+  if (viewMode === 'data') return;
   const idx = MAP_ZOOM_LEVELS.indexOf(zoom);
   if (idx === -1) return;
   const nextIdx = Math.max(0, Math.min(MAP_ZOOM_LEVELS.length - 1, idx + direction));
@@ -3850,7 +3941,7 @@ function selectZoomLevel(level) {
 }
 
 function onTimelineWheel(e) {
-  if (zoom === 'table' || (!e.ctrlKey && !e.metaKey)) return;
+  if (viewMode === 'data' || (!e.ctrlKey && !e.metaKey)) return;
   e.preventDefault();
   const now = Date.now();
   if (now - _lastZoomWheelAt < 140) return;
