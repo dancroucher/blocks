@@ -1409,6 +1409,7 @@ function daysPerCell() { return zoom === 'week' ? 5 : 1; }
 const ROW_HEADER_W = 300;       // default header column width
 const RESOURCE_SUMMARY_W = 112; // default width of the name/capacity/tags cell
 const RESOURCE_NAME_MAX_CHARS = 16;
+const TAG_MAX_CHARS = 24;
 const SUMMARY_W_MIN = 88;
 const SUMMARY_W_MAX = 360;
 const TRACK_PANEL_MIN_W = 96;
@@ -1501,12 +1502,21 @@ const STATE_VERSION = 4; // v4 = resource tracks
 
 // Format: "[base]d + [conting]d ([total]d)" when contingency > 0, else "[base]d".
 // The letter 'd' and any contingency amount are wrapped in .cg for styling.
+// Returns DOM nodes (not an HTML string) so values are never parsed as markup.
+function cgSpan(text) {
+  const s = document.createElement('span');
+  s.className = 'cg';
+  s.textContent = text;
+  return s;
+}
 function fmtDays(base, conting) {
+  const frag = document.createDocumentFragment();
   if (conting > 0) {
-    const total = base + conting;
-    return `${base}<span class="cg">d</span> + <span class="cg">${conting}d</span> (${total}<span class="cg">d</span>)`;
+    frag.append(String(base), cgSpan('d'), ' + ', cgSpan(`${conting}d`), ` (${base + conting}`, cgSpan('d'), ')');
+  } else {
+    frag.append(String(base), cgSpan('d'));
   }
-  return `${base}<span class="cg">d</span>`;
+  return frag;
 }
 
 // --- Firestore persistence (primary) + IndexedDB (local fallback) ---
@@ -1623,7 +1633,7 @@ function sanitizeState(data) {
         label: clampResourceName(row.label),
         capacity: Math.max(1, Math.min(999, toPositiveInt(row.capacity, 100))),
         tags: Array.isArray(row.tags)
-          ? row.tags.filter(tag => typeof tag === 'string').map(tag => tag.trim()).filter(Boolean).slice(0, 50)
+          ? row.tags.filter(tag => typeof tag === 'string').map(tag => tag.trim().slice(0, TAG_MAX_CHARS)).filter(Boolean).slice(0, 50)
           : [],
         tracks,
       };
@@ -2005,10 +2015,12 @@ function allTags() {
   return [...seen].sort();
 }
 function addTagToRow(rowId, tag) {
-  tag = tag.trim();
+  tag = tag.trim().slice(0, TAG_MAX_CHARS);
   if (!tag) return;
   const row = rows.find(r => r.id === rowId);
-  if (!row || row.tags.includes(tag)) return;
+  if (!row) return;
+  // Dedupe case-insensitively but keep the case the user typed for display.
+  if (row.tags.some(t => t.toLowerCase() === tag.toLowerCase())) return;
   row.tags.push(tag);
   render(); saveState();
 }
@@ -2141,6 +2153,7 @@ function buildTagInput(row) {
   const inp = document.createElement('input');
   inp.className = 'tag-add-input';
   inp.placeholder = 'tag…';
+  inp.maxLength = TAG_MAX_CHARS;
   inp.setAttribute('list', 'tag-datalist');
   // Ensure datalist exists
   let dl = document.getElementById('tag-datalist');
@@ -2171,12 +2184,15 @@ function fmtBlockDuration(block) {
   const scheduled = Number(block.duration) || base;
   const baseContingency = contingencyPct > 0 ? Math.round(base * contingencyPct / 100) : 0;
   const scheduledContingency = contingencyPct > 0 ? Math.round(scheduled * contingencyPct / 100) : 0;
-  const baseText = baseContingency > 0 ? `${base}+${baseContingency}<span class="cg">d</span>` : `${base}<span class="cg">d</span>`;
+  const frag = document.createDocumentFragment();
+  frag.append(baseContingency > 0 ? `${base}+${baseContingency}` : String(base), cgSpan('d'));
   if (scheduled !== base || scheduledContingency !== baseContingency) {
-    const scheduledText = scheduledContingency > 0 ? `${scheduled}+${scheduledContingency}d` : `${scheduled}d`;
-    return `${baseText} <span class="capacity-adjusted">(${scheduledText})</span>`;
+    const adj = document.createElement('span');
+    adj.className = 'capacity-adjusted';
+    adj.textContent = scheduledContingency > 0 ? `(${scheduled}+${scheduledContingency}d)` : `(${scheduled}d)`;
+    frag.append(' ', adj);
   }
-  return baseText;
+  return frag;
 }
 function normalizeBlocks() {
   blocks.forEach(block => {
@@ -2446,7 +2462,7 @@ function appendBlockEditRow(tbody, block) {
 
   const scheduledTd = document.createElement('td');
   scheduledTd.className = 'combined-meta';
-  scheduledTd.innerHTML = fmtBlockDuration(block);
+  scheduledTd.replaceChildren(fmtBlockDuration(block));
   tr.appendChild(scheduledTd);
 
   const delTd = document.createElement('td');
@@ -2978,7 +2994,7 @@ function _render() {
 
       const daysBadge = document.createElement('span');
       daysBadge.className = 'block-days-badge';
-      daysBadge.innerHTML = fmtBlockDuration(block);
+      daysBadge.replaceChildren(fmtBlockDuration(block));
       bEl.appendChild(daysBadge);
 
       if (!isDataBlock(block)) {
@@ -3170,11 +3186,11 @@ function renderStats() {
     <div class="panel-stat"><span class="label">Base Days</span><span class="value" style="color:var(--text)">${totalDays}<span class="cg">d</span></span></div>
     ${scheduledLine}
     <div class="panel-stat"><span class="label">Contingency Days @ ${contingencyPct}%</span><span class="value" style="color:var(--text)">+${contingencyDays}d</span></div>
-    <div class="panel-stat"><span class="label">Total Days</span><span class="value" style="color:var(--text)">${fmtDays(scheduledDays, contingencyDays)}</span></div>
+    <div class="panel-stat"><span class="label">Total Days</span><span class="value" style="color:var(--text)" data-total-days></span></div>
     <div class="panel-stat"><span class="label">Active Rows</span><span class="value">${rowsUsed}</span></div>
     <div class="panel-stat"><span class="label">Total Blocks</span><span class="value">${totalBlocks}</span></div>
   `;
-
+  stats.querySelector('[data-total-days]').replaceChildren(fmtDays(scheduledDays, contingencyDays));
 }
 
 // --- Row vertical resize ---
@@ -3676,7 +3692,7 @@ function moveBlockDrag(e) {
             if (bEl) {
               bEl.style.width = (getBlockBaseDuration(block) * dayPx() - 2) + 'px';
               const badge = bEl.querySelector('.block-days-badge');
-              if (badge) badge.innerHTML = fmtBlockDuration(block);
+              if (badge) badge.replaceChildren(fmtBlockDuration(block));
             }
           }
           break;
@@ -3696,7 +3712,7 @@ function moveBlockDrag(e) {
       if (bEl) {
         bEl.style.width = (getBlockBaseDuration(block) * dayPx() - 2) + 'px';
         const badge = bEl.querySelector('.block-days-badge');
-        if (badge) badge.innerHTML = fmtBlockDuration(block);
+        if (badge) badge.replaceChildren(fmtBlockDuration(block));
       }
       updateExtensions();
     }
@@ -3711,7 +3727,7 @@ function moveBlockDrag(e) {
           bEl.style.left = (block.start * dayPx()) + 'px';
           bEl.style.width = (getBlockBaseDuration(block) * dayPx() - 2) + 'px';
           const badge = bEl.querySelector('.block-days-badge');
-          if (badge) badge.innerHTML = fmtBlockDuration(block);
+          if (badge) badge.replaceChildren(fmtBlockDuration(block));
         }
         updateExtensions();
       }

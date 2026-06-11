@@ -15,8 +15,8 @@ findings are folded in below)
 > 4. `3aa1751` — A3 deferred remote apply, B5 single save convention,
 >    C1 transients stripped, C2 view prefs in localStorage, C10 flag hack gone.
 >
-> Still open: C5 (tag length cap), C7 (innerHTML footguns), C8 (auth reload),
-> C9 (`_render` size). C3 landed 2026-06-11; rules deploy confirmed live.
+> Still open: C8 (auth reload), C9 (`_render` size) — both quality-only.
+> C3, C5, C7 landed 2026-06-11; rules deploy confirmed live.
 
 ---
 
@@ -178,11 +178,13 @@ This also removes the need for the `_skipSaveOnNextPostRender` flag.
    compat mousedown that grid panning and label blur-to-commit rely on).
 4. **Console noise** — `console.log('State loaded from Firestore')` (L1825)
    and the v1-migration log (L4488) still ship.
-5. **Tags**: no length cap or case normalization on input (`addTagToRow`);
-   `sanitizeState` caps count (50) but not string length.
+5. ~~**Tags**: no length cap or case normalization on input~~ — done
+   (2026-06-11): 24-char cap (`TAG_MAX_CHARS`) on the input, in `addTagToRow`,
+   and in `sanitizeState`; dedupe is case-insensitive but display case is kept.
 6. **Unused var** `weekDay` (L2702).
-7. **`fmtDays`/`fmtBlockDuration` via innerHTML** — still numbers-only, still
-   a footgun if a label ever gets interpolated. Unchanged from old #19/20.
+7. ~~**`fmtDays`/`fmtBlockDuration` via innerHTML**~~ — done (2026-06-11):
+   both return DocumentFragments built with `createElement`/`textContent`;
+   all call sites use `replaceChildren`.
 8. **`location.reload()` on sign-in/out** — unchanged from old #21; heavy but
    harmless.
 9. **`_render` is ~470 lines** — unchanged in spirit from old #8. Quality
