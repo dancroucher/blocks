@@ -30,6 +30,7 @@
     --cell-size: 40px;
     --row-header-width: 300px;
     --resource-summary-width: 112px;
+    --track-panel-width: 188px;
     --alt-bg: #f8f8f8;
   }
 
@@ -378,7 +379,8 @@
   .summary-col-resize:hover::after,
   .summary-col-resize.dragging::after { background: rgba(0,0,0,0.16); }
   .track-panel {
-    flex: 1;
+    width: var(--track-panel-width);
+    flex: 0 0 var(--track-panel-width);
     min-width: 0;
     display: flex;
     flex-direction: column;
@@ -787,6 +789,10 @@
     z-index: 3;
     line-height: 1.2;
   }
+  .block .block-label.block-label-empty {
+    opacity: 0.45;
+    font-style: italic;
+  }
   .block .block-days-badge {
     flex: 0 0 auto;
     font-size: 0.7rem;
@@ -807,6 +813,9 @@
   .block.block-compact .block-label {
     flex: 0 1 auto;
     max-width: calc(100% - 2.5rem);
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
   }
   .block.block-compact .block-days-badge {
     flex: 0 1 auto;
@@ -816,6 +825,9 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     text-align: left;
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
   }
   .capacity-adjusted {
     color: #777;
@@ -1422,6 +1434,7 @@ function isDayLikeZoom() { return zoom === 'day' || zoom === 'day-large' || zoom
 function daysPerCell() { return zoom === 'week' ? 5 : 1; }
 const ROW_HEADER_W = 300;       // default header column width
 const RESOURCE_SUMMARY_W = 112; // default width of the name/capacity/tags cell
+const TRACK_PANEL_W = ROW_HEADER_W - RESOURCE_SUMMARY_W;
 const RESOURCE_NAME_MAX_CHARS = 16;
 const TAG_MAX_CHARS = 24;
 const SUMMARY_W_MIN = 88;
@@ -1683,6 +1696,7 @@ function sanitizeState(data) {
     zoom: validZooms.has(data.zoom) ? data.zoom : 'day',
     headerWidth: Math.max(HEADER_W_MIN, Math.min(HEADER_W_MAX, toPositiveInt(data.headerWidth, ROW_HEADER_W))),
     resourceSummaryWidth: Math.max(SUMMARY_W_MIN, Math.min(SUMMARY_W_MAX, toPositiveInt(data.resourceSummaryWidth, RESOURCE_SUMMARY_W))),
+    resourceTrackPanelWidth: Math.max(TRACK_PANEL_MIN_W, Math.min(HEADER_W_MAX, toPositiveInt(data.resourceTrackPanelWidth, TRACK_PANEL_W))),
   };
 }
 
@@ -1893,7 +1907,7 @@ let splitPct = 58; // map pane width in split mode, % of .main
 const VIEW_PREFS_KEY = 'blocks-view-prefs';
 function saveViewPrefs() {
   try {
-    localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify({ viewMode, zoom, splitPct, headerWidth, resourceSummaryWidth }));
+    localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify({ viewMode, zoom, splitPct, headerWidth, resourceSummaryWidth, resourceTrackPanelWidth }));
   } catch (e) { /* private mode / quota — view prefs just won't stick */ }
 }
 function loadViewPrefs(saved) {
@@ -1907,8 +1921,9 @@ function loadViewPrefs(saved) {
   if (MAP_ZOOM_LEVELS.includes(src.zoom)) zoom = src.zoom;
   else if (MAP_ZOOM_LEVELS.includes(src.mapZoom)) zoom = src.mapZoom;
   if (typeof src.splitPct === 'number') splitPct = Math.max(20, Math.min(80, src.splitPct));
-  if (typeof src.headerWidth === 'number') headerWidth = src.headerWidth;
   if (typeof src.resourceSummaryWidth === 'number') resourceSummaryWidth = src.resourceSummaryWidth;
+  if (typeof src.resourceTrackPanelWidth === 'number') resourceTrackPanelWidth = src.resourceTrackPanelWidth;
+  else if (typeof src.headerWidth === 'number') resourceTrackPanelWidth = Math.max(TRACK_PANEL_MIN_W, src.headerWidth - resourceSummaryWidth);
 }
 
 let rows = [
@@ -1922,8 +1937,9 @@ let blocks = [];
 let nextBlockId = 1;
 let nextRowId = 6;
 let contingencyPct = 0;
-let headerWidth = ROW_HEADER_W; // resizable left header-column width (px)
+let headerWidth = ROW_HEADER_W; // total left header width (summary + track-label columns)
 let resourceSummaryWidth = RESOURCE_SUMMARY_W; // resizable first resource cell (name/capacity/tags)
+let resourceTrackPanelWidth = TRACK_PANEL_W; // resizable track-label column
 
 // --- Header drag-to-pan ---
 let panState = null; // { startX, startScrollLeft }
@@ -3007,7 +3023,9 @@ function _render() {
 
       const labelEl = document.createElement('span');
       labelEl.className = 'block-label';
-      labelEl.textContent = block.label || '';
+      const hasLabel = !!(block.label || '').trim();
+      if (!hasLabel) labelEl.classList.add('block-label-empty');
+      labelEl.textContent = hasLabel ? block.label : '...';
       bEl.appendChild(labelEl);
 
       const daysBadge = document.createElement('span');
@@ -3226,18 +3244,18 @@ function resourceNameMinWidth() {
   return Math.ceil(widest + 30);
 }
 
-function clampResourceSummaryWidth() {
+function clampResourceHeaderColumns() {
   const minForName = Math.max(SUMMARY_W_MIN, resourceNameMinWidth());
-  headerWidth = Math.max(headerWidth, minForName + TRACK_PANEL_MIN_W);
-  const maxForHeader = Math.max(minForName, headerWidth - TRACK_PANEL_MIN_W);
-  resourceSummaryWidth = Math.max(minForName, Math.min(SUMMARY_W_MAX, maxForHeader, Math.round(resourceSummaryWidth)));
+  resourceSummaryWidth = Math.max(minForName, Math.min(SUMMARY_W_MAX, Math.round(resourceSummaryWidth)));
+  resourceTrackPanelWidth = Math.max(TRACK_PANEL_MIN_W, Math.min(HEADER_W_MAX, Math.round(resourceTrackPanelWidth)));
+  headerWidth = Math.max(HEADER_W_MIN, resourceSummaryWidth + resourceTrackPanelWidth);
 }
 
 function applyHeaderWidth() {
-  headerWidth = Math.max(HEADER_W_MIN, Math.min(HEADER_W_MAX, Math.round(headerWidth)));
-  clampResourceSummaryWidth();
+  clampResourceHeaderColumns();
   document.documentElement.style.setProperty('--row-header-width', headerWidth + 'px');
   document.documentElement.style.setProperty('--resource-summary-width', resourceSummaryWidth + 'px');
+  document.documentElement.style.setProperty('--track-panel-width', resourceTrackPanelWidth + 'px');
 }
 
 // Shared drag binding for every resize handle. Uses Pointer Events end-to-end:
@@ -3271,14 +3289,12 @@ function beginPointerDrag(e, { onMove, onEnd, cursorClass } = {}) {
 
 // Drag the divider on the right edge of the full left header column to resize it.
 function startHeaderResize(e) {
-  const startW = headerWidth;
-  const startSummaryW = resourceSummaryWidth;
+  const startW = resourceTrackPanelWidth;
   const handle = e.currentTarget;
   const started = beginPointerDrag(e, {
     cursorClass: 'col-resizing',
     onMove(dx) {
-      headerWidth = startW + dx;
-      resourceSummaryWidth = startSummaryW * (headerWidth / Math.max(1, startW));
+      resourceTrackPanelWidth = startW + dx;
       applyHeaderWidth();
       applyRowHeights();
     },
@@ -3307,7 +3323,7 @@ function startSummaryResize(e) {
 function makeHeaderResizeHandle() {
   const h = document.createElement('div');
   h.className = 'header-col-resize';
-  h.title = 'Drag to resize the resource header column';
+  h.title = 'Drag to resize the track-label column';
   h.addEventListener('pointerdown', startHeaderResize);
   return h;
 }
@@ -3436,7 +3452,9 @@ function startEditingBlockLabel(bEl, labelEl, block) {
         block.label = next;
         saveState();
       }
-      labelEl.textContent = block.label || '';
+      const hasLabel = !!(block.label || '').trim();
+      labelEl.classList.toggle('block-label-empty', !hasLabel);
+      labelEl.textContent = hasLabel ? block.label : '...';
       renderDataPane();
       renderStats();
     }
