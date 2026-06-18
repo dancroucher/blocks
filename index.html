@@ -2597,11 +2597,11 @@ function renderCombinedBlocksView(view) {
     const table = document.createElement('table');
     table.className = 'block-table';
     table.innerHTML = `<thead><tr>
-      <th style="width:40%">Name</th>
-      <th style="width:17%">Start</th>
-      <th style="width:17%">End</th>
-      <th style="width:12%">Base days</th>
-      <th style="width:14%">Shown days</th>
+      <th style="width:40%">name</th>
+      <th style="width:17%">start</th>
+      <th style="width:17%">end</th>
+      <th style="width:12%">days</th>
+      <th style="width:14%">shownDays</th>
     </tr></thead>`;
     const tbody = document.createElement('tbody');
     getRowTracks(row).forEach(track => {
