@@ -741,8 +741,8 @@
     transform: translateY(-50%);
     opacity: 0;
     pointer-events: none;
-    cursor: crosshair;
-    transition: opacity 0.12s ease;
+    cursor: grab;
+    transition: opacity 0.12s ease, transform 0.12s ease;
     z-index: 8;
   }
   .dependency-handle::before {
@@ -771,6 +771,34 @@
   .capacity-block:hover > .dependency-handle {
     opacity: 1;
     pointer-events: auto;
+  }
+  .dependency-handle:hover,
+  .dependency-handle.dependency-dragging {
+    transform: translateY(-50%) scale(1.12);
+  }
+  .dependency-handle:hover::before,
+  .dependency-handle.dependency-dragging::before { background: rgba(217,115,13,0.86); }
+  .dependency-handle:hover::after,
+  .dependency-handle.dependency-dragging::after {
+    border-color: rgba(217,115,13,0.95);
+    background: #fff;
+  }
+  .dependency-handle.dependency-dragging { cursor: grabbing; opacity: 1; }
+  .dependency-arrow-layer {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    pointer-events: none;
+    z-index: 9999;
+  }
+  .dependency-arrow-line {
+    stroke: rgba(217,115,13,0.9);
+    stroke-width: 3;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.18));
   }
 
   .block.dragging {
@@ -2405,6 +2433,7 @@ function setRowCapacity(row, nextCapacity) {
 
 // Drag state
 let dragState = null; // { type: 'move'|'resize-left'|'resize-right', blockId, startX, origStart, origDuration }
+let dependencyDragState = null; // { blockId, handle, svg, path, startX, startY }
 let createState = null; // { rowId, startCol }
 const _lastBlockClickAt = new Map(); // blockId → ts, for dblclick-to-edit detection
 
@@ -3182,8 +3211,8 @@ function _render() {
       const makeDependencyHandle = () => {
         const dependencyHandle = document.createElement('span');
         dependencyHandle.className = 'dependency-handle';
-        dependencyHandle.title = 'Create dependency';
-        dependencyHandle.addEventListener('pointerdown', e => e.stopPropagation());
+        dependencyHandle.title = 'Drag to create dependency';
+        dependencyHandle.addEventListener('pointerdown', e => startDependencyDrag(e, block.id));
         dependencyHandle.addEventListener('click', e => e.stopPropagation());
         return dependencyHandle;
       };
@@ -3919,6 +3948,63 @@ function startTrackResize(e, rowId, trackId) {
   });
   if (!started) return;
   handle?.classList?.add('dragging');
+}
+
+// --- Dependency drag preview ---
+function dependencyPathD(x1, y1, x2, y2) {
+  const dx = Math.max(40, Math.abs(x2 - x1) * 0.45);
+  return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+}
+
+function updateDependencyArrow(e) {
+  if (!dependencyDragState) return;
+  dependencyDragState.path.setAttribute('d', dependencyPathD(
+    dependencyDragState.startX,
+    dependencyDragState.startY,
+    e.clientX,
+    e.clientY
+  ));
+}
+
+function endDependencyDrag(e) {
+  if (!dependencyDragState) return;
+  updateDependencyArrow(e);
+  dependencyDragState.handle.classList.remove('dependency-dragging');
+  dependencyDragState.svg.remove();
+  document.body.style.cursor = '';
+  document.removeEventListener('pointermove', updateDependencyArrow, true);
+  document.removeEventListener('pointerup', endDependencyDrag, true);
+  document.removeEventListener('pointercancel', endDependencyDrag, true);
+  dependencyDragState = null;
+}
+
+function startDependencyDrag(e, blockId) {
+  e.preventDefault();
+  e.stopPropagation();
+  if (dependencyDragState) endDependencyDrag(e);
+  const handle = e.currentTarget;
+  const rect = handle.getBoundingClientRect();
+  const startX = rect.right - 5;
+  const startY = rect.top + rect.height / 2;
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.classList.add('dependency-arrow-layer');
+  svg.innerHTML = `
+    <defs>
+      <marker id="dependency-arrow-head" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
+        <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(217,115,13,0.9)"></path>
+      </marker>
+    </defs>
+    <path class="dependency-arrow-line" marker-end="url(#dependency-arrow-head)"></path>
+  `;
+  document.body.appendChild(svg);
+  const path = svg.querySelector('.dependency-arrow-line');
+  dependencyDragState = { blockId, handle, svg, path, startX, startY };
+  handle.classList.add('dependency-dragging');
+  document.body.style.cursor = 'grabbing';
+  updateDependencyArrow(e);
+  document.addEventListener('pointermove', updateDependencyArrow, true);
+  document.addEventListener('pointerup', endDependencyDrag, true);
+  document.addEventListener('pointercancel', endDependencyDrag, true);
 }
 
 // --- Drag: Move ---
