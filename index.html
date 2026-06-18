@@ -416,12 +416,20 @@
     position: relative;
   }
   .track-list > .track-label-row:last-child { border-bottom: none; }
+  .track-controls {
+    flex: 0 0 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+  }
   .track-drag-handle {
     cursor: grab;
     color: #bbb;
     font-size: 1rem;
     line-height: 1;
-    padding: 0 4px 0 0;
+    padding: 0;
     flex: 0 0 auto;
     user-select: none;
     display: flex;
@@ -444,7 +452,10 @@
     cursor: pointer;
     font-family: inherit;
     font-size: 0.75rem;
-    padding: 0.05rem 0.2rem;
+    line-height: 1;
+    padding: 0;
+    width: 16px;
+    height: 14px;
   }
   .track-delete-btn:hover { color: #dc2626; }
   .track-add-row {
@@ -1467,7 +1478,7 @@ const TRACK_PANEL_MIN_W = 96;
 const HEADER_W_MIN = 240;       // min width that still wraps name/capacity/tags nicely
 const HEADER_W_MAX = 720;
 const COLORS = 18;
-const ROW_H_MIN = 30;
+const ROW_H_MIN = 36;
 const ROW_H_DEFAULT = 40;
 const ROW_H_MAX = 360;
 const BLOCK_COMPACT_ROW_H = 38;
@@ -2134,19 +2145,8 @@ function buildTrackList(row) {
     item.dataset.trackId = track.id;
     item.style.setProperty('--track-h', (track.height || ROW_H_DEFAULT) + 'px');
 
-    const handle = document.createElement('span');
-    handle.className = 'track-drag-handle';
-    handle.textContent = '⠿';
-    handle.title = 'Drag to reorder track';
-    item.appendChild(handle);
-
-    const input = document.createElement('input');
-    input.className = 'track-label-input';
-    input.value = track.label || '';
-    input.placeholder = 'Track';
-    input.addEventListener('mousedown', e => e.stopPropagation());
-    input.addEventListener('input', e => { track.label = e.target.value; renderDataPane(); renderStats(); saveState(); });
-    item.appendChild(input);
+    const controls = document.createElement('div');
+    controls.className = 'track-controls';
 
     const del = document.createElement('button');
     del.className = 'track-delete-btn';
@@ -2155,7 +2155,22 @@ function buildTrackList(row) {
     del.title = 'Delete track';
     del.addEventListener('mousedown', e => e.stopPropagation());
     del.addEventListener('click', e => { e.stopPropagation(); deleteTrack(row, track.id); });
-    item.appendChild(del);
+    controls.appendChild(del);
+
+    const handle = document.createElement('span');
+    handle.className = 'track-drag-handle';
+    handle.textContent = '⠿';
+    handle.title = 'Drag to reorder track';
+    controls.appendChild(handle);
+    item.appendChild(controls);
+
+    const input = document.createElement('input');
+    input.className = 'track-label-input';
+    input.value = track.label || '';
+    input.placeholder = 'Track';
+    input.addEventListener('mousedown', e => e.stopPropagation());
+    input.addEventListener('input', e => { track.label = e.target.value; renderDataPane(); renderStats(); saveState(); });
+    item.appendChild(input);
 
     // Drag the divider below this track label to resize the track, matching the
     // resize handle on the timeline lane for the same dividing line.
