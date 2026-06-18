@@ -418,11 +418,8 @@
   .track-list > .track-label-row:last-child { border-bottom: none; }
   .track-controls {
     flex: 0 0 18px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 1px;
+    align-self: stretch;
+    position: relative;
   }
   .track-drag-handle {
     cursor: grab;
@@ -430,12 +427,15 @@
     font-size: 1rem;
     line-height: 1;
     padding: 0;
-    flex: 0 0 auto;
     user-select: none;
     display: flex;
     align-items: center;
     justify-content: center;
     min-width: 16px;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
   }
   .track-drag-handle:hover { color: #999; }
   .track-label-input {
@@ -456,6 +456,10 @@
     padding: 0;
     width: 16px;
     height: 14px;
+    position: absolute;
+    left: 50%;
+    top: 4px;
+    transform: translateX(-50%);
   }
   .track-delete-btn:hover { color: #dc2626; }
   .track-add-row {
