@@ -2141,6 +2141,9 @@ let panState = null; // { startX, startScrollLeft }
 
 function startPan(e) {
  if (viewMode === 'data') return;
+ // Timeline panning is only initiated from the date/header area, never from the
+ // empty grid where drag gestures create blocks.
+ if (!e.target.closest('.col-header, .month-span, .week-span')) return;
  if (e.target.closest('input, select, button, textarea')) return;
  if (e.target.closest('.block') || e.target.closest('.handle-left') || e.target.closest('.handle-right')) return;
  const gridEl = document.getElementById('grid-area');
@@ -3180,6 +3183,7 @@ function _render() {
       cells.addEventListener('mousedown', (e) => {
         if (e.target.closest('.block') || e.target.closest('.row-resize')) return;
         if (e.button !== 0) return;
+        e.stopPropagation();
         const rect = cells.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const col = Math.floor(x / dayPx());
