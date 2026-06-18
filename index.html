@@ -3301,6 +3301,17 @@ function reorderTracks(row, orderedIds) {
   return true;
 }
 
+function syncTrackGridOrder(rowId, orderedIds) {
+  const stack = document.querySelector(`.resource-group[data-row-id="${rowId}"] .resource-track-stack`);
+  if (!stack || !orderedIds.length) return;
+  const addLane = stack.querySelector('.track-add-lane');
+  orderedIds.forEach(trackId => {
+    const trackRow = stack.querySelector(`.track-grid-row[data-track-id="${trackId}"]`);
+    if (trackRow) stack.insertBefore(trackRow, addLane || null);
+  });
+  if (addLane) stack.appendChild(addLane);
+}
+
 function startTrackDragOverlay(rowId, trackId, originalEvent) {
   cleanupTrackDragOverlay();
   const labelRow = document.querySelector(`.track-list[data-row-id="${rowId}"] .track-label-row[data-track-id="${trackId}"]`);
@@ -3385,10 +3396,15 @@ function setupTrackSortables() {
         document.body.classList.add('row-reordering-sortable');
         startTrackDragOverlay(row.id, evt.item?.dataset?.trackId, evt.originalEvent);
       },
+      onChange() {
+        const orderedIds = [...list.querySelectorAll('.track-label-row[data-track-id]')].map(el => el.dataset.trackId);
+        syncTrackGridOrder(row.id, orderedIds);
+      },
       onEnd() {
         document.body.classList.remove('row-reordering-sortable');
         cleanupTrackDragOverlay();
         const orderedIds = [...list.querySelectorAll('.track-label-row[data-track-id]')].map(el => el.dataset.trackId);
+        syncTrackGridOrder(row.id, orderedIds);
         reorderTracks(row, orderedIds);
       },
     }));
