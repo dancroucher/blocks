@@ -3329,19 +3329,32 @@ function startTrackDragOverlay(rowId, trackId, originalEvent) {
   labelRow.classList.add('track-sortable-source');
   const startY = originalEvent.clientY || 0;
   const startTop = gridRect.top;
-  const move = (ev) => {
-    const clientY = ev.clientY ?? startY;
+  const positionOverlay = (ev = null) => {
+    const draggedHeader = document.querySelector('.track-label-row.sortable-fallback, .track-label-row.row-sortable-drag, .track-label-row.row-sortable-chosen');
+    if (draggedHeader && draggedHeader !== overlay.querySelector('.track-label-row')) {
+      const rect = draggedHeader.getBoundingClientRect();
+      overlay.style.left = rect.left + 'px';
+      overlay.style.top = rect.top + 'px';
+      return;
+    }
+    const clientY = ev?.clientY ?? startY;
     overlay.style.top = (startTop + clientY - startY) + 'px';
+  };
+  const move = (ev) => positionOverlay(ev);
+  const tick = () => {
+    positionOverlay();
+    if (_trackDragOverlay) _trackDragOverlay.frame = requestAnimationFrame(tick);
   };
   document.addEventListener('pointermove', move, true);
   document.addEventListener('mousemove', move, true);
-  _trackDragOverlay = { overlay, labelRow, gridRow, move };
+  _trackDragOverlay = { overlay, labelRow, gridRow, move, frame: requestAnimationFrame(tick) };
 }
 
 function cleanupTrackDragOverlay() {
   if (!_trackDragOverlay) return;
   document.removeEventListener('pointermove', _trackDragOverlay.move, true);
   document.removeEventListener('mousemove', _trackDragOverlay.move, true);
+  if (_trackDragOverlay.frame) cancelAnimationFrame(_trackDragOverlay.frame);
   _trackDragOverlay.labelRow?.classList?.remove('track-sortable-source');
   _trackDragOverlay.gridRow?.classList?.remove('track-sortable-source');
   _trackDragOverlay.overlay?.remove();
