@@ -1238,6 +1238,16 @@
   .combined-blocks .block-table tr.data-block-row input.base-days-input { appearance: textfield; -moz-appearance: textfield; }
   .combined-blocks .block-table tr.data-block-row input.base-days-input::-webkit-outer-spin-button,
   .combined-blocks .block-table tr.data-block-row input.base-days-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .combined-blocks .block-table tr.data-block-row .data-block-name-input {
+    background: transparent;
+    border-color: transparent;
+    color: inherit;
+    font-size: 0.85rem;
+    font-weight: 500;
+    padding: 0;
+  }
+  .combined-blocks .block-table tr.data-block-row .data-block-name-input::placeholder { color: rgba(255,255,255,0.72); }
+  .combined-blocks .block-table tr.data-block-row .data-block-name-input:focus { outline: none; border-color: transparent; }
   .combined-blocks .block-table tr.data-block-row .combined-meta { color: rgba(255,255,255,0.9); }
   .combined-blocks .block-table tr.data-block-row .capacity-adjusted { color: rgba(255,255,255,0.82); opacity: 1; }
   .combined-name-cell { display: flex; align-items: center; gap: 0.45rem; }
@@ -2504,6 +2514,7 @@ function appendBlockEditRow(tbody, block) {
   const nameWrap = document.createElement('div');
   nameWrap.className = 'combined-name-cell';
   const labelInput = document.createElement('input');
+  labelInput.className = 'data-block-name-input';
   labelInput.value = block.label || '';
   labelInput.placeholder = 'Untitled';
   labelInput.onchange = () => { block.label = labelInput.value.trim(); render(); saveState(); };
