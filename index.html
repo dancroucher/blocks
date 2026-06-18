@@ -766,7 +766,9 @@
     background: var(--bg);
     box-sizing: border-box;
   }
-  .block:hover .dependency-handle {
+  .block:hover > .dependency-handle,
+  .block-contingency:hover > .dependency-handle,
+  .capacity-block:hover > .dependency-handle {
     opacity: 1;
     pointer-events: auto;
   }
@@ -3177,12 +3179,14 @@ function _render() {
       daysBadge.replaceChildren(fmtBlockDuration(block));
       bEl.appendChild(daysBadge);
 
-      const dependencyHandle = document.createElement('span');
-      dependencyHandle.className = 'dependency-handle';
-      dependencyHandle.title = 'Create dependency';
-      dependencyHandle.addEventListener('pointerdown', e => e.stopPropagation());
-      dependencyHandle.addEventListener('click', e => e.stopPropagation());
-      bEl.appendChild(dependencyHandle);
+      const makeDependencyHandle = () => {
+        const dependencyHandle = document.createElement('span');
+        dependencyHandle.className = 'dependency-handle';
+        dependencyHandle.title = 'Create dependency';
+        dependencyHandle.addEventListener('pointerdown', e => e.stopPropagation());
+        dependencyHandle.addEventListener('click', e => e.stopPropagation());
+        return dependencyHandle;
+      };
 
       if (!isDataBlock(block)) {
         const hl = document.createElement('div');
@@ -3227,6 +3231,7 @@ function _render() {
       const baseExtraDays = contingencyPct > 0 ? Math.round(baseDuration * contingencyPct / 100) : 0;
       const capacityExtraDays = Math.max(0, extraDays - baseExtraDays);
 
+      let lastVisualSegment = bEl;
       if (baseExtraDays > 0) {
         const cEl = document.createElement('div');
         cEl.className = `block-contingency block-color-${block.color}`;
@@ -3243,6 +3248,7 @@ function _render() {
           showBlockContextMenu(e, block.id);
         });
         bEl.appendChild(cEl);
+        lastVisualSegment = cEl;
       }
 
       const capacityVisualDays = capacityDays + capacityExtraDays;
@@ -3262,7 +3268,9 @@ function _render() {
           showBlockContextMenu(e, block.id);
         });
         cells.appendChild(capEl);
+        lastVisualSegment = capEl;
       }
+      lastVisualSegment.appendChild(makeDependencyHandle());
     });
 
     group.appendChild(trackStack);
