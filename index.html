@@ -854,9 +854,12 @@
     top: 0;
     height: 100%;
     background: rgba(128,128,128,0.18);
-    pointer-events: none;
+    pointer-events: auto;
+    cursor: grab;
     z-index: 1;
   }
+  .capacity-block:active,
+  .contingency-capacity-extension:active { cursor: grabbing; }
   .capacity-block {
     height: calc(100% - 6px);
     top: 3px;
@@ -1030,9 +1033,11 @@
     height: 100%;
     top: 0;
     border-radius: 0 2px 2px 0;
-    pointer-events: none;
+    pointer-events: auto;
+    cursor: grab;
     z-index: 1;
   }
+  .block-contingency:active { cursor: grabbing; }
 
   .block-contingency.block-color-0 { background: #a75e73; }
   .block-contingency.block-color-1 { background: #b56554; }
@@ -3124,6 +3129,15 @@ function _render() {
         cEl.dataset.contingencyFor = block.id;
         cEl.style.left = (baseDuration * dayPx() - 2) + 'px';
         cEl.style.width = (baseExtraDays * dayPx()) + 'px';
+        cEl.addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          startMove(e, block.id);
+        });
+        cEl.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          showBlockContextMenu(e, block.id);
+        });
         bEl.appendChild(cEl);
       }
 
@@ -3134,6 +3148,15 @@ function _render() {
         capEl.dataset.capacityFor = block.id;
         capEl.style.left = ((block.start + baseDuration + baseExtraDays) * dayPx()) + 'px';
         capEl.style.width = (capacityVisualDays * dayPx() - 2) + 'px';
+        capEl.addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          startMove(e, block.id);
+        });
+        capEl.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          showBlockContextMenu(e, block.id);
+        });
         cells.appendChild(capEl);
       }
     });
