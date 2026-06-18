@@ -141,7 +141,7 @@
     .combined-blocks .block-table th { font-size: 0.6rem; letter-spacing: 0.02em; }
     .block-table input,
     .block-table select { font-size: 0.74rem; padding: 0.16rem 0.2rem; min-width: 0; }
-    .block-table input[type="date"]::-webkit-calendar-picker-indicator { display: none; }
+    .block-table input[type="date"]::-webkit-calendar-picker-indicator { filter: brightness(0) invert(1); opacity: 1; }
     .combined-meta { font-size: 0.68rem; white-space: normal; }
     .combined-name-cell { gap: 0.3rem; }
   }
@@ -1218,13 +1218,17 @@
   .combined-blocks .block-table tr.data-block-row td { background: inherit; color: #fff; border-bottom-color: rgba(255,255,255,0.22); }
   .combined-blocks .block-table tr.data-block-row input,
   .combined-blocks .block-table tr.data-block-row select {
-    background: rgba(255,255,255,0.12);
-    border-color: rgba(255,255,255,0.34);
-    color: #fff;
+    background: #f1f1f1;
+    border-color: rgba(255,255,255,0.72);
+    color: #333;
   }
-  .combined-blocks .block-table tr.data-block-row input::placeholder { color: rgba(255,255,255,0.72); }
-  .combined-blocks .block-table tr.data-block-row .combined-meta { color: rgba(255,255,255,0.86); }
-  .combined-blocks .block-table tr.data-block-row .danger { color: #fff; background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.34); }
+  .combined-blocks .block-table tr.data-block-row input::placeholder { color: #777; }
+  .combined-blocks .block-table tr.data-block-row input[type="date"]::-webkit-calendar-picker-indicator { filter: brightness(0) invert(1); opacity: 1; }
+  .combined-blocks .block-table tr.data-block-row input.base-days-input { appearance: textfield; -moz-appearance: textfield; }
+  .combined-blocks .block-table tr.data-block-row input.base-days-input::-webkit-outer-spin-button,
+  .combined-blocks .block-table tr.data-block-row input.base-days-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .combined-blocks .block-table tr.data-block-row .combined-meta { color: rgba(255,255,255,0.9); }
+  .combined-blocks .block-table tr.data-block-row .capacity-adjusted { color: rgba(255,255,255,0.82); opacity: 1; }
   .combined-name-cell { display: flex; align-items: center; gap: 0.45rem; }
   .combined-meta { color: var(--dim); font-size: 0.74rem; white-space: nowrap; }
   .combined-empty { padding: 0.9rem 1rem; color: var(--dim); font-size: 0.85rem; border-bottom: 1px solid var(--border); }
@@ -2468,7 +2472,12 @@ function renderTableDataSection(view) {
 function appendBlockEditRow(tbody, block) {
   const tr = document.createElement('tr');
   tr.className = `data-block-row block-color-${block.color}`;
-  tr.title = 'Right-click block in map to change colour';
+  tr.title = 'Right-click for block options';
+  tr.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    showBlockContextMenu(e, block.id);
+  });
 
   const labelTd = document.createElement('td');
   const nameWrap = document.createElement('div');
@@ -2505,6 +2514,8 @@ function appendBlockEditRow(tbody, block) {
   const daysTd = document.createElement('td');
   const daysInput = document.createElement('input');
   daysInput.type = 'number';
+  daysInput.inputMode = 'numeric';
+  daysInput.className = 'base-days-input';
   daysInput.min = '1';
   daysInput.value = getBlockBaseDuration(block);
   daysInput.onchange = () => { setBlockBaseDuration(block, daysInput.value); render(); saveState(); };
@@ -2515,15 +2526,6 @@ function appendBlockEditRow(tbody, block) {
   scheduledTd.className = 'combined-meta';
   scheduledTd.replaceChildren(fmtBlockDuration(block));
   tr.appendChild(scheduledTd);
-
-  const delTd = document.createElement('td');
-  const delBtn = document.createElement('button');
-  delBtn.className = 'danger block-del-btn';
-  delBtn.textContent = '×';
-  delBtn.title = 'Delete block';
-  delBtn.onclick = () => deleteBlock(block.id);
-  delTd.appendChild(delBtn);
-  tr.appendChild(delTd);
 
   tbody.appendChild(tr);
 }
@@ -2581,12 +2583,11 @@ function renderCombinedBlocksView(view) {
     const table = document.createElement('table');
     table.className = 'block-table';
     table.innerHTML = `<thead><tr>
-      <th style="width:36%">Name</th>
-      <th style="width:16%">Start</th>
-      <th style="width:16%">End</th>
-      <th style="width:11%">Base days</th>
-      <th style="width:16%">Shown days</th>
-      <th style="width:5%"></th>
+      <th style="width:40%">Name</th>
+      <th style="width:17%">Start</th>
+      <th style="width:17%">End</th>
+      <th style="width:12%">Base days</th>
+      <th style="width:14%">Shown days</th>
     </tr></thead>`;
     const tbody = document.createElement('tbody');
     getRowTracks(row).forEach(track => {
@@ -2594,7 +2595,7 @@ function renderCombinedBlocksView(view) {
       const trackRow = document.createElement('tr');
       trackRow.className = 'combined-track-title-row';
       const trackCell = document.createElement('td');
-      trackCell.colSpan = 6;
+      trackCell.colSpan = 5;
       trackCell.textContent = track.label || 'Track';
       trackRow.appendChild(trackCell);
       tbody.appendChild(trackRow);
@@ -2602,7 +2603,7 @@ function renderCombinedBlocksView(view) {
         const emptyRow = document.createElement('tr');
         emptyRow.className = 'combined-empty-row';
         const emptyCell = document.createElement('td');
-        emptyCell.colSpan = 6;
+        emptyCell.colSpan = 5;
         emptyCell.textContent = 'No blocks in this track';
         emptyRow.appendChild(emptyCell);
         tbody.appendChild(emptyRow);
