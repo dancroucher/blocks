@@ -1432,9 +1432,14 @@ function dayPx() {
 // is only meaningful for day/week.
 function isDayLikeZoom() { return zoom === 'day' || zoom === 'day-large' || zoom === 'day-half'; }
 function daysPerCell() { return zoom === 'week' ? 5 : 1; }
+// Fixed left chrome inside .row-header-main that sits before the two resizable
+// columns: the ⠿ drag handle (border-box ~20px) plus row-header-main's 0.4rem
+// padding-left. headerWidth must reserve this or the track panel (and its
+// right-aligned ×/+ Track buttons) overflow past the header into the timeline.
+const HEADER_CHROME_W = 28;
 const ROW_HEADER_W = 300;       // default header column width
 const RESOURCE_SUMMARY_W = 112; // default width of the name/capacity/tags cell
-const TRACK_PANEL_W = ROW_HEADER_W - RESOURCE_SUMMARY_W;
+const TRACK_PANEL_W = ROW_HEADER_W - HEADER_CHROME_W - RESOURCE_SUMMARY_W;
 const RESOURCE_NAME_MAX_CHARS = 16;
 const TAG_MAX_CHARS = 24;
 const SUMMARY_W_MIN = 88;
@@ -1923,7 +1928,7 @@ function loadViewPrefs(saved) {
   if (typeof src.splitPct === 'number') splitPct = Math.max(20, Math.min(80, src.splitPct));
   if (typeof src.resourceSummaryWidth === 'number') resourceSummaryWidth = src.resourceSummaryWidth;
   if (typeof src.resourceTrackPanelWidth === 'number') resourceTrackPanelWidth = src.resourceTrackPanelWidth;
-  else if (typeof src.headerWidth === 'number') resourceTrackPanelWidth = Math.max(TRACK_PANEL_MIN_W, src.headerWidth - resourceSummaryWidth);
+  else if (typeof src.headerWidth === 'number') resourceTrackPanelWidth = Math.max(TRACK_PANEL_MIN_W, src.headerWidth - HEADER_CHROME_W - resourceSummaryWidth);
 }
 
 let rows = [
@@ -3248,7 +3253,7 @@ function clampResourceHeaderColumns() {
   const minForName = Math.max(SUMMARY_W_MIN, resourceNameMinWidth());
   resourceSummaryWidth = Math.max(minForName, Math.min(SUMMARY_W_MAX, Math.round(resourceSummaryWidth)));
   resourceTrackPanelWidth = Math.max(TRACK_PANEL_MIN_W, Math.min(HEADER_W_MAX, Math.round(resourceTrackPanelWidth)));
-  headerWidth = Math.max(HEADER_W_MIN, resourceSummaryWidth + resourceTrackPanelWidth);
+  headerWidth = Math.max(HEADER_W_MIN, HEADER_CHROME_W + resourceSummaryWidth + resourceTrackPanelWidth);
 }
 
 function applyHeaderWidth() {
