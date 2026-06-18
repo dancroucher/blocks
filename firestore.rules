@@ -16,12 +16,13 @@ service cloud.firestore {
       ];
     }
 
-    // Keys older clients still write (rowHeights, panelWidth, view prefs).
-    // Allowed but no longer required, so stale open tabs keep working.
+    // Keys older clients still write (rowHeights, panelWidth, view prefs), plus
+    // newer optional features such as dependency links. Allowed but no longer
+    // required, so stale open tabs keep working.
     function optionalStateKeys() {
       return [
         'zoom', 'panelWidth', 'headerWidth', 'resourceSummaryWidth',
-        'collapsedRows', 'rowHeights'
+        'collapsedRows', 'rowHeights', 'dependencies'
       ];
     }
 
@@ -59,6 +60,9 @@ service cloud.firestore {
         && request.resource.data.rows.size() <= 200
         && request.resource.data.blocks is list
         && request.resource.data.blocks.size() <= 2000
+        && (!('dependencies' in request.resource.data)
+            || (request.resource.data.dependencies is list
+                && request.resource.data.dependencies.size() <= 5000))
         && request.resource.data.nextBlockId is int
         && request.resource.data.nextBlockId >= 1
         && request.resource.data.nextRowId is int
