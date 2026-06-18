@@ -808,6 +808,7 @@
     stroke-linejoin: round;
     filter: drop-shadow(0 1px 2px rgba(0,0,0,0.18));
   }
+  .dependency-arrow-line.snapped { stroke: #f6b05f; }
 
   .block.dragging {
     opacity: 0.9;
@@ -1853,11 +1854,21 @@ function sanitizeState(data) {
     }))
     .filter(block => rowIds.size === 0 || rowIds.has(block.rowId));
 
+  const blockIds = new Set(cleanBlocks.map(block => block.id));
+  const cleanDependencies = Array.isArray(data.dependencies)
+    ? data.dependencies
+      .filter(dep => dep && typeof dep === 'object')
+      .map(dep => ({ from: toPositiveInt(dep.from || dep.fromId || dep.sourceId, 0), to: toPositiveInt(dep.to || dep.toId || dep.targetId, 0) }))
+      .filter(dep => dep.from && dep.to && dep.from !== dep.to && blockIds.has(dep.from) && blockIds.has(dep.to))
+      .filter((dep, idx, arr) => arr.findIndex(other => other.from === dep.from && other.to === dep.to) === idx)
+    : [];
+
   return {
     ...data,
     version: toPositiveInt(data.version, STATE_VERSION),
     rows: cleanRows,
     blocks: cleanBlocks,
+    dependencies: cleanDependencies,
     nextBlockId: toPositiveInt(data.nextBlockId, cleanBlocks.reduce((m, b) => Math.max(m, b.id), 0) + 1),
     nextRowId: toPositiveInt(data.nextRowId, cleanRows.reduce((m, r) => Math.max(m, r.id), 0) + 1),
     contingencyPct: Math.max(0, Math.min(100, toNonNegativeInt(data.contingencyPct, 0))),
@@ -1888,6 +1899,7 @@ function snapshotState() {
     // View prefs (zoom, header widths) are per-client in localStorage, not here.
     rows,
     blocks: blocks.map(stripTransient),
+    dependencies,
     nextBlockId, nextRowId, contingencyPct,
     projectStart: projectStart.toISOString(),
     savedAt: now,
@@ -2005,7 +2017,7 @@ function saveState() {
 // the stash (last-writer-wins; our write echoes to the other clients).
 let _pendingRemote = null;
 function uiBusy() {
-  return !!(_pointerDragging || dragState || createState || _saveTimer || _hasPendingLocalSave);
+  return !!(_pointerDragging || dragState || dependencyDragState || createState || _saveTimer || _hasPendingLocalSave);
 }
 function flushPendingRemote() {
   if (!_pendingRemote || uiBusy()) return;
@@ -2043,6 +2055,7 @@ function applyRemoteState(data) {
   if (!data || typeof data !== 'object') return;
   if (data.rows)     { rows           = data.rows; }
   if (data.blocks)   { blocks         = data.blocks; }
+  if (Array.isArray(data.dependencies)) dependencies = data.dependencies;
   if (data.nextBlockId != null) nextBlockId = data.nextBlockId;
   if (data.nextRowId != null)   nextRowId   = data.nextRowId;
   if (data.contingencyPct != null) contingencyPct = data.contingencyPct;
@@ -2102,6 +2115,7 @@ let rows = [
   makeRow(5),
 ];
 let blocks = [];
+let dependencies = [];
 let nextBlockId = 1;
 let nextRowId = 6;
 let contingencyPct = 0;
@@ -2412,6 +2426,13 @@ function normalizeBlocks() {
     }
     block.duration = adjustedDurationForCapacity(block.baseDuration, 100, getRowCapacity(row));
   });
+  normalizeDependencies();
+}
+function normalizeDependencies() {
+  const blockIds = new Set(blocks.map(block => block.id));
+  dependencies = (Array.isArray(dependencies) ? dependencies : [])
+    .filter(dep => dep && blockIds.has(dep.from) && blockIds.has(dep.to) && dep.from !== dep.to)
+    .filter((dep, idx, arr) => arr.findIndex(other => other.from === dep.from && other.to === dep.to) === idx);
 }
 function isDataBlock(block) { return block && block.kind === 'data'; }
 function setBlockBaseDuration(block, baseDuration) {
@@ -3749,6 +3770,7 @@ function createBlock(rowId, startCol, duration, label, durationIsScheduled = fal
 
 function deleteBlock(id) {
   blocks = blocks.filter(b => b.id !== id);
+  dependencies = dependencies.filter(dep => dep.from !== id && dep.to !== id);
   render();
   saveState();
 }
@@ -3762,6 +3784,7 @@ function deleteResource(rowId) {
   if (!confirm(`Delete resource "${resourceName}"?${detail}`)) return;
   rows = rows.filter(r => r.id !== rowId);
   blocks = blocks.filter(b => b.rowId !== rowId);
+  normalizeDependencies();
   if (!rows.length) rows.push(makeRow(nextRowId++));
   render();
   renderStats();
@@ -3975,19 +3998,56 @@ function dependencyPathD(x1, y1, x2, y2) {
   return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
 }
 
+function dependencyTargetAtPoint(x, y, sourceId) {
+  for (const el of document.elementsFromPoint(x, y)) {
+    const blockEl = el.closest?.('.block[data-block-id]');
+    if (blockEl) {
+      const id = parseInt(blockEl.dataset.blockId);
+      if (id && id !== sourceId) return { id, el: blockEl };
+    }
+    const capacityId = el.dataset?.capacityFor ? parseInt(el.dataset.capacityFor) : null;
+    if (capacityId && capacityId !== sourceId) {
+      const capBlockEl = document.querySelector(`.block[data-block-id="${capacityId}"]`);
+      if (capBlockEl) return { id: capacityId, el: capBlockEl };
+    }
+  }
+  return null;
+}
+
 function updateDependencyArrow(e) {
   if (!dependencyDragState) return;
+  const snap = dependencyTargetAtPoint(e.clientX, e.clientY, dependencyDragState.blockId);
+  let endX = e.clientX;
+  let endY = e.clientY;
+  dependencyDragState.snapTargetId = null;
+  if (snap) {
+    const rect = snap.el.getBoundingClientRect();
+    endX = rect.left;
+    endY = rect.top + rect.height / 2;
+    dependencyDragState.snapTargetId = snap.id;
+  }
+  dependencyDragState.path.classList.toggle('snapped', !!snap);
+  dependencyDragState.markerPath.setAttribute('fill', snap ? '#f6b05f' : 'rgba(84,80,76,0.92)');
   dependencyDragState.path.setAttribute('d', dependencyPathD(
     dependencyDragState.startX,
     dependencyDragState.startY,
-    e.clientX,
-    e.clientY
+    endX,
+    endY
   ));
+}
+
+function addDependency(from, to) {
+  if (!from || !to || from === to) return false;
+  if (dependencies.some(dep => dep.from === from && dep.to === to)) return false;
+  dependencies.push({ from, to });
+  return true;
 }
 
 function endDependencyDrag(e) {
   if (!dependencyDragState) return;
   updateDependencyArrow(e);
+  const from = dependencyDragState.blockId;
+  const to = dependencyDragState.snapTargetId;
   dependencyDragState.handle.classList.remove('dependency-dragging');
   dependencyDragState.svg.remove();
   document.body.style.cursor = '';
@@ -3995,6 +4055,7 @@ function endDependencyDrag(e) {
   document.removeEventListener('pointerup', endDependencyDrag, true);
   document.removeEventListener('pointercancel', endDependencyDrag, true);
   dependencyDragState = null;
+  if (to && addDependency(from, to)) saveState();
 }
 
 function startDependencyDrag(e, blockId) {
@@ -4017,7 +4078,8 @@ function startDependencyDrag(e, blockId) {
   `;
   document.body.appendChild(svg);
   const path = svg.querySelector('.dependency-arrow-line');
-  dependencyDragState = { blockId, handle, svg, path, startX, startY };
+  const markerPath = svg.querySelector('marker path');
+  dependencyDragState = { blockId, handle, svg, path, markerPath, startX, startY, snapTargetId: null };
   handle.classList.add('dependency-dragging');
   document.body.style.cursor = 'grabbing';
   updateDependencyArrow(e);
@@ -4565,6 +4627,7 @@ async function init() {
     // Track heights come through saved.rows (sanitizeState seeds legacy rows
     // from the old rowHeights map); the map itself is never used at runtime.
     blocks = saved.blocks || [];
+    dependencies = saved.dependencies || [];
     // v1 state had no version field and used calendar-day columns.
     if (!saved.version || saved.version < 2) {
       blocks = migrateV1ToV2(blocks);
