@@ -4037,7 +4037,7 @@ function renderDependencyArrows(wrapper = gridWrapper) {
   svg.setAttribute('height', Math.max(wrapper.scrollHeight || 0, wrapperRect.height || 0));
   svg.innerHTML = `
     <defs>
-      <marker id="persisted-dependency-arrow-head" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto" markerUnits="strokeWidth">
+      <marker id="persisted-dependency-arrow-head" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
         <path d="M 0 0 L 6 3 L 0 6 z" fill="#f6b05f"></path>
       </marker>
     </defs>
@@ -4050,7 +4050,7 @@ function renderDependencyArrows(wrapper = gridWrapper) {
     const targetRect = targetEl.getBoundingClientRect();
     const x1 = sourceRect.right - wrapperRect.left;
     const y1 = sourceRect.top + sourceRect.height / 2 - wrapperRect.top;
-    const x2 = targetRect.left + targetRect.width / 2 - wrapperRect.left;
+    const x2 = targetRect.left - wrapperRect.left;
     const y2 = targetRect.top + targetRect.height / 2 - wrapperRect.top;
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.classList.add('dependency-arrow-line');
@@ -4139,7 +4139,7 @@ function startDependencyDrag(e, blockId) {
   svg.classList.add('dependency-arrow-layer');
   svg.innerHTML = `
     <defs>
-      <marker id="dependency-arrow-head" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto" markerUnits="strokeWidth">
+      <marker id="dependency-arrow-head" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
         <path d="M 0 0 L 6 3 L 0 6 z" fill="rgba(84,80,76,0.92)"></path>
       </marker>
     </defs>
