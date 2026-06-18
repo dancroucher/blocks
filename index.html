@@ -1102,9 +1102,11 @@
     box-shadow: 0 20px 50px rgba(0,0,0,0.24);
   }
   .track-sortable-source { opacity: 0.35; }
-  body.track-reordering-sortable .track-label-row.sortable-fallback,
-  body.track-reordering-sortable .track-label-row.row-sortable-drag {
+  body.track-reordering-sortable .sortable-fallback,
+  body.track-reordering-sortable .track-sortable-fallback,
+  body.track-reordering-sortable .row-sortable-drag {
     opacity: 0 !important;
+    visibility: hidden !important;
     box-shadow: none !important;
   }
   .track-drag-overlay {
@@ -3393,10 +3395,14 @@ function setupTrackSortables() {
       ghostClass: 'row-sortable-ghost',
       chosenClass: 'row-sortable-chosen',
       dragClass: 'row-sortable-drag',
+      fallbackClass: 'track-sortable-fallback',
       fallbackOnBody: true,
       swapThreshold: 0.65,
       preventOnFilter: false,
       filter: '.track-delete-btn',
+      onClone(evt) {
+        if (evt.clone) evt.clone.style.visibility = 'hidden';
+      },
       onStart(evt) {
         document.body.classList.add('row-reordering-sortable', 'track-reordering-sortable');
         startTrackDragOverlay(row.id, evt.item?.dataset?.trackId, evt.originalEvent);
