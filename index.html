@@ -1104,7 +1104,9 @@
   .track-sortable-source { opacity: 0.35; }
   body.track-reordering-sortable .sortable-fallback,
   body.track-reordering-sortable .track-sortable-fallback,
-  body.track-reordering-sortable .row-sortable-drag {
+  body.track-reordering-sortable .track-label-row.row-sortable-drag,
+  body > .track-sortable-fallback,
+  body > .track-label-row.sortable-fallback {
     opacity: 0 !important;
     visibility: hidden !important;
     box-shadow: none !important;
@@ -3376,6 +3378,8 @@ function cleanupTrackDragOverlay() {
   _trackDragOverlay.labelRow?.classList?.remove('track-sortable-source');
   _trackDragOverlay.gridRow?.classList?.remove('track-sortable-source');
   _trackDragOverlay.overlay?.remove();
+  document.querySelectorAll('body > .track-sortable-fallback, body > .track-label-row.sortable-fallback, body > .track-label-row.row-sortable-drag')
+    .forEach(el => el.remove());
   _trackDragOverlay = null;
 }
 
@@ -3397,11 +3401,12 @@ function setupTrackSortables() {
       dragClass: 'row-sortable-drag',
       fallbackClass: 'track-sortable-fallback',
       fallbackOnBody: true,
+      forceFallback: true,
       swapThreshold: 0.65,
       preventOnFilter: false,
       filter: '.track-delete-btn',
       onClone(evt) {
-        if (evt.clone) evt.clone.style.visibility = 'hidden';
+        if (evt.clone) evt.clone.style.cssText += ';visibility:hidden!important;opacity:0!important;box-shadow:none!important;';
       },
       onStart(evt) {
         document.body.classList.add('row-reordering-sortable', 'track-reordering-sortable');
