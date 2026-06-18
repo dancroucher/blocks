@@ -808,6 +808,10 @@
     z-index: 7;
     overflow: visible;
   }
+  .dependency-lines-layer .dependency-arrow-line {
+    pointer-events: stroke;
+    cursor: context-menu;
+  }
   .dependency-arrow-line {
     stroke: rgba(84,80,76,0.92);
     stroke-width: 3;
@@ -3247,6 +3251,7 @@ function _render() {
       bEl.appendChild(daysBadge);
 
       const makeDependencyHandle = () => {
+        if (dependencies.some(dep => dep.from === block.id)) return null;
         const dependencyHandle = document.createElement('span');
         dependencyHandle.className = 'dependency-handle';
         dependencyHandle.title = 'Drag to create dependency';
@@ -3341,14 +3346,16 @@ function _render() {
         dependencyHoverSegments.push(capEl);
       }
       const dependencyHandle = makeDependencyHandle();
-      lastVisualSegment.appendChild(dependencyHandle);
-      const isInDependencyVisual = node => dependencyHoverSegments.some(seg => seg.contains(node));
-      dependencyHoverSegments.forEach(seg => {
-        seg.addEventListener('mouseenter', () => lastVisualSegment.classList.add('dependency-handle-visible'));
-        seg.addEventListener('mouseleave', e => {
-          if (!isInDependencyVisual(e.relatedTarget)) lastVisualSegment.classList.remove('dependency-handle-visible');
+      if (dependencyHandle) {
+        lastVisualSegment.appendChild(dependencyHandle);
+        const isInDependencyVisual = node => dependencyHoverSegments.some(seg => seg.contains(node));
+        dependencyHoverSegments.forEach(seg => {
+          seg.addEventListener('mouseenter', () => lastVisualSegment.classList.add('dependency-handle-visible'));
+          seg.addEventListener('mouseleave', e => {
+            if (!isInDependencyVisual(e.relatedTarget)) lastVisualSegment.classList.remove('dependency-handle-visible');
+          });
         });
-      });
+      }
     });
 
     group.appendChild(trackStack);
@@ -4043,12 +4050,15 @@ function renderDependencyArrows(wrapper = gridWrapper) {
     const targetRect = targetEl.getBoundingClientRect();
     const x1 = sourceRect.right - wrapperRect.left;
     const y1 = sourceRect.top + sourceRect.height / 2 - wrapperRect.top;
-    const x2 = targetRect.left - wrapperRect.left;
+    const x2 = targetRect.left + targetRect.width / 2 - wrapperRect.left;
     const y2 = targetRect.top + targetRect.height / 2 - wrapperRect.top;
     const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     path.classList.add('dependency-arrow-line');
+    path.dataset.from = dep.from;
+    path.dataset.to = dep.to;
     path.setAttribute('marker-end', 'url(#persisted-dependency-arrow-head)');
     path.setAttribute('d', dependencyPathD(x1, y1, x2, y2));
+    path.addEventListener('contextmenu', e => showDependencyContextMenu(e, dep.from, dep.to));
     svg.appendChild(path);
   });
   wrapper.appendChild(svg);
@@ -4094,7 +4104,7 @@ function updateDependencyArrow(e) {
 
 function addDependency(from, to) {
   if (!from || !to || from === to) return false;
-  if (dependencies.some(dep => dep.from === from && dep.to === to)) return false;
+  if (dependencies.some(dep => dep.from === from)) return false;
   dependencies.push({ from, to });
   return true;
 }
@@ -4384,6 +4394,36 @@ document.addEventListener('mouseup', (e) => {
 });
 
 // --- Context menu ---
+function removeDependency(from, to) {
+  const before = dependencies.length;
+  dependencies = dependencies.filter(dep => !(dep.from === from && dep.to === to));
+  if (dependencies.length === before) return;
+  render();
+  saveState();
+}
+
+function showDependencyContextMenu(e, from, to) {
+  e.preventDefault();
+  e.stopPropagation();
+  const menu = document.getElementById('context-menu');
+  const menuW = 180, menuH = 54;
+  const left = Math.min(e.clientX, window.innerWidth - menuW - 8);
+  const top  = Math.min(e.clientY, window.innerHeight - menuH - 8);
+  menu.style.display = 'block';
+  menu.style.left = left + 'px';
+  menu.style.top  = top + 'px';
+  menu.innerHTML = '';
+
+  const remove = document.createElement('div');
+  remove.className = 'context-menu-item danger';
+  remove.textContent = 'Remove';
+  remove.addEventListener('click', () => {
+    menu.style.display = 'none';
+    removeDependency(from, to);
+  });
+  menu.appendChild(remove);
+}
+
 function showBlockColorMenu(e, blockId) {
   e.preventDefault();
   e.stopPropagation();
