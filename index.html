@@ -1196,6 +1196,7 @@
   .block-table .block-del-btn { padding: 0.15rem 0.45rem; font-size: 0.9rem; line-height: 1.1; }
   .combined-blocks { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: #fff; }
   .combined-blocks .panel-section-header { cursor: default; border-top: 14px solid var(--bg); background: #e9ecef; }
+  .combined-blocks .panel-section-header .section-title { font-size: 15px; font-weight: 500; color: #555; }
   .combined-blocks .panel-section-header:first-child { border-top: none; }
   .combined-blocks .section-days-3col .sec-conting,
   .combined-blocks .section-days-3col .sec-total { display: none; }
@@ -1207,10 +1208,18 @@
   .combined-blocks .block-table { border: none; border-radius: 0; }
   .combined-blocks .block-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); }
   .combined-blocks .block-table tr:last-child td { border-bottom: none; }
+  .combined-blocks .combined-track-title { font-size: 0.78rem; font-weight: 400; color: #555; text-transform: none; letter-spacing: 0; }
+  .combined-blocks .block-table tr.data-block-row td { background: inherit; color: #fff; border-bottom-color: rgba(255,255,255,0.22); }
+  .combined-blocks .block-table tr.data-block-row input,
+  .combined-blocks .block-table tr.data-block-row select {
+    background: rgba(255,255,255,0.12);
+    border-color: rgba(255,255,255,0.34);
+    color: #fff;
+  }
+  .combined-blocks .block-table tr.data-block-row input::placeholder { color: rgba(255,255,255,0.72); }
+  .combined-blocks .block-table tr.data-block-row .combined-meta { color: rgba(255,255,255,0.86); }
+  .combined-blocks .block-table tr.data-block-row .danger { color: #fff; background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.34); }
   .combined-name-cell { display: flex; align-items: center; gap: 0.45rem; }
-  .combined-name-cell .block-dot { width: 9px; height: 9px; border-radius: 50%; flex: 0 0 auto; }
-  .combined-name-cell .block-dot.color-dot-button { cursor: pointer; box-shadow: 0 0 0 1px rgba(0,0,0,0.12); }
-  .combined-name-cell .block-dot.color-dot-button:hover { transform: scale(1.25); box-shadow: 0 0 0 2px var(--accent-dim); }
   .combined-meta { color: var(--dim); font-size: 0.74rem; white-space: nowrap; }
   .combined-empty { padding: 0.9rem 1rem; color: var(--dim); font-size: 0.85rem; border-bottom: 1px solid var(--border); }
 
@@ -2452,19 +2461,16 @@ function renderTableDataSection(view) {
 
 function appendBlockEditRow(tbody, block) {
   const tr = document.createElement('tr');
+  tr.className = `data-block-row block-color-${block.color}`;
+  tr.title = 'Right-click block in map to change colour';
 
   const labelTd = document.createElement('td');
   const nameWrap = document.createElement('div');
   nameWrap.className = 'combined-name-cell';
-  const dot = document.createElement('span');
-  dot.className = `block-dot color-dot-button block-color-${block.color}`;
-  dot.title = 'Change colour';
-  dot.addEventListener('click', (e) => showBlockColorMenu(e, block.id));
   const labelInput = document.createElement('input');
   labelInput.value = block.label || '';
   labelInput.placeholder = 'Untitled';
   labelInput.onchange = () => { block.label = labelInput.value.trim(); render(); saveState(); };
-  nameWrap.appendChild(dot);
   nameWrap.appendChild(labelInput);
   labelTd.appendChild(nameWrap);
   tr.appendChild(labelTd);
@@ -2575,8 +2581,7 @@ function renderCombinedBlocksView(view) {
       getRowTracks(row).forEach(track => {
         const trackBlocks = rowBlocks.filter(block => block.trackId === track.id);
         const trackTitle = document.createElement('div');
-        trackTitle.className = 'panel-header';
-        trackTitle.style.fontSize = '0.78rem';
+        trackTitle.className = 'panel-header combined-track-title';
         trackTitle.textContent = track.label || 'Track';
         body.appendChild(trackTitle);
         if (!trackBlocks.length) {
