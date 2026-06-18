@@ -800,6 +800,14 @@
     pointer-events: none;
     z-index: 9999;
   }
+  .dependency-lines-layer {
+    position: absolute;
+    left: 0;
+    top: 0;
+    pointer-events: none;
+    z-index: 7;
+    overflow: visible;
+  }
   .dependency-arrow-line {
     stroke: rgba(84,80,76,0.92);
     stroke-width: 3;
@@ -808,7 +816,8 @@
     stroke-linejoin: round;
     filter: drop-shadow(0 1px 2px rgba(0,0,0,0.18));
   }
-  .dependency-arrow-line.snapped { stroke: #f6b05f; }
+  .dependency-arrow-line.snapped,
+  .dependency-lines-layer .dependency-arrow-line { stroke: #f6b05f; }
 
   .block.dragging {
     opacity: 0.9;
@@ -3373,6 +3382,7 @@ function _render() {
   wrapper.appendChild(addRowWrapper);
 
   applyRowHeights();
+  renderDependencyArrows(wrapper);
   schedulePostRenderWork();
 }
 
@@ -3992,10 +4002,56 @@ function startTrackResize(e, rowId, trackId) {
   handle?.classList?.add('dragging');
 }
 
-// --- Dependency drag preview ---
+// --- Dependency arrows ---
 function dependencyPathD(x1, y1, x2, y2) {
   const dx = Math.max(40, Math.abs(x2 - x1) * 0.45);
   return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+}
+
+function blockVisualEndEl(blockId) {
+  return document.querySelector(`[data-capacity-for="${blockId}"]`)
+    || document.querySelector(`[data-contingency-for="${blockId}"]`)
+    || document.querySelector(`.block[data-block-id="${blockId}"]`);
+}
+
+function blockMainEl(blockId) {
+  return document.querySelector(`.block[data-block-id="${blockId}"]`);
+}
+
+function renderDependencyArrows(wrapper = gridWrapper) {
+  if (!wrapper || viewMode === 'data') return;
+  wrapper.querySelector('.dependency-lines-layer')?.remove();
+  normalizeDependencies();
+  if (!dependencies.length) return;
+  const wrapperRect = wrapper.getBoundingClientRect();
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.classList.add('dependency-lines-layer');
+  svg.setAttribute('width', Math.max(wrapper.scrollWidth || 0, wrapperRect.width || 0));
+  svg.setAttribute('height', Math.max(wrapper.scrollHeight || 0, wrapperRect.height || 0));
+  svg.innerHTML = `
+    <defs>
+      <marker id="persisted-dependency-arrow-head" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto" markerUnits="strokeWidth">
+        <path d="M 0 0 L 6 3 L 0 6 z" fill="#f6b05f"></path>
+      </marker>
+    </defs>
+  `;
+  dependencies.forEach(dep => {
+    const sourceEl = blockVisualEndEl(dep.from);
+    const targetEl = blockMainEl(dep.to);
+    if (!sourceEl || !targetEl) return;
+    const sourceRect = sourceEl.getBoundingClientRect();
+    const targetRect = targetEl.getBoundingClientRect();
+    const x1 = sourceRect.right - wrapperRect.left;
+    const y1 = sourceRect.top + sourceRect.height / 2 - wrapperRect.top;
+    const x2 = targetRect.left - wrapperRect.left;
+    const y2 = targetRect.top + targetRect.height / 2 - wrapperRect.top;
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.classList.add('dependency-arrow-line');
+    path.setAttribute('marker-end', 'url(#persisted-dependency-arrow-head)');
+    path.setAttribute('d', dependencyPathD(x1, y1, x2, y2));
+    svg.appendChild(path);
+  });
+  wrapper.appendChild(svg);
 }
 
 function dependencyTargetAtPoint(x, y, sourceId) {
@@ -4055,7 +4111,10 @@ function endDependencyDrag(e) {
   document.removeEventListener('pointerup', endDependencyDrag, true);
   document.removeEventListener('pointercancel', endDependencyDrag, true);
   dependencyDragState = null;
-  if (to && addDependency(from, to)) saveState();
+  if (to && addDependency(from, to)) {
+    renderDependencyArrows(gridWrapper);
+    saveState();
+  }
 }
 
 function startDependencyDrag(e, blockId) {
@@ -4064,7 +4123,7 @@ function startDependencyDrag(e, blockId) {
   if (dependencyDragState) endDependencyDrag(e);
   const handle = e.currentTarget;
   const rect = handle.getBoundingClientRect();
-  const startX = rect.left;
+  const startX = rect.left + 8;
   const startY = rect.top + rect.height / 2;
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.classList.add('dependency-arrow-layer');
@@ -4254,6 +4313,7 @@ function moveBlockDrag(e) {
     }
 
     if (bEl) updateBlockStartTooltip(bEl, block);
+    if (dependencies.length) renderDependencyArrows(gridWrapper);
   }
 }
 
