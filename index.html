@@ -776,11 +776,14 @@
   .dependency-handle.dependency-dragging {
     transform: translateY(-50%) scale(1.12);
   }
-  .dependency-handle:hover::before,
-  .dependency-handle.dependency-dragging::before { background: rgba(217,115,13,0.86); }
-  .dependency-handle:hover::after,
+  .dependency-handle:hover::before { background: rgba(104,100,95,0.82); }
+  .dependency-handle.dependency-dragging::before { background: rgba(84,80,76,0.92); }
+  .dependency-handle:hover::after {
+    border-color: rgba(104,100,95,0.9);
+    background: #fff;
+  }
   .dependency-handle.dependency-dragging::after {
-    border-color: rgba(217,115,13,0.95);
+    border-color: rgba(84,80,76,0.96);
     background: #fff;
   }
   .dependency-handle.dependency-dragging { cursor: grabbing; opacity: 1; }
@@ -793,7 +796,7 @@
     z-index: 9999;
   }
   .dependency-arrow-line {
-    stroke: rgba(217,115,13,0.9);
+    stroke: rgba(84,80,76,0.92);
     stroke-width: 3;
     fill: none;
     stroke-linecap: round;
@@ -3984,14 +3987,14 @@ function startDependencyDrag(e, blockId) {
   if (dependencyDragState) endDependencyDrag(e);
   const handle = e.currentTarget;
   const rect = handle.getBoundingClientRect();
-  const startX = rect.right - 5;
+  const startX = rect.left;
   const startY = rect.top + rect.height / 2;
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.classList.add('dependency-arrow-layer');
   svg.innerHTML = `
     <defs>
-      <marker id="dependency-arrow-head" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto" markerUnits="strokeWidth">
-        <path d="M 0 0 L 10 5 L 0 10 z" fill="rgba(217,115,13,0.9)"></path>
+      <marker id="dependency-arrow-head" markerWidth="6" markerHeight="6" refX="5" refY="3" orient="auto" markerUnits="strokeWidth">
+        <path d="M 0 0 L 6 3 L 0 6 z" fill="rgba(84,80,76,0.92)"></path>
       </marker>
     </defs>
     <path class="dependency-arrow-line" marker-end="url(#dependency-arrow-head)"></path>
