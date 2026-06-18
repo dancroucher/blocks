@@ -892,17 +892,24 @@
     z-index: 2;
   }
   .block .block-label-input {
-    flex: 1;
-    min-width: 0;
+    flex: 0 0 auto;
+    min-width: 8ch;
+    max-width: 100%;
     border: none;
     outline: none;
     background: transparent;
     font: inherit;
+    line-height: 1.2;
     color: inherit;
     padding: 0;
     margin: 0;
     user-select: text;
     cursor: text;
+  }
+  .block.block-compact .block-label-input {
+    flex: 0 1 auto;
+    max-width: calc(100% - 2.5rem);
+    line-height: 1;
   }
 
   /* Block colours — mid-saturation palette tuned for white text */
@@ -3492,6 +3499,9 @@ function startEditingBlockLabel(bEl, labelEl, block) {
   input.type = 'text';
   input.className = 'block-label-input';
   input.value = block.label || '';
+  const syncInputSize = () => { input.size = Math.max(8, (input.value || input.placeholder || '').length + 1); };
+  syncInputSize();
+  input.addEventListener('input', syncInputSize);
   // Stop drag/dblclick handlers from interfering with the input
   input.addEventListener('mousedown', (e) => e.stopPropagation());
   input.addEventListener('dblclick', (e) => e.stopPropagation());
