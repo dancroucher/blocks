@@ -2422,13 +2422,19 @@ function renderMapControls() {
 }
 
 function renderTableDataSection(view) {
+  const toolbar = document.createElement('div');
+  toolbar.className = 'table-toolbar';
+  const title = document.createElement('h2');
+  title.textContent = 'Project Data';
+  toolbar.appendChild(title);
+  view.appendChild(toolbar);
+
   const data = document.createElement('div');
   data.className = 'table-data-top';
 
-  const h1 = document.createElement('div'); h1.className = 'panel-header'; h1.textContent = 'Project Data';
   const stats = document.createElement('div'); stats.id = 'panel-stats'; stats.className = 'panel-stats';
   const h2 = document.createElement('div'); h2.className = 'panel-header'; h2.textContent = 'Settings';
-  data.appendChild(h1); data.appendChild(stats); data.appendChild(h2);
+  data.appendChild(stats); data.appendChild(h2);
 
   const settings = document.createElement('div');
   settings.className = 'panel-settings';
@@ -2565,15 +2571,8 @@ function renderCombinedBlocksView(view) {
     const sectionDays = document.createElement('span');
     sectionDays.className = 'section-days-3col';
     sectionDays.innerHTML = `<span class="sec-base">Capacity ${getRowCapacity(row)}%</span><span class="sec-conting">+${rowContingency}d</span><span class="sec-total">${totalRowDays}d</span>`;
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'resource-delete-btn';
-    deleteBtn.type = 'button';
-    deleteBtn.title = 'Delete resource';
-    deleteBtn.textContent = '×';
-    deleteBtn.onclick = (e) => { e.stopPropagation(); deleteResource(row.id); };
     sectionTop.appendChild(sectionTitle);
     sectionTop.appendChild(sectionDays);
-    sectionTop.appendChild(deleteBtn);
     section.appendChild(sectionTop);
     section.appendChild(buildTagsRow(row));
     shell.appendChild(section);
