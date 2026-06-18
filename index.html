@@ -1101,6 +1101,21 @@
   .row-sortable-drag {
     box-shadow: 0 20px 50px rgba(0,0,0,0.24);
   }
+  .track-sortable-source { opacity: 0.35; }
+  .track-drag-overlay {
+    position: fixed;
+    display: flex;
+    pointer-events: none;
+    z-index: 10000;
+    opacity: 0.94;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    background: #fff;
+  }
+  .track-drag-overlay .track-label-row,
+  .track-drag-overlay .track-grid-row {
+    flex: 0 0 auto;
+    border-bottom: none;
+  }
 
   /* Context menu */
   .context-menu {
@@ -1241,6 +1256,12 @@
     font-weight: 400;
     color: #555;
   }
+  .data-track-title-cell { display: flex; align-items: center; gap: 0.45rem; }
+  .data-track-drag-handle { cursor: grab; color: #bbb; user-select: none; font-size: 1rem; line-height: 1; }
+  .data-track-drag-handle:hover { color: #999; }
+  .data-track-name { flex: 1; min-width: 0; }
+  .data-track-delete-btn { border: none; background: transparent; color: #aaa; cursor: pointer; font-family: inherit; font-size: 0.85rem; line-height: 1; padding: 0.05rem 0.25rem; }
+  .data-track-delete-btn:hover { color: #dc2626; }
   .combined-blocks .block-table tr.combined-empty-row td { color: var(--dim); font-size: 0.85rem; background: #fff; }
   .combined-blocks .block-table tr.data-block-row td { background: inherit; color: #fff; border-bottom-color: rgba(255,255,255,0.22); }
   .combined-blocks .block-table tr.data-block-row input,
@@ -2631,13 +2652,34 @@ function renderCombinedBlocksView(view) {
       <th style="width:14%">shownDays</th>
     </tr></thead>`;
     const tbody = document.createElement('tbody');
+    tbody.className = 'data-track-tbody';
+    tbody.dataset.rowId = row.id;
     getRowTracks(row).forEach(track => {
       const trackBlocks = rowBlocks.filter(block => block.trackId === track.id);
       const trackRow = document.createElement('tr');
       trackRow.className = 'combined-track-title-row';
+      trackRow.dataset.trackId = track.id;
       const trackCell = document.createElement('td');
       trackCell.colSpan = 5;
-      trackCell.textContent = track.label || 'Track';
+      const trackTitle = document.createElement('div');
+      trackTitle.className = 'data-track-title-cell';
+      const trackHandle = document.createElement('span');
+      trackHandle.className = 'data-track-drag-handle';
+      trackHandle.textContent = '⠿';
+      trackHandle.title = 'Drag to reorder track';
+      const trackName = document.createElement('span');
+      trackName.className = 'data-track-name';
+      trackName.textContent = track.label || 'Track';
+      const trackDelete = document.createElement('button');
+      trackDelete.className = 'data-track-delete-btn';
+      trackDelete.type = 'button';
+      trackDelete.textContent = '×';
+      trackDelete.title = 'Delete track';
+      trackDelete.addEventListener('click', e => { e.stopPropagation(); deleteTrack(row, track.id); });
+      trackTitle.appendChild(trackHandle);
+      trackTitle.appendChild(trackName);
+      trackTitle.appendChild(trackDelete);
+      trackCell.appendChild(trackTitle);
       trackRow.appendChild(trackCell);
       tbody.appendChild(trackRow);
       if (!trackBlocks.length) {
@@ -3204,6 +3246,7 @@ function _render() {
 
 let _gridRowSortable = null;
 let _trackSortables = [];
+let _trackDragOverlay = null;
 function setupGridRowSortable() {
   const wrapper = document.getElementById('grid-wrapper');
   if (!wrapper || typeof Sortable === 'undefined') return;
@@ -3241,9 +3284,74 @@ function setupGridRowSortable() {
   });
 }
 
+function orderedTracksFromIds(row, orderedIds) {
+  const byId = new Map(getRowTracks(row).map(track => [track.id, track]));
+  const nextTracks = orderedIds.map(id => byId.get(id)).filter(Boolean);
+  return nextTracks.length === row.tracks.length ? nextTracks : null;
+}
+
+function reorderTracks(row, orderedIds) {
+  const nextTracks = orderedTracksFromIds(row, orderedIds);
+  if (!nextTracks) return false;
+  const changed = nextTracks.some((track, idx) => track.id !== row.tracks[idx]?.id);
+  if (!changed) return false;
+  row.tracks = nextTracks;
+  render();
+  saveState();
+  return true;
+}
+
+function startTrackDragOverlay(rowId, trackId, originalEvent) {
+  cleanupTrackDragOverlay();
+  const labelRow = document.querySelector(`.track-list[data-row-id="${rowId}"] .track-label-row[data-track-id="${trackId}"]`);
+  const gridRow = document.querySelector(`.track-grid-row[data-row-id="${rowId}"][data-track-id="${trackId}"]`);
+  if (!labelRow || !gridRow || !originalEvent) return;
+  const labelRect = labelRow.getBoundingClientRect();
+  const gridRect = gridRow.getBoundingClientRect();
+  const overlay = document.createElement('div');
+  overlay.className = 'track-drag-overlay';
+  overlay.style.left = labelRect.left + 'px';
+  overlay.style.top = gridRect.top + 'px';
+  overlay.style.width = (gridRect.right - labelRect.left) + 'px';
+  overlay.style.height = gridRect.height + 'px';
+  const labelClone = labelRow.cloneNode(true);
+  labelClone.style.width = labelRect.width + 'px';
+  labelClone.style.height = gridRect.height + 'px';
+  labelClone.style.minHeight = gridRect.height + 'px';
+  const gridClone = gridRow.cloneNode(true);
+  gridClone.style.width = gridRect.width + 'px';
+  gridClone.style.height = gridRect.height + 'px';
+  gridClone.style.minHeight = gridRect.height + 'px';
+  overlay.appendChild(labelClone);
+  overlay.appendChild(gridClone);
+  document.body.appendChild(overlay);
+  gridRow.classList.add('track-sortable-source');
+  labelRow.classList.add('track-sortable-source');
+  const startY = originalEvent.clientY || 0;
+  const startTop = gridRect.top;
+  const move = (ev) => {
+    const clientY = ev.clientY ?? startY;
+    overlay.style.top = (startTop + clientY - startY) + 'px';
+  };
+  document.addEventListener('pointermove', move, true);
+  document.addEventListener('mousemove', move, true);
+  _trackDragOverlay = { overlay, labelRow, gridRow, move };
+}
+
+function cleanupTrackDragOverlay() {
+  if (!_trackDragOverlay) return;
+  document.removeEventListener('pointermove', _trackDragOverlay.move, true);
+  document.removeEventListener('mousemove', _trackDragOverlay.move, true);
+  _trackDragOverlay.labelRow?.classList?.remove('track-sortable-source');
+  _trackDragOverlay.gridRow?.classList?.remove('track-sortable-source');
+  _trackDragOverlay.overlay?.remove();
+  _trackDragOverlay = null;
+}
+
 function setupTrackSortables() {
   _trackSortables.forEach(sortable => sortable.destroy());
   _trackSortables = [];
+  cleanupTrackDragOverlay();
   if (typeof Sortable === 'undefined') return;
   document.querySelectorAll('.track-list[data-row-id]').forEach(list => {
     const rowId = parseInt(list.dataset.rowId);
@@ -3260,18 +3368,41 @@ function setupTrackSortables() {
       swapThreshold: 0.65,
       preventOnFilter: false,
       filter: '.track-delete-btn',
+      onStart(evt) {
+        document.body.classList.add('row-reordering-sortable');
+        startTrackDragOverlay(row.id, evt.item?.dataset?.trackId, evt.originalEvent);
+      },
+      onEnd() {
+        document.body.classList.remove('row-reordering-sortable');
+        cleanupTrackDragOverlay();
+        const orderedIds = [...list.querySelectorAll('.track-label-row[data-track-id]')].map(el => el.dataset.trackId);
+        reorderTracks(row, orderedIds);
+      },
+    }));
+  });
+
+  document.querySelectorAll('.data-track-tbody[data-row-id]').forEach(tbody => {
+    const rowId = parseInt(tbody.dataset.rowId);
+    const row = rows.find(r => r.id === rowId);
+    if (!row) return;
+    _trackSortables.push(Sortable.create(tbody, {
+      draggable: '.combined-track-title-row',
+      handle: '.data-track-drag-handle',
+      animation: 180,
+      ghostClass: 'row-sortable-ghost',
+      chosenClass: 'row-sortable-chosen',
+      dragClass: 'row-sortable-drag',
+      fallbackOnBody: true,
+      swapThreshold: 0.65,
+      preventOnFilter: false,
+      filter: '.data-track-delete-btn,input,button',
       onStart() {
         document.body.classList.add('row-reordering-sortable');
       },
       onEnd() {
         document.body.classList.remove('row-reordering-sortable');
-        const orderedIds = [...list.querySelectorAll('.track-label-row[data-track-id]')].map(el => el.dataset.trackId);
-        const byId = new Map(getRowTracks(row).map(track => [track.id, track]));
-        const nextTracks = orderedIds.map(id => byId.get(id)).filter(Boolean);
-        if (nextTracks.length !== row.tracks.length) return;
-        row.tracks = nextTracks;
-        render();
-        saveState();
+        const orderedIds = [...tbody.querySelectorAll('.combined-track-title-row[data-track-id]')].map(el => el.dataset.trackId);
+        reorderTracks(row, orderedIds);
       },
     }));
   });
