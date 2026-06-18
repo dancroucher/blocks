@@ -4014,9 +4014,17 @@ function startTrackResize(e, rowId, trackId) {
 }
 
 // --- Dependency arrows ---
-function dependencyPathD(x1, y1, x2, y2) {
-  const dx = Math.max(40, Math.abs(x2 - x1) * 0.45);
-  return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
+function dependencyPathD(x1, y1, xTip, yTip) {
+  const arrowHeadLen = 6;
+  const vx = xTip - x1;
+  const vy = yTip - y1;
+  const vLen = Math.max(1, Math.hypot(vx, vy));
+  // The path ends at the back of the arrowhead; the marker extends forward to
+  // the real tip. This prevents the stroke visually running through the head.
+  const x2 = xTip - (vx / vLen) * arrowHeadLen;
+  const y2 = yTip - (vy / vLen) * arrowHeadLen;
+  const dx = Math.max(40, Math.abs(xTip - x1) * 0.45);
+  return `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${xTip - dx} ${yTip}, ${x2} ${y2}`;
 }
 
 function blockVisualEndEl(blockId) {
@@ -4041,7 +4049,7 @@ function renderDependencyArrows(wrapper = gridWrapper) {
   svg.setAttribute('height', Math.max(wrapper.scrollHeight || 0, wrapperRect.height || 0));
   svg.innerHTML = `
     <defs>
-      <marker id="persisted-dependency-arrow-head" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
+      <marker id="persisted-dependency-arrow-head" markerWidth="6" markerHeight="6" refX="0" refY="3" orient="auto" markerUnits="userSpaceOnUse">
         <path d="M 0 0 L 6 3 L 0 6 z" fill="#f6b05f"></path>
       </marker>
     </defs>
@@ -4143,7 +4151,7 @@ function startDependencyDrag(e, blockId) {
   svg.classList.add('dependency-arrow-layer');
   svg.innerHTML = `
     <defs>
-      <marker id="dependency-arrow-head" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
+      <marker id="dependency-arrow-head" markerWidth="6" markerHeight="6" refX="0" refY="3" orient="auto" markerUnits="userSpaceOnUse">
         <path d="M 0 0 L 6 3 L 0 6 z" fill="rgba(84,80,76,0.92)"></path>
       </marker>
     </defs>
