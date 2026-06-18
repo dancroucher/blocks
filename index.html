@@ -768,7 +768,8 @@
   }
   .block:hover > .dependency-handle,
   .block-contingency:hover > .dependency-handle,
-  .capacity-block:hover > .dependency-handle {
+  .capacity-block:hover > .dependency-handle,
+  .dependency-handle-visible > .dependency-handle {
     opacity: 1;
     pointer-events: auto;
   }
@@ -786,7 +787,11 @@
     border-color: rgba(84,80,76,0.96);
     background: #fff;
   }
-  .dependency-handle.dependency-dragging { cursor: grabbing; opacity: 1; }
+  .dependency-handle.dependency-dragging {
+    cursor: grabbing;
+    opacity: 0 !important;
+    pointer-events: none;
+  }
   .dependency-arrow-layer {
     position: fixed;
     inset: 0;
@@ -3264,6 +3269,7 @@ function _render() {
       const capacityExtraDays = Math.max(0, extraDays - baseExtraDays);
 
       let lastVisualSegment = bEl;
+      const dependencyHoverSegments = [bEl];
       if (baseExtraDays > 0) {
         const cEl = document.createElement('div');
         cEl.className = `block-contingency block-color-${block.color}`;
@@ -3281,6 +3287,7 @@ function _render() {
         });
         bEl.appendChild(cEl);
         lastVisualSegment = cEl;
+        dependencyHoverSegments.push(cEl);
       }
 
       const capacityVisualDays = capacityDays + capacityExtraDays;
@@ -3301,8 +3308,17 @@ function _render() {
         });
         cells.appendChild(capEl);
         lastVisualSegment = capEl;
+        dependencyHoverSegments.push(capEl);
       }
-      lastVisualSegment.appendChild(makeDependencyHandle());
+      const dependencyHandle = makeDependencyHandle();
+      lastVisualSegment.appendChild(dependencyHandle);
+      const isInDependencyVisual = node => dependencyHoverSegments.some(seg => seg.contains(node));
+      dependencyHoverSegments.forEach(seg => {
+        seg.addEventListener('mouseenter', () => lastVisualSegment.classList.add('dependency-handle-visible'));
+        seg.addEventListener('mouseleave', e => {
+          if (!isInDependencyVisual(e.relatedTarget)) lastVisualSegment.classList.remove('dependency-handle-visible');
+        });
+      });
     });
 
     group.appendChild(trackStack);
