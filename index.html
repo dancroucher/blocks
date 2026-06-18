@@ -1102,6 +1102,11 @@
     box-shadow: 0 20px 50px rgba(0,0,0,0.24);
   }
   .track-sortable-source { opacity: 0.35; }
+  body.track-reordering-sortable .track-label-row.sortable-fallback,
+  body.track-reordering-sortable .track-label-row.row-sortable-drag {
+    opacity: 0 !important;
+    box-shadow: none !important;
+  }
   .track-drag-overlay {
     position: fixed;
     display: flex;
@@ -3393,7 +3398,7 @@ function setupTrackSortables() {
       preventOnFilter: false,
       filter: '.track-delete-btn',
       onStart(evt) {
-        document.body.classList.add('row-reordering-sortable');
+        document.body.classList.add('row-reordering-sortable', 'track-reordering-sortable');
         startTrackDragOverlay(row.id, evt.item?.dataset?.trackId, evt.originalEvent);
       },
       onChange() {
@@ -3401,7 +3406,7 @@ function setupTrackSortables() {
         syncTrackGridOrder(row.id, orderedIds);
       },
       onEnd() {
-        document.body.classList.remove('row-reordering-sortable');
+        document.body.classList.remove('row-reordering-sortable', 'track-reordering-sortable');
         cleanupTrackDragOverlay();
         const orderedIds = [...list.querySelectorAll('.track-label-row[data-track-id]')].map(el => el.dataset.trackId);
         syncTrackGridOrder(row.id, orderedIds);
