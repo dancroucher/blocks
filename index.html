@@ -1208,7 +1208,13 @@
   .combined-blocks .block-table { border: none; border-radius: 0; }
   .combined-blocks .block-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); }
   .combined-blocks .block-table tr:last-child td { border-bottom: none; }
-  .combined-blocks .combined-track-title { font-size: 0.78rem; font-weight: 400; color: #555; text-transform: none; letter-spacing: 0; }
+  .combined-blocks .block-table tr.combined-track-title-row td {
+    background: #f5f5f5;
+    font-size: 0.78rem;
+    font-weight: 400;
+    color: #555;
+  }
+  .combined-blocks .block-table tr.combined-empty-row td { color: var(--dim); font-size: 0.85rem; background: #fff; }
   .combined-blocks .block-table tr.data-block-row td { background: inherit; color: #fff; border-bottom-color: rgba(255,255,255,0.22); }
   .combined-blocks .block-table tr.data-block-row input,
   .combined-blocks .block-table tr.data-block-row select {
@@ -2572,41 +2578,40 @@ function renderCombinedBlocksView(view) {
 
     const body = document.createElement('div');
     body.className = 'panel-section-body';
-    if (!rowBlocks.length) {
-      const empty = document.createElement('div');
-      empty.className = 'combined-empty';
-      empty.textContent = 'No blocks in this resource';
-      body.appendChild(empty);
-    } else {
-      getRowTracks(row).forEach(track => {
-        const trackBlocks = rowBlocks.filter(block => block.trackId === track.id);
-        const trackTitle = document.createElement('div');
-        trackTitle.className = 'panel-header combined-track-title';
-        trackTitle.textContent = track.label || 'Track';
-        body.appendChild(trackTitle);
-        if (!trackBlocks.length) {
-          const empty = document.createElement('div');
-          empty.className = 'combined-empty';
-          empty.textContent = 'No blocks in this track';
-          body.appendChild(empty);
-          return;
-        }
-        const table = document.createElement('table');
-        table.className = 'block-table';
-        table.innerHTML = `<thead><tr>
-          <th style="width:36%">Name</th>
-          <th style="width:16%">Start</th>
-          <th style="width:16%">End</th>
-          <th style="width:11%">Base days</th>
-          <th style="width:16%">Shown days</th>
-          <th style="width:5%"></th>
-        </tr></thead>`;
-        const tbody = document.createElement('tbody');
-        trackBlocks.forEach(block => appendBlockEditRow(tbody, block));
-        table.appendChild(tbody);
-        body.appendChild(table);
-      });
-    }
+    const table = document.createElement('table');
+    table.className = 'block-table';
+    table.innerHTML = `<thead><tr>
+      <th style="width:36%">Name</th>
+      <th style="width:16%">Start</th>
+      <th style="width:16%">End</th>
+      <th style="width:11%">Base days</th>
+      <th style="width:16%">Shown days</th>
+      <th style="width:5%"></th>
+    </tr></thead>`;
+    const tbody = document.createElement('tbody');
+    getRowTracks(row).forEach(track => {
+      const trackBlocks = rowBlocks.filter(block => block.trackId === track.id);
+      const trackRow = document.createElement('tr');
+      trackRow.className = 'combined-track-title-row';
+      const trackCell = document.createElement('td');
+      trackCell.colSpan = 6;
+      trackCell.textContent = track.label || 'Track';
+      trackRow.appendChild(trackCell);
+      tbody.appendChild(trackRow);
+      if (!trackBlocks.length) {
+        const emptyRow = document.createElement('tr');
+        emptyRow.className = 'combined-empty-row';
+        const emptyCell = document.createElement('td');
+        emptyCell.colSpan = 6;
+        emptyCell.textContent = 'No blocks in this track';
+        emptyRow.appendChild(emptyCell);
+        tbody.appendChild(emptyRow);
+        return;
+      }
+      trackBlocks.forEach(block => appendBlockEditRow(tbody, block));
+    });
+    table.appendChild(tbody);
+    body.appendChild(table);
 
     const totals = document.createElement('div');
     totals.className = 'section-totals';
@@ -2623,11 +2628,8 @@ function renderCombinedBlocksView(view) {
     const addSectionBtn = document.createElement('button');
     addSectionBtn.className = 'section-add-block-btn';
     addSectionBtn.type = 'button';
-    addSectionBtn.textContent = '+ Add block';
-    addSectionBtn.onclick = () => {
-      createBlock(row.id, Math.max(0, todayWeekdayCol()), 5, 'New block', false, 'grid', getDefaultTrackId(row));
-      saveState();
-    };
+    addSectionBtn.textContent = '+ Add track';
+    addSectionBtn.onclick = () => addTrack(row);
     actions.appendChild(addSectionBtn);
     body.appendChild(actions);
     shell.appendChild(body);
