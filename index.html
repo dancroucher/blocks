@@ -1988,6 +1988,8 @@ let _saveReady = false;
 let _hasPendingLocalSave = false;
 function saveState() {
   if (!_saveReady) return;
+  const dependencyShifted = enforceDependencySchedule();
+  if (dependencyShifted) render();
   _hasPendingLocalSave = true;
   // Our write supersedes any remote snapshot stashed while we were busy —
   // the doc is last-writer-wins, and our save will echo to other clients.
@@ -2442,7 +2444,7 @@ function normalizeBlocks() {
     }
     block.duration = adjustedDurationForCapacity(block.baseDuration, 100, getRowCapacity(row));
   });
-  normalizeDependencies();
+  enforceDependencySchedule();
 }
 function normalizeDependencies() {
   const blockIds = new Set(blocks.map(block => block.id));
@@ -2450,11 +2452,53 @@ function normalizeDependencies() {
     .filter(dep => dep && blockIds.has(dep.from) && blockIds.has(dep.to) && dep.from !== dep.to)
     .filter((dep, idx, arr) => arr.findIndex(other => other.from === dep.from && other.to === dep.to) === idx);
 }
+function blockTotalVisualDuration(block) {
+  const scheduled = Math.max(1, Number(block && block.duration) || getBlockBaseDuration(block));
+  const contingency = contingencyPct > 0 ? Math.round(scheduled * contingencyPct / 100) : 0;
+  return scheduled + contingency;
+}
+function enforceDependencySchedule() {
+  normalizeDependencies();
+  let changed = false;
+  const byId = new Map(blocks.map(block => [block.id, block]));
+  // Iterate to settle chains (A→B→C). Cap passes to avoid runaway if legacy data
+  // somehow contains a cycle; addDependency prevents new cycles.
+  const maxPasses = Math.max(1, blocks.length);
+  for (let pass = 0; pass < maxPasses; pass++) {
+    let passChanged = false;
+    dependencies.forEach(dep => {
+      const source = byId.get(dep.from);
+      const dependent = byId.get(dep.to);
+      if (!source || !dependent) return;
+      const requiredStart = source.start + blockTotalVisualDuration(source);
+      if (dependent.start < requiredStart) {
+        dependent.start = requiredStart;
+        passChanged = true;
+        changed = true;
+      }
+    });
+    if (!passChanged) break;
+  }
+  return changed;
+}
+function dependencyPathExists(from, to) {
+  const seen = new Set();
+  const stack = [from];
+  while (stack.length) {
+    const id = stack.pop();
+    if (id === to) return true;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    dependencies.forEach(dep => { if (dep.from === id) stack.push(dep.to); });
+  }
+  return false;
+}
 function isDataBlock(block) { return block && block.kind === 'data'; }
 function setBlockBaseDuration(block, baseDuration) {
   const row = rows.find(r => r.id === block.rowId);
   block.baseDuration = Math.max(1, Math.round(Number(baseDuration) || 1));
   block.duration = adjustedDurationForCapacity(block.baseDuration, 100, getRowCapacity(row));
+  enforceDependencySchedule();
 }
 function adjustedDurationForCapacity(duration, oldCapacity, newCapacity) {
   const oldCap = Math.max(1, Number(oldCapacity) || 100);
@@ -2472,6 +2516,7 @@ function setRowCapacity(row, nextCapacity) {
     }
   });
   row.capacity = newCapacity;
+  enforceDependencySchedule();
   render();
   saveState();
 }
@@ -4116,7 +4161,9 @@ function updateDependencyArrow(e) {
 function addDependency(from, to) {
   if (!from || !to || from === to) return false;
   if (dependencies.some(dep => dep.from === from)) return false;
+  if (dependencyPathExists(to, from)) return false;
   dependencies.push({ from, to });
+  enforceDependencySchedule();
   return true;
 }
 
@@ -4371,6 +4418,7 @@ function endBlockDrag() {
         el.classList.remove('dragging');
         removeBlockStartTooltip(el);
       }
+      enforceDependencySchedule();
       saveState();
       render();
     }
@@ -4659,6 +4707,7 @@ function updateContingency() {
   const input = document.getElementById('contingency');
   contingencyPct = parseInt(input ? input.value : contingencyPct) || 0;
   contingencyPct = Math.max(0, Math.min(100, contingencyPct));
+  enforceDependencySchedule();
   render();
   saveState();
 }
