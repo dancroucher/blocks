@@ -17,7 +17,7 @@ Each project is a shared Firestore document, Firebase Auth required. Initial dep
   - Collection path: `projects/{projectId}`
   - Each document is one full project/timeline state (rows, blocks, counters, settings)
   - The original shared timeline remains available as project id `blocks`
-  - The app opens on a Projects screen that lists all visible project documents and can create new ones
+  - The app opens on a Projects screen that lists all visible project documents, can create new ones, and can edit each project's name/timeline bounds
   - Real-time listener via `onSnapshot` on the selected project — all open browsers on that project update instantly
 - **Firebase Auth required** — access is limited to an approved user email
   - Firestore rules deny public access, deny deletes, validate basic state shape, and allow immutable backup creation
@@ -28,6 +28,7 @@ State version is currently **4** (`v4 = resource tracks`). `rows[].tracks` and `
 {
   "version": 4,
   "projectName": "Blocks",
+  "projectEnd": "2028-12-29T00:00:00.000Z",
   "rows": [
     {
       "id": 1,
@@ -48,7 +49,7 @@ State version is currently **4** (`v4 = resource tracks`). `rows[].tracks` and `
   "zoom": "day",
   "panelWidth": 280,
   "collapsedRows": {},
-  "projectStart": "dynamic-year-start",
+  "projectStart": "project-start-anchor",
   "savedAt": 1740000000000,
   "updatedAt": 1740000000000,
   "updatedBy": { "uid": "...", "email": "owner@example.com" },

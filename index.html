@@ -1601,6 +1601,22 @@
   .project-item:hover { background: var(--header-bg); }
   .project-title { font-weight: 700; }
   .project-meta { color: var(--dim); font-size: 0.82rem; margin-top: 0.15rem; }
+  .project-fields {
+    display: grid;
+    grid-template-columns: minmax(10rem, 1fr) repeat(2, 9.5rem) auto;
+    gap: 0.4rem;
+    align-items: center;
+    flex: 1;
+  }
+  .project-fields input {
+    font-family: inherit;
+    font-size: 0.85rem;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 0.4rem 0.5rem;
+    min-width: 0;
+  }
+  .project-field-label { color: var(--dim); font-size: 0.72rem; margin-bottom: 0.15rem; }
   .project-error { color: #c23b22; min-height: 1.2rem; margin-top: 0.75rem; }
   .project-switch-btn { font-weight: 600; color: var(--text) !important; }
 </style>
@@ -1767,14 +1783,18 @@ function countWeekdaysInclusive(from, to) {
 let projectStart = null;     // Monday anchoring col 0; pinned to saved state
 let PROJECT_END_DATE = null;
 let TOTAL_COLS = 0;
-function setTimelineAnchor(savedISO) {
+function setTimelineAnchor(savedISO, savedEndISO = null) {
   const currentYear = new Date().getFullYear();
   const parsed = savedISO ? new Date(savedISO) : null;
   const anchor = parsed && !Number.isNaN(parsed.getTime())
     ? startOfWorkWeek(parsed)
     : startOfWorkWeek(new Date(currentYear, 0, 1));
+  const parsedEnd = savedEndISO ? new Date(savedEndISO) : null;
+  const fallbackEnd = endOfWorkWeek(new Date(Math.max(anchor.getFullYear(), currentYear) + 2, 11, 31));
+  let end = parsedEnd && !Number.isNaN(parsedEnd.getTime()) ? endOfWorkWeek(parsedEnd) : fallbackEnd;
+  if (end < anchor) end = endOfWorkWeek(anchor);
   projectStart = anchor;
-  PROJECT_END_DATE = endOfWorkWeek(new Date(Math.max(anchor.getFullYear(), currentYear) + 2, 11, 31));
+  PROJECT_END_DATE = end;
   TOTAL_COLS = countWeekdaysInclusive(projectStart, PROJECT_END_DATE);
 }
 setTimelineAnchor(null); // default window until saved state arrives
@@ -1955,6 +1975,7 @@ function sanitizeState(data) {
     ...data,
     version: toPositiveInt(data.version, STATE_VERSION),
     projectName: typeof data.projectName === 'string' ? data.projectName.trim().slice(0, 80) : '',
+    projectEnd: typeof data.projectEnd === 'string' ? data.projectEnd : '',
     rows: cleanRows,
     blocks: cleanBlocks,
     dependencies: cleanDependencies,
@@ -1992,6 +2013,7 @@ function snapshotState() {
     dependencies,
     nextBlockId, nextRowId, contingencyPct,
     projectStart: projectStart.toISOString(),
+    projectEnd: PROJECT_END_DATE.toISOString(),
     savedAt: now,
     updatedAt: now,
     updatedBy: _currentUser ? { uid: _currentUser.uid, email: _currentUser.email } : null,
@@ -2162,8 +2184,11 @@ function applyRemoteState(data) {
   if (data.nextRowId != null)   nextRowId   = data.nextRowId;
   if (data.contingencyPct != null) contingencyPct = data.contingencyPct;
   // Block columns are indexed against the sender's anchor; adopt it if it differs.
-  if (typeof data.projectStart === 'string' && data.projectStart !== projectStart.toISOString()) {
-    setTimelineAnchor(data.projectStart);
+  if (typeof data.projectStart === 'string') {
+    const incomingEnd = typeof data.projectEnd === 'string' ? data.projectEnd : PROJECT_END_DATE.toISOString();
+    if (data.projectStart !== projectStart.toISOString() || incomingEnd !== PROJECT_END_DATE.toISOString()) {
+      setTimelineAnchor(data.projectStart, data.projectEnd);
+    }
   }
   // View prefs (zoom, header widths) are per-client now and not applied from
   // remote state. Track heights are authoritative on row.tracks (seeded from
@@ -4869,6 +4894,81 @@ function projectNameForDoc(doc) {
     : (doc.id === 'blocks' ? 'Blocks' : doc.id);
 }
 
+function projectDateInputValue(value, fallbackDate) {
+  const parsed = value ? new Date(value) : null;
+  return toDateInputValue(parsed && !Number.isNaN(parsed.getTime()) ? parsed : fallbackDate);
+}
+
+function defaultProjectStartDate() {
+  return startOfWorkWeek(new Date(new Date().getFullYear(), 0, 1));
+}
+
+function defaultProjectEndDate(start = defaultProjectStartDate()) {
+  const currentYear = new Date().getFullYear();
+  return endOfWorkWeek(new Date(Math.max(start.getFullYear(), currentYear) + 2, 11, 31));
+}
+
+function weekdayDelta(oldStartISO, newStartISO) {
+  const oldStart = startOfWorkWeek(new Date(oldStartISO));
+  const newStart = startOfWorkWeek(new Date(newStartISO));
+  if (Number.isNaN(oldStart.getTime()) || Number.isNaN(newStart.getTime()) || oldStart.getTime() === newStart.getTime()) return 0;
+  const sign = newStart < oldStart ? 1 : -1;
+  const from = newStart < oldStart ? newStart : oldStart;
+  const to = newStart < oldStart ? oldStart : newStart;
+  let n = 0;
+  for (let d = new Date(from); d < to; d.setDate(d.getDate() + 1)) {
+    const wd = d.getDay();
+    if (wd !== 0 && wd !== 6) n++;
+  }
+  return sign * n;
+}
+
+async function updateProjectFromItem(projectId, item) {
+  const error = document.getElementById('project-error');
+  if (error) error.textContent = '';
+  await flushPendingSaveBeforeProjectChange();
+  const name = item.querySelector('[data-project-field="name"]')?.value.trim().slice(0, 80) || 'Untitled project';
+  const startValue = item.querySelector('[data-project-field="start"]')?.value;
+  const endValue = item.querySelector('[data-project-field="end"]')?.value;
+  const nextStart = startOfWorkWeek(new Date(startValue + 'T00:00:00'));
+  const nextEnd = endOfWorkWeek(new Date(endValue + 'T00:00:00'));
+  if (Number.isNaN(nextStart.getTime()) || Number.isNaN(nextEnd.getTime())) { if (error) error.textContent = 'Enter valid timeline dates.'; return; }
+  if (nextEnd < nextStart) { if (error) error.textContent = 'Timeline end must be after the start.'; return; }
+  try {
+    const ref = _db.doc(projectDocPath(projectId));
+    const snap = await ref.get();
+    const clean = sanitizeState(snap.exists ? snap.data() : null);
+    if (!clean) { if (error) error.textContent = 'Could not load that project.'; return; }
+    const nextStartISO = nextStart.toISOString();
+    const shift = weekdayDelta(clean.projectStart, nextStartISO);
+    const now = Date.now();
+    const updated = {
+      version: STATE_VERSION,
+      projectName: name,
+      rows: clean.rows,
+      blocks: clean.blocks.map(block => ({ ...stripTransient(block), start: Math.max(0, block.start + shift) })),
+      dependencies: clean.dependencies || [],
+      nextBlockId: clean.nextBlockId,
+      nextRowId: clean.nextRowId,
+      contingencyPct: clean.contingencyPct,
+      projectStart: nextStartISO,
+      projectEnd: nextEnd.toISOString(),
+      savedAt: typeof clean.savedAt === 'number' ? clean.savedAt : now,
+      updatedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      updatedBy: _currentUser ? { uid: _currentUser.uid, email: _currentUser.email } : null,
+      _clientId: CLIENT_ID,
+    };
+    await ref.set(updated, { merge: false });
+    if (projectId === currentProjectId) {
+      currentProjectName = name;
+      updateProjectTitle();
+    }
+    await loadProjects();
+  } catch (e) {
+    if (error) error.textContent = e.message || String(e);
+  }
+}
+
 async function loadProjects() {
   const list = document.getElementById('project-list');
   const error = document.getElementById('project-error');
@@ -4893,18 +4993,54 @@ async function loadProjects() {
       const item = document.createElement('div');
       item.className = 'project-item';
       item.addEventListener('click', () => selectProject(project.id, project.name));
-      const text = document.createElement('div');
-      const title = document.createElement('div');
-      title.className = 'project-title';
-      title.textContent = project.name;
-      const meta = document.createElement('div');
-      meta.className = 'project-meta';
-      meta.textContent = `${(project.data.blocks || []).length || 0} blocks · ${(project.data.rows || []).length || 0} resources`;
-      text.append(title, meta);
+
+      const fields = document.createElement('div');
+      fields.className = 'project-fields';
+      fields.addEventListener('click', e => e.stopPropagation());
+
+      const nameWrap = document.createElement('label');
+      const nameLabel = document.createElement('div');
+      nameLabel.className = 'project-field-label';
+      nameLabel.textContent = `${(project.data.blocks || []).length || 0} blocks · ${(project.data.rows || []).length || 0} resources`;
+      const nameInput = document.createElement('input');
+      nameInput.dataset.projectField = 'name';
+      nameInput.value = project.name;
+      nameInput.maxLength = 80;
+      nameWrap.append(nameLabel, nameInput);
+
+      const start = projectDateInputValue(project.data.projectStart, defaultProjectStartDate());
+      const endFallback = defaultProjectEndDate(new Date(start + 'T00:00:00'));
+      const startWrap = document.createElement('label');
+      const startLabel = document.createElement('div');
+      startLabel.className = 'project-field-label';
+      startLabel.textContent = 'Timeline start';
+      const startInput = document.createElement('input');
+      startInput.type = 'date';
+      startInput.dataset.projectField = 'start';
+      startInput.value = start;
+      startWrap.append(startLabel, startInput);
+
+      const endWrap = document.createElement('label');
+      const endLabel = document.createElement('div');
+      endLabel.className = 'project-field-label';
+      endLabel.textContent = 'Timeline end';
+      const endInput = document.createElement('input');
+      endInput.type = 'date';
+      endInput.dataset.projectField = 'end';
+      endInput.value = projectDateInputValue(project.data.projectEnd, endFallback);
+      endWrap.append(endLabel, endInput);
+
+      const save = document.createElement('button');
+      save.type = 'button';
+      save.textContent = 'Save';
+      save.addEventListener('click', () => updateProjectFromItem(project.id, item));
+      fields.append(nameWrap, startWrap, endWrap, save);
+
       const open = document.createElement('button');
       open.type = 'button';
       open.textContent = 'Open';
-      item.append(text, open);
+      open.addEventListener('click', e => { e.stopPropagation(); selectProject(project.id, nameInput.value.trim() || project.name); });
+      item.append(fields, open);
       list.appendChild(item);
     });
   } catch (e) {
@@ -4986,7 +5122,7 @@ async function selectProject(projectId, projectName = '') {
   if (saved) {
     currentProjectName = saved.projectName || currentProjectName;
     updateProjectTitle();
-    setTimelineAnchor(saved.projectStart);
+    setTimelineAnchor(saved.projectStart, saved.projectEnd);
     rows = saved.rows || rows;
     normalizeRows();
     blocks = saved.blocks || [];
