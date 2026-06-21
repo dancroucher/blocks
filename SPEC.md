@@ -1,8 +1,8 @@
 # Blocks — Firebase Realtime Sync Spec
 
 ## What
-A private project timeline app. Authorized browsers stay in sync in real-time.
-Single shared document, Firebase Auth required. Initial deployment supports one approved user email.
+A private multi-project timeline app. Authorized browsers stay in sync in real-time.
+Each project is a shared Firestore document, Firebase Auth required. Initial deployment supports one approved user email.
 
 ## Terminology
 - Map rows are called **resources**.
@@ -14,9 +14,11 @@ Single shared document, Firebase Auth required. Initial deployment supports one 
 ### Firebase Project
 - **Firestore** (not Realtime Database)
   - Database: `blocks-shared` (default region)
-  - Document path: `projects/blocks`
-  - One document holds the full app state (rows, blocks, counters, settings)
-  - Real-time listener via `onSnapshot` — all open browsers update instantly
+  - Collection path: `projects/{projectId}`
+  - Each document is one full project/timeline state (rows, blocks, counters, settings)
+  - The original shared timeline remains available as project id `blocks`
+  - The app opens on a Projects screen that lists all visible project documents and can create new ones
+  - Real-time listener via `onSnapshot` on the selected project — all open browsers on that project update instantly
 - **Firebase Auth required** — access is limited to an approved user email
   - Firestore rules deny public access, deny deletes, validate basic state shape, and allow immutable backup creation
 
@@ -25,6 +27,7 @@ State version is currently **4** (`v4 = resource tracks`). `rows[].tracks` and `
 ```json
 {
   "version": 4,
+  "projectName": "Blocks",
   "rows": [
     {
       "id": 1,
@@ -63,7 +66,7 @@ State version is currently **4** (`v4 = resource tracks`). `rows[].tracks` and `
 1. **Auth gate**: app UI stays locked until Firebase Auth returns an approved user
 2. **Firebase primary**: load from Firestore on init, save back on every change (debounced 200ms)
 3. **IndexedDB local fallback**: if Firestore fails after sign-in, fall back to local IndexedDB
-4. **Automatic backups**: before saves, write throttled immutable snapshots to `projects/blocks/backups/{timestamp}`
+4. **Automatic backups**: before saves, write throttled immutable snapshots to `projects/{projectId}/backups/{timestamp}`
 5. **IndexedDB bootstrap**: if Firestore doc doesn't exist yet, load from IndexedDB then write to Firestore
 6. **Seed on first run**: if neither source has data, create 5 example blocks, save to both
 
@@ -71,11 +74,13 @@ State version is currently **4** (`v4 = resource tracks`). `rows[].tracks` and `
 ```
 init()
   → requireAuth() [Firebase Auth]
-  → loadState()  [Firestore]
-    → doc exists?  → restore state → listenForChanges()
-    → doc missing? → loadState() [IndexedDB fallback]
+  → show Projects screen
+  → select/create project
+  → loadState(projectId)  [Firestore]
+    → doc exists?  → restore state → listenForChanges(projectId)
+    → doc missing? → loadState(projectId) [IndexedDB fallback]
                      → write to Firestore (bootstrap)
-                     → listenForChanges()
+                     → listenForChanges(projectId)
   → local bootstrap if both fail
 ```
 
@@ -101,7 +106,7 @@ service cloud.firestore {
         && request.auth.token.email in ['you@example.com'];
     }
 
-    match /projects/blocks {
+    match /projects/{projectId} {
       allow read: if isAllowedUser();
       allow create, update: if isAllowedUser()
         && request.resource.data.version is int

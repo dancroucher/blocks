@@ -1546,6 +1546,63 @@
     margin-bottom: 1rem;
   }
   .table-data-top .panel-header:first-child { margin-top: 0; }
+
+  .project-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg);
+    padding: 2rem;
+  }
+  body.project-selecting .project-screen { display: flex; }
+  body.project-selecting .main { display: none; }
+  .project-card {
+    width: min(720px, 100%);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    background: #fff;
+    padding: 1.5rem;
+    box-shadow: 0 18px 44px rgba(0,0,0,0.08);
+  }
+  .project-card h2 { font-size: 1.2rem; margin-bottom: 0.4rem; }
+  .project-card p { color: var(--dim); margin-bottom: 1rem; }
+  .project-create { display: flex; gap: 0.5rem; margin-bottom: 1rem; }
+  .project-create input {
+    flex: 1;
+    font-family: inherit;
+    font-size: 0.95rem;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.55rem 0.7rem;
+  }
+  .project-card button {
+    font-family: inherit;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: #fff;
+    padding: 0.55rem 0.8rem;
+    cursor: pointer;
+  }
+  .project-card button:hover { background: var(--header-bg); }
+  .project-list { display: grid; gap: 0.5rem; }
+  .project-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.8rem;
+    cursor: pointer;
+  }
+  .project-item:hover { background: var(--header-bg); }
+  .project-title { font-weight: 700; }
+  .project-meta { color: var(--dim); font-size: 0.82rem; margin-top: 0.15rem; }
+  .project-error { color: #c23b22; min-height: 1.2rem; margin-top: 0.75rem; }
+  .project-switch-btn { font-weight: 600; color: var(--text) !important; }
 </style>
 </head>
 <body>
@@ -1560,7 +1617,8 @@
 </div>
 
 <div class="topbar">
-  <h1>BL■CKS</h1>
+  <h1 id="app-title">BL■CKS</h1>
+  <button class="project-switch-btn" id="btn-projects" type="button" onclick="showProjectPicker()">Projects</button>
   <div class="topbar-controls">
     <button id="btn-map" class="active" onclick="setView('map')">Map</button>
     <button id="btn-table" onclick="setView('data')">Data</button>
@@ -1569,6 +1627,19 @@
   <div class="topbar-status">
     <div class="sync-pill" id="sync-status" data-status="offline"><span class="sync-dot"></span><span id="sync-status-text">Locked</span></div>
     <div class="user-pill auth-hidden" id="user-pill"><span id="user-email"></span><button id="btn-logout" type="button">Sign out</button></div>
+  </div>
+</div>
+
+<div class="project-screen" id="project-screen">
+  <div class="project-card">
+    <h2>Projects</h2>
+    <p>Create a new timeline or open an existing project. Each project has its own resources, blocks, tracks, dependencies and settings.</p>
+    <div class="project-create">
+      <input id="project-name-input" type="text" maxlength="80" placeholder="New project name">
+      <button id="btn-create-project" type="button">Create project</button>
+    </div>
+    <div class="project-list" id="project-list"></div>
+    <div class="project-error" id="project-error"></div>
   </div>
 </div>
 
@@ -1732,8 +1803,12 @@ function fmtDays(base, conting) {
 const DB_NAME = 'blocks-db';
 const STORE = 'state';
 const STATE_KEY = 'app';
-const DOC_PATH = 'projects/blocks';
-const BACKUPS_PATH = `${DOC_PATH}/backups`;
+function stateKey(projectId = currentProjectId) { return projectId ? `${STATE_KEY}:${projectId}` : STATE_KEY; }
+const PROJECTS_COLLECTION = 'projects';
+let currentProjectId = null;
+let currentProjectName = '';
+function projectDocPath(projectId = currentProjectId) { return `${PROJECTS_COLLECTION}/${projectId || 'blocks'}`; }
+function projectBackupsPath(projectId = currentProjectId) { return `${projectDocPath(projectId)}/backups`; }
 const AUTO_BACKUP_MIN_INTERVAL_MS = 5 * 60 * 1000;
 let _dbPromise = null;
 let _unsub = null; // Firestore listener unsubscribe
@@ -1879,6 +1954,7 @@ function sanitizeState(data) {
   return {
     ...data,
     version: toPositiveInt(data.version, STATE_VERSION),
+    projectName: typeof data.projectName === 'string' ? data.projectName.trim().slice(0, 80) : '',
     rows: cleanRows,
     blocks: cleanBlocks,
     dependencies: cleanDependencies,
@@ -1910,6 +1986,7 @@ function snapshotState() {
     // from it and write the reset back to the shared doc. Omitting it clears the
     // field from Firestore so even old clients see no rowHeights to apply.
     // View prefs (zoom, header widths) are per-client in localStorage, not here.
+    projectName: currentProjectName || 'Blocks',
     rows,
     blocks: blocks.map(stripTransient),
     dependencies,
@@ -1934,7 +2011,7 @@ async function writeBackup(snapshot, reason = 'auto') {
   if (reason === 'auto' && now - _lastBackupAt < AUTO_BACKUP_MIN_INTERVAL_MS) return;
   _lastBackupAt = now;
   try {
-    await _db.collection(BACKUPS_PATH).doc(String(now)).set({
+    await _db.collection(projectBackupsPath()).doc(String(now)).set({
       ...snapshot,
       backupReason: reason,
       backupCreatedAt: firebase.firestore.FieldValue.serverTimestamp(),
@@ -1960,7 +2037,7 @@ async function loadState() {
   // Try Firestore
   if (_db) {
     try {
-      const snap = await _db.doc(DOC_PATH).get();
+      const snap = await _db.doc(projectDocPath()).get();
       if (snap.exists) {
         return sanitizeState(snap.data());
       }
@@ -1972,8 +2049,15 @@ async function loadState() {
   try {
     const db = await openDB();
     return await new Promise((resolve, reject) => {
-      const req = db.transaction(STORE, 'readonly').objectStore(STORE).get(STATE_KEY);
-      req.onsuccess = () => resolve(sanitizeState(req.result) || null);
+      const store = db.transaction(STORE, 'readonly').objectStore(STORE);
+      const req = store.get(stateKey());
+      req.onsuccess = () => {
+        const clean = sanitizeState(req.result);
+        if (clean || currentProjectId !== 'blocks') return resolve(clean || null);
+        const legacy = store.get(STATE_KEY);
+        legacy.onsuccess = () => resolve(sanitizeState(legacy.result) || null);
+        legacy.onerror = () => reject(legacy.error);
+      };
       req.onerror = () => reject(req.error);
     });
   } catch (e) {
@@ -2005,7 +2089,7 @@ function saveState() {
       try {
         setSyncStatus('saving', 'Saving');
         await writeBackup(remoteSnapshot, 'auto');
-        await _db.doc(DOC_PATH).set({ ...remoteSnapshot, _clientId: CLIENT_ID }, { merge: false });
+        await _db.doc(projectDocPath()).set({ ...remoteSnapshot, _clientId: CLIENT_ID }, { merge: false });
         setSyncStatus('saved', 'Saved');
       } catch (e) {
         setSyncStatus('error', 'Save failed');
@@ -2016,7 +2100,7 @@ function saveState() {
     // IndexedDB local backup. Use the plain snapshot, not Firestore sentinels.
     try {
       const db = await openDB();
-      db.transaction(STORE, 'readwrite').objectStore(STORE).put(snapshot, STATE_KEY);
+      db.transaction(STORE, 'readwrite').objectStore(STORE).put(snapshot, stateKey());
     } catch (e) {
       console.warn('IndexedDB saveState failed:', e);
     } finally {
@@ -2044,7 +2128,8 @@ function flushPendingRemote() {
 }
 function listenForChanges() {
   if (!_db) return;
-  _unsub = _db.doc(DOC_PATH).onSnapshot((snap) => {
+  if (_unsub) { _unsub(); _unsub = null; }
+  _unsub = _db.doc(projectDocPath()).onSnapshot((snap) => {
     const data = snap.data();
     if (!data) return;
     // Ignore our own writes (echo prevention)
@@ -2071,6 +2156,8 @@ function applyRemoteState(data) {
   if (data.rows)     { rows           = data.rows; }
   if (data.blocks)   { blocks         = data.blocks; }
   if (Array.isArray(data.dependencies)) dependencies = data.dependencies;
+  if (typeof data.projectName === 'string' && data.projectName.trim()) currentProjectName = data.projectName.trim().slice(0, 80);
+  updateProjectTitle();
   if (data.nextBlockId != null) nextBlockId = data.nextBlockId;
   if (data.nextRowId != null)   nextRowId   = data.nextRowId;
   if (data.contingencyPct != null) contingencyPct = data.contingencyPct;
@@ -4760,6 +4847,187 @@ function migrateV1ToV2(savedBlocks) {
   });
 }
 
+// --- Projects ---
+function updateProjectTitle() {
+  const title = document.getElementById('app-title');
+  if (title) title.textContent = currentProjectName ? `BL■CKS · ${currentProjectName}` : 'BL■CKS';
+}
+
+function showProjectPicker() {
+  document.body.classList.add('project-selecting');
+  loadProjects();
+}
+
+function hideProjectPicker() {
+  document.body.classList.remove('project-selecting');
+}
+
+function projectNameForDoc(doc) {
+  const data = doc.data() || {};
+  return (typeof data.projectName === 'string' && data.projectName.trim())
+    ? data.projectName.trim()
+    : (doc.id === 'blocks' ? 'Blocks' : doc.id);
+}
+
+async function loadProjects() {
+  const list = document.getElementById('project-list');
+  const error = document.getElementById('project-error');
+  if (!list) return;
+  list.textContent = 'Loading projects…';
+  if (error) error.textContent = '';
+  try {
+    const snap = await _db.collection(PROJECTS_COLLECTION).get();
+    const projects = snap.docs
+      .filter(doc => !doc.id.includes('/'))
+      .map(doc => ({ id: doc.id, name: projectNameForDoc(doc), data: doc.data() || {} }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    list.replaceChildren();
+    if (!projects.length) {
+      const empty = document.createElement('div');
+      empty.className = 'project-meta';
+      empty.textContent = 'No projects yet. Create one above.';
+      list.appendChild(empty);
+      return;
+    }
+    projects.forEach(project => {
+      const item = document.createElement('div');
+      item.className = 'project-item';
+      item.addEventListener('click', () => selectProject(project.id, project.name));
+      const text = document.createElement('div');
+      const title = document.createElement('div');
+      title.className = 'project-title';
+      title.textContent = project.name;
+      const meta = document.createElement('div');
+      meta.className = 'project-meta';
+      meta.textContent = `${(project.data.blocks || []).length || 0} blocks · ${(project.data.rows || []).length || 0} resources`;
+      text.append(title, meta);
+      const open = document.createElement('button');
+      open.type = 'button';
+      open.textContent = 'Open';
+      item.append(text, open);
+      list.appendChild(item);
+    });
+  } catch (e) {
+    list.textContent = '';
+    if (error) error.textContent = e.message || String(e);
+  }
+}
+
+function slugProjectName(name) {
+  const base = (name || 'project').toLowerCase().trim().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 50) || 'project';
+  return `${base}-${Date.now().toString(36)}`;
+}
+
+function resetToEmptyProject() {
+  setTimelineAnchor(null);
+  rows = [makeRow(1), makeRow(2), makeRow(3), makeRow(4), makeRow(5)];
+  blocks = [];
+  dependencies = [];
+  nextBlockId = 1;
+  nextRowId = 6;
+  contingencyPct = 0;
+  normalizeRows();
+}
+
+async function flushPendingSaveBeforeProjectChange() {
+  if (!_saveTimer) return;
+  clearTimeout(_saveTimer);
+  _saveTimer = null;
+  const snapshot = snapshotState();
+  const remoteSnapshot = _db && _currentUser ? firestoreSnapshot(snapshot) : snapshot;
+  const docPath = projectDocPath();
+  const localKey = stateKey();
+  try {
+    if (_db && _currentUser) {
+      setSyncStatus('saving', 'Saving');
+      await writeBackup(remoteSnapshot, 'auto');
+      await _db.doc(docPath).set({ ...remoteSnapshot, _clientId: CLIENT_ID }, { merge: false });
+    }
+    const db = await openDB();
+    db.transaction(STORE, 'readwrite').objectStore(STORE).put(snapshot, localKey);
+  } catch (e) {
+    console.warn('Project switch save failed:', e);
+  } finally {
+    _hasPendingLocalSave = false;
+  }
+}
+
+async function createProjectFromInput() {
+  await flushPendingSaveBeforeProjectChange();
+  const input = document.getElementById('project-name-input');
+  const error = document.getElementById('project-error');
+  const name = (input?.value || '').trim();
+  if (!name) { if (error) error.textContent = 'Enter a project name.'; return; }
+  if (error) error.textContent = '';
+  const id = slugProjectName(name);
+  currentProjectId = id;
+  currentProjectName = name.slice(0, 80);
+  resetToEmptyProject();
+  _saveReady = true;
+  const snapshot = firestoreSnapshot(snapshotState());
+  await _db.doc(projectDocPath(id)).set({ ...snapshot, _clientId: CLIENT_ID }, { merge: false });
+  if (input) input.value = '';
+  await selectProject(id, currentProjectName);
+}
+
+async function selectProject(projectId, projectName = '') {
+  if (!projectId) return;
+  await flushPendingSaveBeforeProjectChange();
+  _saveReady = false;
+  if (_unsub) { _unsub(); _unsub = null; }
+  _pendingRemote = null;
+  _lastBackupAt = 0;
+  currentProjectId = projectId;
+  currentProjectName = projectName || (projectId === 'blocks' ? 'Blocks' : projectId);
+  updateProjectTitle();
+  setSyncStatus('saving', 'Loading');
+  const saved = await loadState();
+  _saveReady = true;
+  if (saved) {
+    currentProjectName = saved.projectName || currentProjectName;
+    updateProjectTitle();
+    setTimelineAnchor(saved.projectStart);
+    rows = saved.rows || rows;
+    normalizeRows();
+    blocks = saved.blocks || [];
+    dependencies = saved.dependencies || [];
+    if (!saved.version || saved.version < 2) blocks = migrateV1ToV2(blocks);
+    normalizeBlocks();
+    nextBlockId = saved.nextBlockId || (blocks.reduce((m, b) => Math.max(m, b.id), 0) + 1);
+    nextRowId = saved.nextRowId || (rows.reduce((m, r) => Math.max(m, r.id), 0) + 1);
+    contingencyPct = saved.contingencyPct || 0;
+    const contingencyInput = document.getElementById('contingency');
+    if (contingencyInput) contingencyInput.value = contingencyPct;
+  } else {
+    resetToEmptyProject();
+    createBlock(1, 0, 5, 'Planning');
+    createBlock(1, 6, 8, 'Design');
+    createBlock(2, 3, 10, 'Frontend');
+    createBlock(3, 8, 12, 'Backend');
+    createBlock(2, 14, 6, 'Testing');
+    saveState();
+  }
+
+  loadViewPrefs(saved);
+  syncViewButtons();
+  listenForChanges();
+  applyHeaderWidth();
+  applyRowHeights();
+  hideProjectPicker();
+  render();
+  setupAppEventHandlers();
+  setSyncStatus('saved', 'Loaded');
+}
+
+let _appEventHandlersSetup = false;
+function setupAppEventHandlers() {
+  if (_appEventHandlersSetup) return;
+  _appEventHandlersSetup = true;
+  const gridArea = document.getElementById('grid-area');
+  gridArea.addEventListener('mousedown', startPan);
+  gridArea.addEventListener('wheel', onTimelineWheel, { passive: false });
+}
+
 // --- Init ---
 async function init() {
   setupAuthUI();
@@ -4776,48 +5044,11 @@ async function init() {
     return;
   }
   showSignedIn(user);
-  const saved = await loadState();
-  _saveReady = true;
-  if (saved) {
-    // Restore state (Firestore or IndexedDB). Pin the column anchor to the
-    // one the data was saved against — see setTimelineAnchor.
-    setTimelineAnchor(saved.projectStart);
-    rows = saved.rows || rows;
-    normalizeRows();
-    // Track heights come through saved.rows (sanitizeState seeds legacy rows
-    // from the old rowHeights map); the map itself is never used at runtime.
-    blocks = saved.blocks || [];
-    dependencies = saved.dependencies || [];
-    // v1 state had no version field and used calendar-day columns.
-    if (!saved.version || saved.version < 2) {
-      blocks = migrateV1ToV2(blocks);
-    }
-    normalizeBlocks();
-    nextBlockId = saved.nextBlockId || (blocks.reduce((m, b) => Math.max(m, b.id), 0) + 1);
-    nextRowId = saved.nextRowId || (rows.reduce((m, r) => Math.max(m, r.id), 0) + 1);
-    contingencyPct = saved.contingencyPct || 0;
-    const contingencyInput = document.getElementById('contingency');
-    if (contingencyInput) contingencyInput.value = contingencyPct;
-  } else {
-    normalizeRows();
-    // First run: seed example blocks
-    createBlock(1, 0, 5, 'Planning');
-    createBlock(1, 6, 8, 'Design');
-    createBlock(2, 3, 10, 'Frontend');
-    createBlock(3, 8, 12, 'Backend');
-    createBlock(2, 14, 6, 'Testing');
-    saveState(); // write seed data to Firestore immediately
-  }
-
-  loadViewPrefs(saved); // zoom + column widths: localStorage, doc as legacy fallback
-  syncViewButtons();
-  listenForChanges(); // start real-time sync
-  applyHeaderWidth(); // apply saved header-column width before first render
-  applyRowHeights(); // apply saved row heights before first render
-  render();
-  const gridArea = document.getElementById('grid-area');
-  gridArea.addEventListener('mousedown', startPan);
-  gridArea.addEventListener('wheel', onTimelineWheel, { passive: false });
+  document.getElementById('btn-create-project')?.addEventListener('click', createProjectFromInput);
+  document.getElementById('project-name-input')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') createProjectFromInput();
+  });
+  showProjectPicker();
 }
 
 init();

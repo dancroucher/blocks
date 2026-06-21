@@ -21,7 +21,7 @@ service cloud.firestore {
     // required, so stale open tabs keep working.
     function optionalStateKeys() {
       return [
-        'zoom', 'panelWidth', 'headerWidth', 'resourceSummaryWidth',
+        'projectName', 'zoom', 'panelWidth', 'headerWidth', 'resourceSummaryWidth',
         'collapsedRows', 'rowHeights', 'dependencies'
       ];
     }
@@ -71,6 +71,9 @@ service cloud.firestore {
         && request.resource.data.contingencyPct >= 0
         && request.resource.data.contingencyPct <= 100
         && request.resource.data.projectStart is string
+        && (!('projectName' in request.resource.data)
+            || (request.resource.data.projectName is string
+                && request.resource.data.projectName.size() <= 80))
         && request.resource.data.savedAt is int
         && (!('zoom' in request.resource.data)
             || request.resource.data.zoom in ['month', 'week', 'day', 'day-large', 'day-half', 'table'])
@@ -81,7 +84,7 @@ service cloud.firestore {
         && optionalMap('rowHeights');
     }
 
-    match /projects/blocks {
+    match /projects/{projectId} {
       allow read: if isAllowedUser();
       allow create, update: if isAllowedUser()
         && validBaseStateKeys()
