@@ -970,6 +970,17 @@
     border-radius: 2px;
     user-select: none;
   }
+  .holiday-extension {
+    position: absolute;
+    height: calc(100% - 6px);
+    top: 3px;
+    border: 1px dotted rgba(255,255,255,0.68);
+    border-radius: 2px;
+    cursor: grab;
+    user-select: none;
+    z-index: 1;
+  }
+  .holiday-extension:active { cursor: grabbing; }
   .capacity-block::after,
   .contingency-capacity-extension::after {
     content: '';
@@ -2633,10 +2644,16 @@ function normalizeBlocks() {
   enforceDependencySchedule();
 }
 function normalizeDependencies() {
-  const blockIds = new Set(blocks.map(block => block.id));
+  const byId = new Map(blocks.map(block => [block.id, block]));
   dependencies = (Array.isArray(dependencies) ? dependencies : [])
-    .filter(dep => dep && blockIds.has(dep.from) && blockIds.has(dep.to) && dep.from !== dep.to)
+    .filter(dep => dep && byId.has(dep.from) && byId.has(dep.to) && dep.from !== dep.to)
+    .filter(dep => !isHolidayBlock(byId.get(dep.from)) && !isHolidayBlock(byId.get(dep.to)))
     .filter((dep, idx, arr) => arr.findIndex(other => other.from === dep.from && other.to === dep.to) === idx);
+}
+function removeBlockDependencies(blockId) {
+  const before = dependencies.length;
+  dependencies = dependencies.filter(dep => dep.from !== blockId && dep.to !== blockId);
+  return dependencies.length !== before;
 }
 function blockTotalVisualDuration(block) {
   const scheduled = Math.max(1, getBlockScheduledDuration(block));
@@ -2959,6 +2976,7 @@ function appendBlockEditRow(tbody, block) {
   holidayInput.onchange = () => {
     block.holiday = holidayInput.checked;
     block.kind = 'grid';
+    if (block.holiday) removeBlockDependencies(block.id);
     block.duration = block.holiday ? getBlockBaseDuration(block) : adjustedDurationForCapacity(getBlockBaseDuration(block), 100, getRowCapacity(rows.find(r => r.id === block.rowId)));
     enforceDependencySchedule();
     render();
@@ -3501,8 +3519,10 @@ function _render() {
       const compactClass = ((renderTrack?.height || ROW_H_DEFAULT) <= BLOCK_COMPACT_ROW_H) ? ' block-compact' : '';
       bEl.className = `block block-color-${block.color}${isHolidayBlock(block) ? ' block-holiday' : ''}${compactClass}`;
       const baseDuration = getBlockBaseDuration(block);
-      const scheduledDuration = getBlockScheduledDuration(block);
-      const capacityDays = Math.max(0, scheduledDuration - baseDuration);
+      const baseScheduledDuration = Math.max(1, Number(block.duration) || baseDuration);
+      const holidayDays = holidayExtensionForBlock(block);
+      const scheduledDuration = baseScheduledDuration + holidayDays;
+      const capacityDays = Math.max(0, baseScheduledDuration - baseDuration);
       bEl.style.left = (block.start * dayPx()) + 'px';
       bEl.style.width = (baseDuration * dayPx() - 2) + 'px';
       bEl.dataset.blockId = block.id;
@@ -3520,7 +3540,7 @@ function _render() {
       bEl.appendChild(daysBadge);
 
       const makeDependencyHandle = () => {
-        if (dependencies.some(dep => dep.from === block.id)) return null;
+        if (isHolidayBlock(block) || dependencies.some(dep => dep.from === block.id)) return null;
         const dependencyHandle = document.createElement('span');
         dependencyHandle.className = 'dependency-handle';
         dependencyHandle.title = 'Drag to create dependency';
@@ -3570,7 +3590,9 @@ function _render() {
 
       const extraDays = contingencyPct > 0 ? Math.round(scheduledDuration * contingencyPct / 100) : 0;
       const baseExtraDays = contingencyPct > 0 ? Math.round(baseDuration * contingencyPct / 100) : 0;
-      const capacityExtraDays = Math.max(0, extraDays - baseExtraDays);
+      const baseScheduledExtraDays = contingencyPct > 0 ? Math.round(baseScheduledDuration * contingencyPct / 100) : 0;
+      const capacityExtraDays = Math.max(0, baseScheduledExtraDays - baseExtraDays);
+      const holidayExtraDays = Math.max(0, extraDays - baseScheduledExtraDays);
 
       let lastVisualSegment = bEl;
       const dependencyHoverSegments = [bEl];
@@ -3613,6 +3635,27 @@ function _render() {
         cells.appendChild(capEl);
         lastVisualSegment = capEl;
         dependencyHoverSegments.push(capEl);
+      }
+
+      const holidayVisualDays = holidayDays + holidayExtraDays;
+      if (holidayVisualDays > 0) {
+        const hEl = document.createElement('div');
+        hEl.className = `holiday-extension block-color-${block.color}`;
+        hEl.dataset.holidayExtensionFor = block.id;
+        hEl.style.left = ((block.start + baseDuration + baseExtraDays + capacityVisualDays) * dayPx()) + 'px';
+        hEl.style.width = (holidayVisualDays * dayPx() - 2) + 'px';
+        hEl.addEventListener('pointerdown', (e) => {
+          e.stopPropagation();
+          startMove(e, block.id);
+        });
+        hEl.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          showBlockContextMenu(e, block.id);
+        });
+        cells.appendChild(hEl);
+        lastVisualSegment = hEl;
+        dependencyHoverSegments.push(hEl);
       }
       const dependencyHandle = makeDependencyHandle();
       if (dependencyHandle) {
@@ -4295,7 +4338,8 @@ function dependencyPathD(x1, y1, xTip, yTip) {
 }
 
 function blockVisualEndEl(blockId) {
-  return document.querySelector(`[data-capacity-for="${blockId}"]`)
+  return document.querySelector(`[data-holiday-extension-for="${blockId}"]`)
+    || document.querySelector(`[data-capacity-for="${blockId}"]`)
     || document.querySelector(`[data-contingency-for="${blockId}"]`)
     || document.querySelector(`.block[data-block-id="${blockId}"]`);
 }
@@ -4348,12 +4392,14 @@ function dependencyTargetAtPoint(x, y, sourceId) {
     const blockEl = el.closest?.('.block[data-block-id]');
     if (blockEl) {
       const id = parseInt(blockEl.dataset.blockId);
-      if (id && id !== sourceId) return { id, el: blockEl };
+      const block = blocks.find(b => b.id === id);
+      if (id && id !== sourceId && !isHolidayBlock(block)) return { id, el: blockEl };
     }
     const capacityId = el.dataset?.capacityFor ? parseInt(el.dataset.capacityFor) : null;
     if (capacityId && capacityId !== sourceId) {
       const capBlockEl = document.querySelector(`.block[data-block-id="${capacityId}"]`);
-      if (capBlockEl) return { id: capacityId, el: capBlockEl };
+      const capBlock = blocks.find(b => b.id === capacityId);
+      if (capBlockEl && !isHolidayBlock(capBlock)) return { id: capacityId, el: capBlockEl };
     }
   }
   return null;
@@ -4383,6 +4429,9 @@ function updateDependencyArrow(e) {
 
 function addDependency(from, to) {
   if (!from || !to || from === to) return false;
+  const fromBlock = blocks.find(block => block.id === from);
+  const toBlock = blocks.find(block => block.id === to);
+  if (isHolidayBlock(fromBlock) || isHolidayBlock(toBlock)) return false;
   if (dependencies.some(dep => dep.from === from)) return false;
   if (dependencyPathExists(to, from)) return false;
   dependencies.push({ from, to });
@@ -4521,14 +4570,21 @@ function moveBlockDrag(e) {
     const bEl = document.querySelector(`[data-block-id="${dragState.blockId}"]`);
     const cEl = document.querySelector(`[data-contingency-for="${dragState.blockId}"]`);
     const capEl = document.querySelector(`[data-capacity-for="${dragState.blockId}"]`);
+    const hEl = document.querySelector(`[data-holiday-extension-for="${dragState.blockId}"]`);
 
     const updateExtensions = () => {
       const baseDuration = getBlockBaseDuration(block);
-      const scheduledDuration = getBlockScheduledDuration(block);
-      const capacityDays = Math.max(0, scheduledDuration - baseDuration);
+      const baseScheduledDuration = Math.max(1, Number(block.duration) || baseDuration);
+      const holidayDays = holidayExtensionForBlock(block);
+      const scheduledDuration = baseScheduledDuration + holidayDays;
+      const capacityDays = Math.max(0, baseScheduledDuration - baseDuration);
       const extraDays = contingencyPct > 0 ? Math.round(scheduledDuration * contingencyPct / 100) : 0;
       const baseExtraDays = contingencyPct > 0 ? Math.round(baseDuration * contingencyPct / 100) : 0;
-      const capacityExtraDays = Math.max(0, extraDays - baseExtraDays);
+      const baseScheduledExtraDays = contingencyPct > 0 ? Math.round(baseScheduledDuration * contingencyPct / 100) : 0;
+      const capacityExtraDays = Math.max(0, baseScheduledExtraDays - baseExtraDays);
+      const holidayExtraDays = Math.max(0, extraDays - baseScheduledExtraDays);
+      const capacityVisualDays = capacityDays + capacityExtraDays;
+      const holidayVisualDays = holidayDays + holidayExtraDays;
 
       if (cEl) {
         cEl.style.left = (baseDuration * dayPx() - 2) + 'px';
@@ -4536,7 +4592,11 @@ function moveBlockDrag(e) {
       }
       if (capEl) {
         capEl.style.left = ((block.start + baseDuration + baseExtraDays) * dayPx()) + 'px';
-        capEl.style.width = ((capacityDays + capacityExtraDays) * dayPx() - 2) + 'px';
+        capEl.style.width = (capacityVisualDays * dayPx() - 2) + 'px';
+      }
+      if (hEl) {
+        hEl.style.left = ((block.start + baseDuration + baseExtraDays + capacityVisualDays) * dayPx()) + 'px';
+        hEl.style.width = (holidayVisualDays * dayPx() - 2) + 'px';
       }
     };
 
@@ -4560,6 +4620,7 @@ function moveBlockDrag(e) {
             // Move bEl to the new track lane; contingency auto-follows as a child of bEl
             if (bEl) lane.appendChild(bEl);
             if (capEl) lane.appendChild(capEl);
+            if (hEl) lane.appendChild(hEl);
             if (bEl) {
               bEl.style.width = (getBlockBaseDuration(block) * dayPx() - 2) + 'px';
               const badge = bEl.querySelector('.block-days-badge');
@@ -4790,6 +4851,7 @@ function showBlockContextMenu(e, blockId) {
   holidayInput.addEventListener('change', () => {
     block.holiday = holidayInput.checked;
     block.kind = 'grid';
+    if (block.holiday) removeBlockDependencies(block.id);
     block.duration = block.holiday ? getBlockBaseDuration(block) : adjustedDurationForCapacity(getBlockBaseDuration(block), 100, getRowCapacity(rows.find(r => r.id === block.rowId)));
     enforceDependencySchedule();
     render();
