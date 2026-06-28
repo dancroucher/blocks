@@ -4,7 +4,7 @@ service cloud.firestore {
     function isAllowedUser() {
       return request.auth != null
         && request.auth.token.email in [
-          'dan.croucher@gmail.com'
+          'dan.croucher@gmail.com', 'dan.croucher@aweinteractive.com'
         ];
     }
 
