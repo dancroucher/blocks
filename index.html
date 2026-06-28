@@ -1035,6 +1035,18 @@
   .block-color-16 { background: #4d6b7f; color: #fff; } /* steel */
   .block-color-17 { background: #6b5f7d; color: #fff; } /* dusk */
   .block-holiday { background: #8c8c8c !important; color: #fff; }
+  .holiday-resource-band {
+    position: absolute;
+    top: 3px;
+    height: calc(100% - 6px);
+    border: 1px dotted rgba(90,90,90,0.42);
+    border-radius: 2px;
+    background-color: rgba(140,140,140,0.10);
+    background-image: radial-gradient(rgba(90,90,90,0.24) 1px, transparent 1px);
+    background-size: 6px 6px;
+    pointer-events: none;
+    z-index: 1;
+  }
 
   /* Stats/settings styles shared with the table (Data) view */
   .panel-header {
@@ -2554,12 +2566,37 @@ function getBlockBaseDuration(block) {
   return Number.isFinite(base) && base > 0 ? base : (Number(block && block.duration) || 1);
 }
 function isHolidayBlock(block) { return !!(block && block.holiday); }
+function mergeHolidayIntervals(rowId, excludeId = null) {
+  const intervals = blocks
+    .filter(other => other && other.id !== excludeId && other.rowId === rowId && isHolidayBlock(other))
+    .map(other => ({ start: Math.max(0, Number(other.start) || 0), end: Math.max(0, (Number(other.start) || 0) + getBlockBaseDuration(other)) }))
+    .filter(interval => interval.end > interval.start)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  const merged = [];
+  intervals.forEach(interval => {
+    const last = merged[merged.length - 1];
+    if (last && interval.start <= last.end) last.end = Math.max(last.end, interval.end);
+    else merged.push({ ...interval });
+  });
+  return merged;
+}
+function holidayOverlapDays(rowId, excludeId, start, end) {
+  if (end <= start) return 0;
+  return mergeHolidayIntervals(rowId, excludeId).reduce((sum, interval) => {
+    return sum + Math.max(0, Math.min(end, interval.end) - Math.max(start, interval.start));
+  }, 0);
+}
 function holidayExtensionForBlock(block) {
   if (!block || isHolidayBlock(block)) return 0;
-  return blocks.reduce((sum, other) => {
-    if (!other || other.id === block.id || other.rowId !== block.rowId || !isHolidayBlock(other)) return sum;
-    return sum + getBlockBaseDuration(other);
-  }, 0);
+  const start = Math.max(0, Number(block.start) || 0);
+  const baseScheduled = Math.max(1, Number(block.duration) || getBlockBaseDuration(block));
+  let extension = 0;
+  for (let pass = 0; pass < 20; pass++) {
+    const next = holidayOverlapDays(block.rowId, block.id, start, start + baseScheduled + extension);
+    if (next === extension) break;
+    extension = next;
+  }
+  return extension;
 }
 function getBlockScheduledDuration(block) {
   const base = getBlockBaseDuration(block);
@@ -3443,6 +3480,18 @@ function _render() {
     }
 
     const rowBlocks = blocks.filter(b => b.rowId === row.id);
+    const holidayBands = mergeHolidayIntervals(row.id);
+    if (holidayBands.length) {
+      trackCells.forEach(cells => {
+        holidayBands.forEach(interval => {
+          const band = document.createElement('div');
+          band.className = 'holiday-resource-band';
+          band.style.left = (interval.start * dayPx()) + 'px';
+          band.style.width = ((interval.end - interval.start) * dayPx() - 2) + 'px';
+          cells.appendChild(band);
+        });
+      });
+    }
     rowBlocks.forEach(block => {
       const cells = trackCells.get(block.trackId) || trackCells.get(getDefaultTrackId(row));
       if (!cells) return;
