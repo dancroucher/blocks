@@ -352,8 +352,8 @@
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 3px;
-    padding: 0.5rem 0.4rem 0.3rem 0.5rem;
+    gap: 2px;
+    padding: 0.28rem 0.4rem 0.22rem 0.5rem;
     border-right: 1px solid rgba(0,0,0,0.10);
     position: relative;
   }
@@ -394,8 +394,8 @@
     gap: 3px;
     flex: 0 0 auto;
     min-height: 0;
-    margin-top: 5px;
-    margin-bottom: 0.15rem;
+    margin-top: 2px;
+    margin-bottom: 0;
   }
   .track-list {
     display: flex;
@@ -408,9 +408,9 @@
     display: flex;
     align-items: center;
     gap: 0.25rem;
-    height: var(--track-h, 40px);
-    min-height: var(--track-h, 40px);
-    flex: 0 0 var(--track-h, 40px);
+    height: var(--track-h, 36px);
+    min-height: var(--track-h, 36px);
+    flex: 0 0 var(--track-h, 36px);
     padding-right: 0.4rem;
     border-bottom: 1px solid var(--grid-line);
     position: relative;
@@ -458,7 +458,7 @@
     height: 14px;
     position: absolute;
     left: 50%;
-    top: 4px;
+    top: 2px;
     transform: translateX(-50%);
   }
   .track-delete-btn:hover { color: #dc2626; }
@@ -466,9 +466,9 @@
     display: flex;
     align-items: center;
     justify-content: flex-end;
-    height: var(--add-track-h, 22px);
-    min-height: var(--add-track-h, 22px);
-    flex: 0 0 var(--add-track-h, 22px);
+    height: var(--add-track-h, 18px);
+    min-height: var(--add-track-h, 18px);
+    flex: 0 0 var(--add-track-h, 18px);
     padding-right: 0.4rem;
     cursor: pointer;
     user-select: none;
@@ -481,7 +481,7 @@
     font-family: inherit;
     font-size: 0.65rem;
     line-height: 1;
-    padding: 0.15rem 0.4rem;
+    padding: 0.08rem 0.35rem;
     cursor: pointer;
   }
   .track-add-row:hover .track-add-btn {
@@ -566,28 +566,40 @@
     outline: none;
   }
 
-  .row-label-input {
+  .resource-title-row {
+    display: flex;
+    align-items: center;
     width: 100%;
     min-width: 0;
-    flex: 0 0 auto;
-    font-size: 15px;
+    gap: 0.35rem;
     margin-bottom: 4px;
+  }
+
+  .row-label-input {
+    width: auto;
+    min-width: 0;
+    flex: 1 1 auto;
+    font-size: 15px;
   }
 
   .capacity-control {
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     align-items: center;
-    gap: 0 0.05rem;
+    justify-content: flex-end;
+    margin-left: auto;
     color: var(--dim);
     font-size: 0.68rem;
     font-weight: 400;
     line-height: 1.15;
     flex: 0 0 auto;
+    text-align: right;
+    white-space: nowrap;
   }
 
   .row-header input.capacity-input {
-    width: 2.7em;
+    width: 1.85em;
+    margin-left: -0.05em;
     text-align: right;
     font-size: 0.68rem;
     font-weight: 400;
@@ -707,8 +719,8 @@
   /* Blocks */
   .block {
     position: absolute;
-    height: calc(100% - 6px);
-    top: 3px;
+    height: calc(100% - 4px);
+    top: 2px;
     border-radius: 2px;
     cursor: grab;
     display: flex;
@@ -1022,6 +1034,7 @@
   .block-color-15 { background: #536f62; color: #fff; } /* eucalyptus */
   .block-color-16 { background: #4d6b7f; color: #fff; } /* steel */
   .block-color-17 { background: #6b5f7d; color: #fff; } /* dusk */
+  .block-holiday { background: #8c8c8c !important; color: #fff; }
 
   /* Stats/settings styles shared with the table (Data) view */
   .panel-header {
@@ -1712,13 +1725,13 @@ const TRACK_PANEL_MIN_W = 96;
 const HEADER_W_MIN = 240;       // min width that still wraps name/capacity/tags nicely
 const HEADER_W_MAX = 720;
 const COLORS = 18;
-const ROW_H_MIN = 44;
-const ROW_H_DEFAULT = 40;
+const ROW_H_MIN = 32;
+const ROW_H_DEFAULT = 36;
 const ROW_H_MAX = 360;
-const BLOCK_COMPACT_ROW_H = 38;
+const BLOCK_COMPACT_ROW_H = 34;
 const MAX_TRACKS_PER_ROW = 8;
-const RESOURCE_HEADER_MIN_H = 56;
-const ADD_TRACK_ROW_H = 22; // half-height "+ Track" row at the bottom of each resource
+const RESOURCE_HEADER_MIN_H = 42;
+const ADD_TRACK_ROW_H = 18; // compact "+ Track" row at the bottom of each resource
 
 // --- Firebase shared state ---
 // Replace with your actual Firebase project config from:
@@ -1827,6 +1840,17 @@ function stateKey(projectId = currentProjectId) { return projectId ? `${STATE_KE
 const PROJECTS_COLLECTION = 'projects';
 let currentProjectId = null;
 let currentProjectName = '';
+const LAST_PROJECT_KEY = 'blocks:lastProject';
+function rememberProject(projectId, projectName = '') {
+  if (!projectId) return;
+  try { localStorage.setItem(LAST_PROJECT_KEY, JSON.stringify({ id: projectId, name: projectName || '' })); } catch (e) {}
+}
+function rememberedProject() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(LAST_PROJECT_KEY) || 'null');
+    return saved && typeof saved.id === 'string' && saved.id ? saved : null;
+  } catch (e) { return null; }
+}
 function projectDocPath(projectId = currentProjectId) { return `${PROJECTS_COLLECTION}/${projectId || 'blocks'}`; }
 function projectBackupsPath(projectId = currentProjectId) { return `${projectDocPath(projectId)}/backups`; }
 const AUTO_BACKUP_MIN_INTERVAL_MS = 5 * 60 * 1000;
@@ -1956,9 +1980,9 @@ function sanitizeState(data) {
       baseDuration: toPositiveInt(block.baseDuration || block.duration, 1),
       duration: toPositiveInt(block.duration || block.baseDuration, 1),
       label: typeof block.label === 'string' ? block.label : '',
-      kind: block.kind === 'data' ? 'data' : 'grid',
+      kind: 'grid',
       color: ((toNonNegativeInt(block.color, 0) % COLORS) + COLORS) % COLORS,
-      locked: !!block.locked,
+      holiday: !!block.holiday || block.kind === 'data' || !!block.locked,
     }))
     .filter(block => rowIds.size === 0 || rowIds.has(block.rowId));
 
@@ -1993,7 +2017,7 @@ function sanitizeState(data) {
 // _lastClickAt dblclick stamp on blocks loaded from older docs) — never persist.
 function stripTransient(obj) {
   const clean = {};
-  for (const k in obj) { if (k[0] !== '_') clean[k] = obj[k]; }
+  for (const k in obj) { if (k[0] !== '_' && k !== 'locked') clean[k] = obj[k]; }
   return clean;
 }
 
@@ -2529,9 +2553,21 @@ function getBlockBaseDuration(block) {
   const base = Number(block && block.baseDuration);
   return Number.isFinite(base) && base > 0 ? base : (Number(block && block.duration) || 1);
 }
+function isHolidayBlock(block) { return !!(block && block.holiday); }
+function holidayExtensionForBlock(block) {
+  if (!block || isHolidayBlock(block)) return 0;
+  return blocks.reduce((sum, other) => {
+    if (!other || other.id === block.id || other.rowId !== block.rowId || !isHolidayBlock(other)) return sum;
+    return sum + getBlockBaseDuration(other);
+  }, 0);
+}
+function getBlockScheduledDuration(block) {
+  const base = getBlockBaseDuration(block);
+  return (Number(block.duration) || base) + holidayExtensionForBlock(block);
+}
 function fmtBlockDuration(block) {
   const base = getBlockBaseDuration(block);
-  const scheduled = Number(block.duration) || base;
+  const scheduled = getBlockScheduledDuration(block);
   const baseContingency = contingencyPct > 0 ? Math.round(base * contingencyPct / 100) : 0;
   const scheduledContingency = contingencyPct > 0 ? Math.round(scheduled * contingencyPct / 100) : 0;
   const frag = document.createDocumentFragment();
@@ -2550,11 +2586,12 @@ function normalizeBlocks() {
     if (row) block.rowId = row.id;
     const tracks = getRowTracks(row);
     if (!block.trackId || !tracks.some(track => track.id === block.trackId)) block.trackId = tracks[0]?.id || null;
-    if (block.kind !== 'data') block.kind = 'grid';
+    block.holiday = !!block.holiday || block.kind === 'data' || !!block.locked;
+    block.kind = 'grid';
     if (!Number.isFinite(Number(block.baseDuration)) || Number(block.baseDuration) <= 0) {
       block.baseDuration = adjustedDurationForCapacity(block.duration || 1, getRowCapacity(row), 100);
     }
-    block.duration = adjustedDurationForCapacity(block.baseDuration, 100, getRowCapacity(row));
+    block.duration = isHolidayBlock(block) ? block.baseDuration : adjustedDurationForCapacity(block.baseDuration, 100, getRowCapacity(row));
   });
   enforceDependencySchedule();
 }
@@ -2565,7 +2602,7 @@ function normalizeDependencies() {
     .filter((dep, idx, arr) => arr.findIndex(other => other.from === dep.from && other.to === dep.to) === idx);
 }
 function blockTotalVisualDuration(block) {
-  const scheduled = Math.max(1, Number(block && block.duration) || getBlockBaseDuration(block));
+  const scheduled = Math.max(1, getBlockScheduledDuration(block));
   const contingency = contingencyPct > 0 ? Math.round(scheduled * contingencyPct / 100) : 0;
   return scheduled + contingency;
 }
@@ -2605,11 +2642,11 @@ function dependencyPathExists(from, to) {
   }
   return false;
 }
-function isDataBlock(block) { return block && block.kind === 'data'; }
+function isDataBlock(block) { return false; }
 function setBlockBaseDuration(block, baseDuration) {
   const row = rows.find(r => r.id === block.rowId);
   block.baseDuration = Math.max(1, Math.round(Number(baseDuration) || 1));
-  block.duration = adjustedDurationForCapacity(block.baseDuration, 100, getRowCapacity(row));
+  block.duration = isHolidayBlock(block) ? block.baseDuration : adjustedDurationForCapacity(block.baseDuration, 100, getRowCapacity(row));
   enforceDependencySchedule();
 }
 function adjustedDurationForCapacity(duration, oldCapacity, newCapacity) {
@@ -2624,7 +2661,7 @@ function setRowCapacity(row, nextCapacity) {
   blocks.forEach(block => {
     if (block.rowId === row.id) {
       block.baseDuration = getBlockBaseDuration(block);
-      block.duration = adjustedDurationForCapacity(block.baseDuration, 100, newCapacity);
+      block.duration = isHolidayBlock(block) ? block.baseDuration : adjustedDurationForCapacity(block.baseDuration, 100, newCapacity);
     }
   });
   row.capacity = newCapacity;
@@ -2820,7 +2857,7 @@ function renderTableDataSection(view) {
 
 function appendBlockEditRow(tbody, block) {
   const tr = document.createElement('tr');
-  tr.className = `data-block-row block-color-${block.color}`;
+  tr.className = `data-block-row block-color-${block.color}${isHolidayBlock(block) ? ' block-holiday' : ''}`;
   tr.title = 'Right-click for block options';
   tr.addEventListener('contextmenu', (e) => {
     e.preventDefault();
@@ -2877,6 +2914,22 @@ function appendBlockEditRow(tbody, block) {
   scheduledTd.replaceChildren(fmtBlockDuration(block));
   tr.appendChild(scheduledTd);
 
+  const holidayTd = document.createElement('td');
+  const holidayInput = document.createElement('input');
+  holidayInput.type = 'checkbox';
+  holidayInput.checked = isHolidayBlock(block);
+  holidayInput.title = 'Holiday blocks are grey and extend every other block on this resource by their length';
+  holidayInput.onchange = () => {
+    block.holiday = holidayInput.checked;
+    block.kind = 'grid';
+    block.duration = block.holiday ? getBlockBaseDuration(block) : adjustedDurationForCapacity(getBlockBaseDuration(block), 100, getRowCapacity(rows.find(r => r.id === block.rowId)));
+    enforceDependencySchedule();
+    render();
+    saveState();
+  };
+  holidayTd.appendChild(holidayInput);
+  tr.appendChild(holidayTd);
+
   tbody.appendChild(tr);
 }
 
@@ -2897,8 +2950,8 @@ function renderCombinedBlocksView(view) {
       .slice()
       .sort((a, b) => (a.start - b.start) || (a.id - b.id));
     const rowDays = rowBlocks.reduce((s, b) => s + getBlockBaseDuration(b), 0);
-    const rowScheduledDays = rowBlocks.reduce((s, b) => s + b.duration, 0);
-    const rowContingency = contingencyPct > 0 ? rowBlocks.reduce((s, b) => s + Math.round(b.duration * contingencyPct / 100), 0) : 0;
+    const rowScheduledDays = rowBlocks.reduce((s, b) => s + getBlockScheduledDuration(b), 0);
+    const rowContingency = contingencyPct > 0 ? rowBlocks.reduce((s, b) => s + Math.round(getBlockScheduledDuration(b) * contingencyPct / 100), 0) : 0;
     const totalRowDays = rowScheduledDays + rowContingency;
 
     const section = document.createElement('div');
@@ -2926,11 +2979,12 @@ function renderCombinedBlocksView(view) {
     const table = document.createElement('table');
     table.className = 'block-table';
     table.innerHTML = `<thead><tr>
-      <th style="width:40%">name</th>
-      <th style="width:17%">start</th>
-      <th style="width:17%">end</th>
-      <th style="width:12%">days</th>
-      <th style="width:14%">shownDays</th>
+      <th style="width:36%">name</th>
+      <th style="width:16%">start</th>
+      <th style="width:16%">end</th>
+      <th style="width:11%">days</th>
+      <th style="width:13%">shownDays</th>
+      <th style="width:8%">holiday</th>
     </tr></thead>`;
     const tbody = document.createElement('tbody');
     tbody.className = 'data-track-tbody';
@@ -2941,7 +2995,7 @@ function renderCombinedBlocksView(view) {
       trackRow.className = 'combined-track-title-row';
       trackRow.dataset.trackId = track.id;
       const trackCell = document.createElement('td');
-      trackCell.colSpan = 5;
+      trackCell.colSpan = 6;
       const trackTitle = document.createElement('div');
       trackTitle.className = 'data-track-title-cell';
       const trackHandle = document.createElement('span');
@@ -2967,7 +3021,7 @@ function renderCombinedBlocksView(view) {
         const emptyRow = document.createElement('tr');
         emptyRow.className = 'combined-empty-row';
         const emptyCell = document.createElement('td');
-        emptyCell.colSpan = 5;
+        emptyCell.colSpan = 6;
         emptyCell.textContent = 'No blocks in this track';
         emptyRow.appendChild(emptyCell);
         tbody.appendChild(emptyRow);
@@ -3241,6 +3295,9 @@ function _render() {
     summary.className = 'resource-summary';
     summary.appendChild(makeSummaryResizeHandle());
 
+    const titleRow = document.createElement('div');
+    titleRow.className = 'resource-title-row';
+
     const input = document.createElement('input');
     input.className = 'row-label-input';
     input.maxLength = RESOURCE_NAME_MAX_CHARS;
@@ -3254,12 +3311,12 @@ function _render() {
       renderStats();
       saveState();
     };
-    summary.appendChild(input);
+    titleRow.appendChild(input);
 
     const capacityWrap = document.createElement('span');
     capacityWrap.className = 'capacity-control';
     capacityWrap.title = 'Row capacity: lower capacity makes blocks longer (e.g. 50% doubles duration)';
-    capacityWrap.appendChild(document.createTextNode('Capacity:'));
+    capacityWrap.appendChild(document.createTextNode('Cap:'));
     const capacityInput = document.createElement('input');
     capacityInput.type = 'number';
     capacityInput.className = 'capacity-input';
@@ -3271,7 +3328,8 @@ function _render() {
     capacityInput.addEventListener('change', (e) => setRowCapacity(row, e.target.value));
     capacityWrap.appendChild(capacityInput);
     capacityWrap.appendChild(document.createTextNode('%'));
-    summary.appendChild(capacityWrap);
+    titleRow.appendChild(capacityWrap);
+    summary.appendChild(titleRow);
     summary.appendChild(buildTagsRow(row));
 
     const deleteResourceBtn = document.createElement('button');
@@ -3392,9 +3450,10 @@ function _render() {
       const renderTrackId = cells.dataset.trackId || block.trackId;
       const renderTrack = rowTracks.find(track => track.id === renderTrackId);
       const compactClass = ((renderTrack?.height || ROW_H_DEFAULT) <= BLOCK_COMPACT_ROW_H) ? ' block-compact' : '';
-      bEl.className = `block block-color-${block.color}${isDataBlock(block) ? ' block-data' : ''}${compactClass}`;
+      bEl.className = `block block-color-${block.color}${isHolidayBlock(block) ? ' block-holiday' : ''}${compactClass}`;
       const baseDuration = getBlockBaseDuration(block);
-      const capacityDays = Math.max(0, block.duration - baseDuration);
+      const scheduledDuration = getBlockScheduledDuration(block);
+      const capacityDays = Math.max(0, scheduledDuration - baseDuration);
       bEl.style.left = (block.start * dayPx()) + 'px';
       bEl.style.width = (baseDuration * dayPx() - 2) + 'px';
       bEl.dataset.blockId = block.id;
@@ -3460,7 +3519,7 @@ function _render() {
 
       cells.appendChild(bEl);
 
-      const extraDays = contingencyPct > 0 ? Math.round(block.duration * contingencyPct / 100) : 0;
+      const extraDays = contingencyPct > 0 ? Math.round(scheduledDuration * contingencyPct / 100) : 0;
       const baseExtraDays = contingencyPct > 0 ? Math.round(baseDuration * contingencyPct / 100) : 0;
       const capacityExtraDays = Math.max(0, extraDays - baseExtraDays);
 
@@ -3761,8 +3820,8 @@ function renderStats() {
   const rowsUsed = new Set(blocks.map(b => b.rowId)).size;
 
   const totalDays = blocks.reduce((s, b) => s + getBlockBaseDuration(b), 0);
-  const scheduledDays = blocks.reduce((s, b) => s + b.duration, 0);
-  const contingencyDays = contingencyPct > 0 ? blocks.reduce((s, b) => s + Math.round(b.duration * contingencyPct / 100), 0) : 0;
+  const scheduledDays = blocks.reduce((s, b) => s + getBlockScheduledDuration(b), 0);
+  const contingencyDays = contingencyPct > 0 ? blocks.reduce((s, b) => s + Math.round(getBlockScheduledDuration(b) * contingencyPct / 100), 0) : 0;
   const scheduledLine = scheduledDays !== totalDays
     ? `<div class="panel-stat"><span class="label">Capacity-adjusted Days</span><span class="value capacity-adjusted">${scheduledDays}d</span></div>`
     : '';
@@ -3785,9 +3844,11 @@ function resourceNameMinWidth() {
   const canvas = resourceNameMinWidth._canvas || (resourceNameMinWidth._canvas = document.createElement('canvas'));
   const ctx = canvas.getContext('2d');
   ctx.font = font;
+  const capacityWidth = ctx.measureText('Cap:000%').width;
+  const titleGap = 6;
   const widest = rows.reduce((max, row) => {
     const label = clampResourceName(row.label) || `Resource ${row.id}`;
-    return Math.max(max, ctx.measureText(label).width);
+    return Math.max(max, ctx.measureText(label).width + titleGap + capacityWidth);
   }, 0);
   // Include summary left/right padding plus a small caret/breathing allowance.
   return Math.ceil(widest + 30);
@@ -3937,8 +3998,9 @@ function createBlock(rowId, startCol, duration, label, durationIsScheduled = fal
     baseDuration,
     duration: scheduledDuration,
     label: label || '',
-    kind: kind === 'data' ? 'data' : 'grid',
+    kind: 'grid',
     color: (nextBlockId - 2) % COLORS,
+    holiday: false,
   };
   blocks.push(block);
   render();
@@ -4089,7 +4151,7 @@ function getResourceContentMinHeight(row) {
   const children = Array.from(summary.children).filter(el => !el.classList.contains('summary-col-resize'));
   const childH = children.reduce((sum, el) => sum + elementOuterHeight(el), 0);
   const gaps = Math.max(0, children.length - 1) * gap;
-  return Math.max(RESOURCE_HEADER_MIN_H, Math.ceil(padY + childH + gaps + 10));
+  return Math.max(RESOURCE_HEADER_MIN_H, Math.ceil(padY + childH + gaps + 3));
 }
 
 function startRowResize(e, rowId) {
@@ -4413,8 +4475,9 @@ function moveBlockDrag(e) {
 
     const updateExtensions = () => {
       const baseDuration = getBlockBaseDuration(block);
-      const capacityDays = Math.max(0, block.duration - baseDuration);
-      const extraDays = contingencyPct > 0 ? Math.round(block.duration * contingencyPct / 100) : 0;
+      const scheduledDuration = getBlockScheduledDuration(block);
+      const capacityDays = Math.max(0, scheduledDuration - baseDuration);
+      const extraDays = contingencyPct > 0 ? Math.round(scheduledDuration * contingencyPct / 100) : 0;
       const baseExtraDays = contingencyPct > 0 ? Math.round(baseDuration * contingencyPct / 100) : 0;
       const capacityExtraDays = Math.max(0, extraDays - baseExtraDays);
 
@@ -4442,7 +4505,7 @@ function moveBlockDrag(e) {
           if (rowId && (rowId !== block.rowId || trackId !== block.trackId)) {
             const newRow = rows.find(r => r.id === rowId);
             block.baseDuration = getBlockBaseDuration(block);
-            block.duration = adjustedDurationForCapacity(block.baseDuration, 100, getRowCapacity(newRow));
+            block.duration = isHolidayBlock(block) ? block.baseDuration : adjustedDurationForCapacity(block.baseDuration, 100, getRowCapacity(newRow));
             block.rowId = rowId;
             block.trackId = trackId;
             // Move bEl to the new track lane; contingency auto-follows as a child of bEl
@@ -4467,7 +4530,7 @@ function moveBlockDrag(e) {
     }
     else if (dragState.type === 'resize-right') {
       block.baseDuration = Math.max(1, dragState.origBaseDuration + colDelta);
-      block.duration = adjustedDurationForCapacity(block.baseDuration, 100, dragState.origCapacity);
+      block.duration = isHolidayBlock(block) ? block.baseDuration : adjustedDurationForCapacity(block.baseDuration, 100, dragState.origCapacity);
       if (bEl) {
         bEl.style.width = (getBlockBaseDuration(block) * dayPx() - 2) + 'px';
         const badge = bEl.querySelector('.block-days-badge');
@@ -4481,7 +4544,7 @@ function moveBlockDrag(e) {
       if (newBaseDuration >= 1 && newStart >= 0) {
         block.start = newStart;
         block.baseDuration = newBaseDuration;
-        block.duration = adjustedDurationForCapacity(block.baseDuration, 100, dragState.origCapacity);
+        block.duration = isHolidayBlock(block) ? block.baseDuration : adjustedDurationForCapacity(block.baseDuration, 100, dragState.origCapacity);
         if (bEl) {
           bEl.style.left = (block.start * dayPx()) + 'px';
           bEl.style.width = (getBlockBaseDuration(block) * dayPx() - 2) + 'px';
@@ -4670,20 +4733,23 @@ function showBlockContextMenu(e, blockId) {
   }
   menu.appendChild(grid);
 
-  const lockItem = document.createElement('label');
-  lockItem.className = 'context-menu-item';
-  const lockInput = document.createElement('input');
-  lockInput.type = 'checkbox';
-  lockInput.checked = isDataBlock(block);
-  lockInput.addEventListener('change', () => {
-    block.kind = lockInput.checked ? 'data' : 'grid';
+  const holidayItem = document.createElement('label');
+  holidayItem.className = 'context-menu-item';
+  const holidayInput = document.createElement('input');
+  holidayInput.type = 'checkbox';
+  holidayInput.checked = isHolidayBlock(block);
+  holidayInput.addEventListener('change', () => {
+    block.holiday = holidayInput.checked;
+    block.kind = 'grid';
+    block.duration = block.holiday ? getBlockBaseDuration(block) : adjustedDurationForCapacity(getBlockBaseDuration(block), 100, getRowCapacity(rows.find(r => r.id === block.rowId)));
+    enforceDependencySchedule();
     render();
     saveState();
     menu.style.display = 'none';
   });
-  lockItem.appendChild(lockInput);
-  lockItem.appendChild(document.createTextNode('Lock'));
-  menu.appendChild(lockItem);
+  holidayItem.appendChild(holidayInput);
+  holidayItem.appendChild(document.createTextNode('Holiday'));
+  menu.appendChild(holidayItem);
 
   const dup = document.createElement('div');
   dup.className = 'context-menu-item';
@@ -4714,8 +4780,10 @@ function duplicateBlock(id) {
   document.getElementById('context-menu').style.display = 'none';
   const block = blocks.find(b => b.id === id);
   if (!block) return;
-  const clone = createBlock(block.rowId, block.start + block.duration + 1, getBlockBaseDuration(block), block.label, false, block.kind || 'grid', block.trackId);
+  const clone = createBlock(block.rowId, block.start + blockTotalVisualDuration(block) + 1, getBlockBaseDuration(block), block.label, false, 'grid', block.trackId);
   clone.color = block.color;
+  clone.holiday = isHolidayBlock(block);
+  clone.duration = clone.holiday ? getBlockBaseDuration(clone) : clone.duration;
   render();
   saveState();
 }
@@ -4961,6 +5029,7 @@ async function updateProjectFromItem(projectId, item) {
     await ref.set(updated, { merge: false });
     if (projectId === currentProjectId) {
       currentProjectName = name;
+      rememberProject(currentProjectId, currentProjectName);
       updateProjectTitle();
     }
     await loadProjects();
@@ -5115,12 +5184,14 @@ async function selectProject(projectId, projectName = '') {
   _lastBackupAt = 0;
   currentProjectId = projectId;
   currentProjectName = projectName || (projectId === 'blocks' ? 'Blocks' : projectId);
+  rememberProject(currentProjectId, currentProjectName);
   updateProjectTitle();
   setSyncStatus('saving', 'Loading');
   const saved = await loadState();
   _saveReady = true;
   if (saved) {
     currentProjectName = saved.projectName || currentProjectName;
+    rememberProject(currentProjectId, currentProjectName);
     updateProjectTitle();
     setTimelineAnchor(saved.projectStart, saved.projectEnd);
     rows = saved.rows || rows;
@@ -5184,7 +5255,12 @@ async function init() {
   document.getElementById('project-name-input')?.addEventListener('keydown', e => {
     if (e.key === 'Enter') createProjectFromInput();
   });
-  showProjectPicker();
+  const lastProject = rememberedProject();
+  if (lastProject) {
+    await selectProject(lastProject.id, lastProject.name);
+  } else {
+    showProjectPicker();
+  }
 }
 
 init();
