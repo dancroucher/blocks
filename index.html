@@ -972,13 +972,13 @@
   }
   .holiday-extension {
     position: absolute;
-    height: calc(100% - 6px);
-    top: 3px;
-    border: 1px dotted rgba(255,255,255,0.68);
-    border-radius: 2px;
+    height: calc(100% - 4px);
+    top: 2px;
+    border: none;
+    border-radius: 0 2px 2px 0;
     cursor: grab;
     user-select: none;
-    z-index: 1;
+    z-index: 2;
   }
   .holiday-extension:active { cursor: grabbing; }
   .capacity-block::after,
@@ -1050,13 +1050,13 @@
     position: absolute;
     top: 3px;
     height: calc(100% - 6px);
-    border: 1px dotted rgba(90,90,90,0.42);
+    border: 1px dotted rgba(70,70,70,0.38);
     border-radius: 2px;
-    background-color: rgba(140,140,140,0.10);
-    background-image: radial-gradient(rgba(90,90,90,0.24) 1px, transparent 1px);
+    background-color: rgba(140,140,140,0.08);
+    background-image: radial-gradient(rgba(70,70,70,0.22) 1px, transparent 1px);
     background-size: 6px 6px;
     pointer-events: none;
-    z-index: 1;
+    z-index: 7;
   }
 
   /* Stats/settings styles shared with the table (Data) view */
@@ -3642,8 +3642,8 @@ function _render() {
         const hEl = document.createElement('div');
         hEl.className = `holiday-extension block-color-${block.color}`;
         hEl.dataset.holidayExtensionFor = block.id;
-        hEl.style.left = ((block.start + baseDuration + baseExtraDays + capacityVisualDays) * dayPx()) + 'px';
-        hEl.style.width = (holidayVisualDays * dayPx() - 2) + 'px';
+        hEl.style.left = ((block.start + baseDuration + baseExtraDays + capacityVisualDays) * dayPx() - 2) + 'px';
+        hEl.style.width = (holidayVisualDays * dayPx()) + 'px';
         hEl.addEventListener('pointerdown', (e) => {
           e.stopPropagation();
           startMove(e, block.id);
@@ -4595,8 +4595,8 @@ function moveBlockDrag(e) {
         capEl.style.width = (capacityVisualDays * dayPx() - 2) + 'px';
       }
       if (hEl) {
-        hEl.style.left = ((block.start + baseDuration + baseExtraDays + capacityVisualDays) * dayPx()) + 'px';
-        hEl.style.width = (holidayVisualDays * dayPx() - 2) + 'px';
+        hEl.style.left = ((block.start + baseDuration + baseExtraDays + capacityVisualDays) * dayPx() - 2) + 'px';
+        hEl.style.width = (holidayVisualDays * dayPx()) + 'px';
       }
     };
 
