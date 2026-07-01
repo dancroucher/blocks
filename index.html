@@ -1180,6 +1180,95 @@
   .panel-section-header .section-title { flex: 1; display: flex; align-items: center; }
   .panel-section-body.collapsed { display: none; }
 
+  /* Collapsible data-view sections (rollups) */
+  .rollup-header { cursor: pointer; user-select: none; gap: 0.4rem; }
+  .rollup-header:hover h2 { color: var(--accent, #333); }
+  .rollup-caret {
+    display: inline-block;
+    width: 12px;
+    color: var(--dim);
+    transition: transform 0.12s;
+  }
+  .data-rollup.collapsed .rollup-caret { transform: rotate(-90deg); }
+  .data-rollup.collapsed .rollup-body { display: none; }
+  .data-rollup { margin-bottom: 0.5rem; }
+
+  /* Tag colour picker popover */
+  .tag-color-popover {
+    position: fixed;
+    z-index: 1000;
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 5px;
+    padding: 7px;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.18);
+  }
+  .tag-color-swatch {
+    width: 20px;
+    height: 20px;
+    border-radius: 5px;
+    border: 1px solid rgba(0,0,0,0.12);
+    cursor: pointer;
+    padding: 0;
+  }
+  .tag-color-swatch.selected { outline: 2px solid #333; outline-offset: 1px; }
+  .tag-color-swatch.tag-color-0 { background: #fde2e4; }
+  .tag-color-swatch.tag-color-1 { background: #fad2e1; }
+  .tag-color-swatch.tag-color-2 { background: #e2ece9; }
+  .tag-color-swatch.tag-color-3 { background: #bee1e6; }
+  .tag-color-swatch.tag-color-4 { background: #dfe7fd; }
+  .tag-color-swatch.tag-color-5 { background: #cddafd; }
+  .tag-color-swatch.tag-color-6 { background: #fff1cc; }
+  .tag-color-swatch.tag-color-7 { background: #d8f3dc; }
+  .tag-color-swatch.tag-color-8 { background: #f1e4ff; }
+  .tag-color-swatch.tag-color-9 { background: #ffd6ba; }
+
+  /* Editable data-side resource/track fields */
+  input.data-resource-name-input {
+    border: 1px solid transparent;
+    background: transparent;
+    font: inherit;
+    font-size: 15px;
+    font-weight: 500;
+    color: #333;
+    padding: 0.15rem 0.3rem;
+    border-radius: 4px;
+    flex: 1;
+    min-width: 0;
+  }
+  input.data-resource-name-input:hover { border-color: var(--border); }
+  input.data-resource-name-input:focus { outline: none; border-color: var(--accent, #888); background: #fff; }
+  .data-cap-control { display: inline-flex; align-items: center; gap: 2px; }
+  input.data-cap-input {
+    width: 42px;
+    text-align: right;
+    border: 1px solid transparent;
+    background: transparent;
+    font: inherit;
+    font-size: 0.75rem;
+    padding: 0.1rem 0.2rem;
+    border-radius: 4px;
+  }
+  input.data-cap-input:hover { border-color: var(--border); }
+  input.data-cap-input:focus { outline: none; border-color: var(--accent, #888); background: #fff; }
+  input.data-cap-input::-webkit-outer-spin-button,
+  input.data-cap-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input.data-track-name-input {
+    border: 1px solid transparent;
+    background: transparent;
+    font: inherit;
+    color: inherit;
+    padding: 0.1rem 0.3rem;
+    border-radius: 4px;
+    flex: 1;
+    min-width: 0;
+  }
+  input.data-track-name-input:hover { border-color: var(--border); }
+  input.data-track-name-input:focus { outline: none; border-color: var(--accent, #888); background: #fff; }
+
   /* 3-column days display in section header */
   .section-days-3col {
     display: flex;
@@ -2103,6 +2192,14 @@ function sanitizeState(data) {
       }))
     : [];
 
+  const cleanTagColors = {};
+  if (data.tagColors && typeof data.tagColors === 'object') {
+    for (const key in data.tagColors) {
+      const idx = toNonNegativeInt(data.tagColors[key], -1);
+      if (idx >= 0 && idx <= 9 && typeof key === 'string') cleanTagColors[key.toLowerCase().slice(0, TAG_MAX_CHARS)] = idx;
+    }
+  }
+
   return {
     ...data,
     version: toPositiveInt(data.version, STATE_VERSION),
@@ -2112,6 +2209,7 @@ function sanitizeState(data) {
     blocks: cleanBlocks,
     dependencies: cleanDependencies,
     milestones: cleanMilestones,
+    tagColors: cleanTagColors,
     nextMilestoneId: toPositiveInt(data.nextMilestoneId, cleanMilestones.reduce((mx, m) => Math.max(mx, m.id), 0) + 1),
     nextBlockId: toPositiveInt(data.nextBlockId, cleanBlocks.reduce((m, b) => Math.max(m, b.id), 0) + 1),
     nextRowId: toPositiveInt(data.nextRowId, cleanRows.reduce((m, r) => Math.max(m, r.id), 0) + 1),
@@ -2146,6 +2244,7 @@ function snapshotState() {
     blocks: blocks.map(stripTransient),
     dependencies,
     milestones,
+    tagColors,
     nextBlockId, nextRowId, nextMilestoneId, contingencyPct,
     projectStart: projectStart.toISOString(),
     projectEnd: PROJECT_END_DATE.toISOString(),
@@ -2315,6 +2414,7 @@ function applyRemoteState(data) {
   if (Array.isArray(data.dependencies)) dependencies = data.dependencies;
   if (Array.isArray(data.milestones)) milestones = data.milestones;
   if (data.nextMilestoneId != null) nextMilestoneId = data.nextMilestoneId;
+  if (data.tagColors && typeof data.tagColors === 'object') tagColors = data.tagColors;
   if (typeof data.projectName === 'string' && data.projectName.trim()) currentProjectName = data.projectName.trim().slice(0, 80);
   updateProjectTitle();
   if (data.nextBlockId != null) nextBlockId = data.nextBlockId;
@@ -2352,7 +2452,7 @@ let splitPct = 58; // map pane width in split mode, % of .main
 const VIEW_PREFS_KEY = 'blocks-view-prefs';
 function saveViewPrefs() {
   try {
-    localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify({ viewMode, zoom, splitPct, headerWidth, resourceSummaryWidth, resourceTrackPanelWidth }));
+    localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify({ viewMode, zoom, splitPct, headerWidth, resourceSummaryWidth, resourceTrackPanelWidth, collapsedDataSections }));
   } catch (e) { /* private mode / quota — view prefs just won't stick */ }
 }
 function loadViewPrefs(saved) {
@@ -2369,6 +2469,9 @@ function loadViewPrefs(saved) {
   if (typeof src.resourceSummaryWidth === 'number') resourceSummaryWidth = src.resourceSummaryWidth;
   if (typeof src.resourceTrackPanelWidth === 'number') resourceTrackPanelWidth = src.resourceTrackPanelWidth;
   else if (typeof src.headerWidth === 'number') resourceTrackPanelWidth = Math.max(TRACK_PANEL_MIN_W, src.headerWidth - HEADER_CHROME_W - resourceSummaryWidth);
+  if (src.collapsedDataSections && typeof src.collapsedDataSections === 'object') {
+    Object.assign(collapsedDataSections, src.collapsedDataSections);
+  }
 }
 
 let rows = [
@@ -2381,6 +2484,8 @@ let rows = [
 let blocks = [];
 let dependencies = [];
 let milestones = []; // { id, name, start (col), duration (cols), color }
+let collapsedDataSections = {}; // { projectData|milestones|blocks: true } — per-client view pref
+let tagColors = {}; // { [tagLowercase]: colorIndex 0-9 } — shared, project-wide
 let nextBlockId = 1;
 let nextRowId = 6;
 let nextMilestoneId = 1;
@@ -2517,10 +2622,44 @@ function deleteTagGlobally(tag) {
   rows.forEach(r => { r.tags = (r.tags || []).filter(t => t !== tag); });
   render(); saveState();
 }
-function tagColorClass(tag) {
+function tagColorIndex(tag) {
+  const key = (tag || '').toLowerCase();
+  if (tagColors && Object.prototype.hasOwnProperty.call(tagColors, key)) return tagColors[key];
   let hash = 0;
   for (let i = 0; i < tag.length; i++) hash = ((hash << 5) - hash + tag.charCodeAt(i)) | 0;
-  return `tag-color-${Math.abs(hash) % 10}`;
+  return Math.abs(hash) % 10;
+}
+function tagColorClass(tag) { return `tag-color-${tagColorIndex(tag)}`; }
+function setTagColor(tag, idx) {
+  tagColors[(tag || '').toLowerCase()] = idx;
+  render();       // both panes rebuild — chips aren't focused inputs, no focus loss
+  saveState();
+}
+// Small popover to pick a tag colour; the same tag string shares one colour
+// across every resource and both the data + map views.
+function showTagColorPicker(anchorEl, tag) {
+  document.querySelectorAll('.tag-color-popover').forEach(el => el.remove());
+  const pop = document.createElement('div');
+  pop.className = 'tag-color-popover';
+  for (let i = 0; i < 10; i++) {
+    const sw = document.createElement('button');
+    sw.type = 'button';
+    sw.className = `tag-color-swatch tag-color-${i}`;
+    if (i === tagColorIndex(tag)) sw.classList.add('selected');
+    sw.addEventListener('mousedown', e => e.stopPropagation());
+    sw.addEventListener('click', (e) => { e.stopPropagation(); pop.remove(); setTagColor(tag, i); });
+    pop.appendChild(sw);
+  }
+  document.body.appendChild(pop);
+  const r = anchorEl.getBoundingClientRect();
+  pop.style.left = Math.min(r.left, window.innerWidth - pop.offsetWidth - 8) + 'px';
+  pop.style.top = (r.bottom + 4) + 'px';
+  const close = (ev) => {
+    if (ev.target.closest('.tag-color-popover')) return;
+    pop.remove();
+    document.removeEventListener('mousedown', close, true);
+  };
+  setTimeout(() => document.addEventListener('mousedown', close, true), 0);
 }
 function buildTagsRow(row) {
   const wrap = document.createElement('div');
@@ -2529,6 +2668,10 @@ function buildTagsRow(row) {
     const chip = document.createElement('span');
     chip.className = `tag-chip ${tagColorClass(tag)}`;
     chip.textContent = tag;
+    chip.title = 'Click to change colour';
+    chip.style.cursor = 'pointer';
+    chip.addEventListener('mousedown', e => e.stopPropagation());
+    chip.addEventListener('click', e => { e.stopPropagation(); showTagColorPicker(chip, tag); });
     const rm = document.createElement('button');
     rm.className = 'tag-chip-remove';
     rm.type = 'button';
@@ -2937,13 +3080,41 @@ function renderMapControls() {
   return controls;
 }
 
-function renderTableDataSection(view) {
-  const toolbar = document.createElement('div');
-  toolbar.className = 'table-toolbar';
+// Collapsible section wrapper. Returns the body element to append content to;
+// the header (title + caret) toggles the body and persists the collapsed state.
+function makeRollup(view, key, titleText) {
+  const wrap = document.createElement('div');
+  wrap.className = 'data-rollup';
+  if (collapsedDataSections[key]) wrap.classList.add('collapsed');
+
+  const header = document.createElement('div');
+  header.className = 'table-toolbar rollup-header';
+  const caret = document.createElement('span');
+  caret.className = 'rollup-caret';
+  caret.textContent = '▾';
   const title = document.createElement('h2');
-  title.textContent = 'Project Data';
-  toolbar.appendChild(title);
-  view.appendChild(toolbar);
+  title.textContent = titleText;
+  header.appendChild(caret);
+  header.appendChild(title);
+  header.addEventListener('click', (e) => {
+    if (e.target.closest('input, button, select, textarea')) return;
+    const collapsed = !wrap.classList.contains('collapsed');
+    wrap.classList.toggle('collapsed', collapsed);
+    collapsedDataSections[key] = collapsed;
+    saveViewPrefs();
+  });
+
+  const body = document.createElement('div');
+  body.className = 'rollup-body';
+
+  wrap.appendChild(header);
+  wrap.appendChild(body);
+  view.appendChild(wrap);
+  return body;
+}
+
+function renderTableDataSection(view) {
+  const body = makeRollup(view, 'projectData', 'Project Data');
 
   const data = document.createElement('div');
   data.className = 'table-data-top';
@@ -2973,14 +3144,17 @@ function renderTableDataSection(view) {
     chipWrap.style.cssText = 'display:flex;flex-wrap:wrap;gap:5px;';
     tags.forEach(tag => {
       const chip = document.createElement('span');
-      chip.className = 'tag-chip';
+      chip.className = `tag-chip ${tagColorClass(tag)}`;
       chip.textContent = tag;
+      chip.title = 'Click to change colour';
+      chip.style.cursor = 'pointer';
+      chip.addEventListener('click', (e) => { e.stopPropagation(); showTagColorPicker(chip, tag); });
       const rm = document.createElement('button');
       rm.className = 'tag-chip-remove';
       rm.type = 'button';
       rm.textContent = '×';
       rm.title = 'Delete tag globally';
-      rm.addEventListener('click', () => deleteTagGlobally(tag));
+      rm.addEventListener('click', (e) => { e.stopPropagation(); deleteTagGlobally(tag); });
       chip.appendChild(rm);
       chipWrap.appendChild(chip);
     });
@@ -2988,7 +3162,7 @@ function renderTableDataSection(view) {
   }
   data.appendChild(tagsSettings);
 
-  view.appendChild(data);
+  body.appendChild(data);
 }
 
 function appendBlockEditRow(tbody, block) {
@@ -3070,13 +3244,20 @@ function appendBlockEditRow(tbody, block) {
   tbody.appendChild(tr);
 }
 
+// Live sync helpers: when editing a field in the Data pane we update the Map
+// pane's matching element directly (no full data-pane rebuild), so the input
+// keeps focus while the map reflects the change on every keystroke.
+function syncResourceNameToMap(rowId, value) {
+  const el = document.querySelector(`.resource-group[data-row-id="${rowId}"] .row-label-input`);
+  if (el && el.value !== value) el.value = value;
+}
+function syncTrackNameToMap(rowId, trackId, value) {
+  const el = document.querySelector(`.track-list[data-row-id="${rowId}"] .track-label-row[data-track-id="${trackId}"] .track-label-input`);
+  if (el && el.value !== value) el.value = value;
+}
+
 function renderCombinedBlocksView(view) {
-  const toolbar = document.createElement('div');
-  toolbar.className = 'table-toolbar';
-  const title = document.createElement('h2');
-  title.textContent = 'Blocks';
-  toolbar.appendChild(title);
-  view.appendChild(toolbar);
+  const body = makeRollup(view, 'blocks', 'Blocks');
 
   const shell = document.createElement('div');
   shell.className = 'combined-blocks';
@@ -3098,21 +3279,55 @@ function renderCombinedBlocksView(view) {
     section.style.gap = '4px';
 
     const sectionTop = document.createElement('div');
-    sectionTop.style.cssText = 'display:flex;align-items:center;justify-content:space-between;';
-    const sectionTitle = document.createElement('span');
-    sectionTitle.className = 'section-title';
-    sectionTitle.textContent = row.label || `Resource ${row.id}`;
+    sectionTop.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:0.5rem;';
+    const sectionTitle = document.createElement('input');
+    sectionTitle.className = 'section-title data-resource-name-input';
+    sectionTitle.maxLength = RESOURCE_NAME_MAX_CHARS;
+    sectionTitle.placeholder = `Resource ${row.id}`;
+    sectionTitle.value = clampResourceName(row.label);
+    sectionTitle.addEventListener('mousedown', e => e.stopPropagation());
+    sectionTitle.addEventListener('input', (e) => {
+      e.target.value = clampResourceName(e.target.value);
+      row.label = e.target.value;
+      syncResourceNameToMap(row.id, e.target.value);
+      applyHeaderWidth();
+      renderStats();
+      saveState();
+    });
+
     const sectionDays = document.createElement('span');
     sectionDays.className = 'section-days-3col';
-    sectionDays.innerHTML = `<span class="sec-base">Capacity ${getRowCapacity(row)}%</span><span class="sec-conting">+${rowContingency}d</span><span class="sec-total">${totalRowDays}d</span>`;
+    const capWrap = document.createElement('span');
+    capWrap.className = 'sec-base data-cap-control';
+    capWrap.appendChild(document.createTextNode('Cap:'));
+    const capInput = document.createElement('input');
+    capInput.type = 'number';
+    capInput.className = 'data-cap-input';
+    capInput.min = '1';
+    capInput.max = '999';
+    capInput.value = getRowCapacity(row);
+    capInput.addEventListener('mousedown', e => e.stopPropagation());
+    capInput.addEventListener('change', (e) => setRowCapacity(row, e.target.value));
+    capWrap.appendChild(capInput);
+    capWrap.appendChild(document.createTextNode('%'));
+    const contSpan = document.createElement('span');
+    contSpan.className = 'sec-conting';
+    contSpan.textContent = `+${rowContingency}d`;
+    const totSpan = document.createElement('span');
+    totSpan.className = 'sec-total';
+    totSpan.textContent = `${totalRowDays}d`;
+    sectionDays.appendChild(capWrap);
+    sectionDays.appendChild(contSpan);
+    sectionDays.appendChild(totSpan);
+
     sectionTop.appendChild(sectionTitle);
     sectionTop.appendChild(sectionDays);
     section.appendChild(sectionTop);
     section.appendChild(buildTagsRow(row));
     shell.appendChild(section);
 
-    const body = document.createElement('div');
-    body.className = 'panel-section-body';
+    const sectionBody = document.createElement('div');
+    sectionBody.className = 'panel-section-body';
     const table = document.createElement('table');
     table.className = 'block-table';
     table.innerHTML = `<thead><tr>
@@ -3139,9 +3354,17 @@ function renderCombinedBlocksView(view) {
       trackHandle.className = 'data-track-drag-handle';
       trackHandle.textContent = '⠿';
       trackHandle.title = 'Drag to reorder track';
-      const trackName = document.createElement('span');
-      trackName.className = 'data-track-name';
-      trackName.textContent = track.label || 'Track';
+      const trackName = document.createElement('input');
+      trackName.className = 'data-track-name data-track-name-input';
+      trackName.value = track.label || '';
+      trackName.placeholder = 'Track';
+      trackName.addEventListener('mousedown', e => e.stopPropagation());
+      trackName.addEventListener('input', (e) => {
+        track.label = e.target.value;
+        syncTrackNameToMap(row.id, track.id, e.target.value);
+        renderStats();
+        saveState();
+      });
       const trackDelete = document.createElement('button');
       trackDelete.className = 'data-track-delete-btn';
       trackDelete.type = 'button';
@@ -3167,7 +3390,7 @@ function renderCombinedBlocksView(view) {
       trackBlocks.forEach(block => appendBlockEditRow(tbody, block));
     });
     table.appendChild(tbody);
-    body.appendChild(table);
+    sectionBody.appendChild(table);
 
     const totals = document.createElement('div');
     totals.className = 'section-totals';
@@ -3177,7 +3400,7 @@ function renderCombinedBlocksView(view) {
       <span class="totals-col totals-conting">+${rowContingency}d</span>
       <span class="totals-col totals-total">${totalRowDays}d</span>
     `;
-    body.appendChild(totals);
+    sectionBody.appendChild(totals);
 
     const actions = document.createElement('div');
     actions.className = 'section-actions';
@@ -3187,20 +3410,15 @@ function renderCombinedBlocksView(view) {
     addSectionBtn.textContent = '+ Add track';
     addSectionBtn.onclick = () => addTrack(row);
     actions.appendChild(addSectionBtn);
-    body.appendChild(actions);
-    shell.appendChild(body);
+    sectionBody.appendChild(actions);
+    shell.appendChild(sectionBody);
   });
 
-  view.appendChild(shell);
+  body.appendChild(shell);
 }
 
 function renderMilestonesSection(view) {
-  const toolbar = document.createElement('div');
-  toolbar.className = 'table-toolbar';
-  const title = document.createElement('h2');
-  title.textContent = 'Milestones';
-  toolbar.appendChild(title);
-  view.appendChild(toolbar);
+  const rollupBody = makeRollup(view, 'milestones', 'Milestones');
 
   const shell = document.createElement('div');
   shell.className = 'combined-blocks';
@@ -3302,7 +3520,7 @@ function renderMilestonesSection(view) {
   }
 
   shell.appendChild(body);
-  view.appendChild(shell);
+  rollupBody.appendChild(shell);
 }
 
 function renderTableView(wrapper) {
@@ -5702,6 +5920,7 @@ function resetToEmptyProject() {
   blocks = [];
   dependencies = [];
   milestones = [];
+  tagColors = {};
   nextBlockId = 1;
   nextRowId = 6;
   nextMilestoneId = 1;
@@ -5774,6 +5993,7 @@ async function selectProject(projectId, projectName = '') {
     blocks = saved.blocks || [];
     dependencies = saved.dependencies || [];
     milestones = saved.milestones || [];
+    tagColors = (saved.tagColors && typeof saved.tagColors === 'object') ? saved.tagColors : {};
     nextMilestoneId = saved.nextMilestoneId || (milestones.reduce((m, ms) => Math.max(m, ms.id), 0) + 1);
     if (!saved.version || saved.version < 2) blocks = migrateV1ToV2(blocks);
     normalizeBlocks();
