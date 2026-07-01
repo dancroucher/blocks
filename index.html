@@ -1181,12 +1181,22 @@
   .panel-section-body.collapsed { display: none; }
 
   /* Collapsible data-view sections (rollups) */
-  .rollup-header { cursor: pointer; user-select: none; gap: 0.4rem; }
-  .rollup-header:hover h2 { color: var(--accent, #333); }
+  .rollup-header {
+    cursor: pointer;
+    user-select: none;
+    gap: 0.45rem;
+    justify-content: flex-start;
+  }
+  .rollup-header h2 { text-align: left; }
+  .rollup-header:hover h2 { color: #000; }
   .rollup-caret {
-    display: inline-block;
-    width: 12px;
-    color: var(--dim);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    font-size: 1.15rem;
+    line-height: 1;
+    color: #222;
     transition: transform 0.12s;
   }
   .data-rollup.collapsed .rollup-caret { transform: rotate(-90deg); }
@@ -2705,18 +2715,15 @@ function buildTrackList(row) {
     item.className = 'track-label-row';
     item.dataset.trackId = track.id;
     item.style.setProperty('--track-h', (track.height || ROW_H_DEFAULT) + 'px');
+    item.title = 'Right-click for track options';
+    item.addEventListener('contextmenu', (e) => {
+      if (e.target.closest('input')) return;
+      e.preventDefault(); e.stopPropagation();
+      showTrackContextMenu(e, row.id, track.id);
+    });
 
     const controls = document.createElement('div');
     controls.className = 'track-controls';
-
-    const del = document.createElement('button');
-    del.className = 'track-delete-btn';
-    del.type = 'button';
-    del.textContent = '×';
-    del.title = 'Delete track';
-    del.addEventListener('mousedown', e => e.stopPropagation());
-    del.addEventListener('click', e => { e.stopPropagation(); deleteTrack(row, track.id); });
-    controls.appendChild(del);
 
     const handle = document.createElement('span');
     handle.className = 'track-drag-handle';
@@ -3277,6 +3284,12 @@ function renderCombinedBlocksView(view) {
     section.style.flexDirection = 'column';
     section.style.alignItems = 'stretch';
     section.style.gap = '4px';
+    section.title = 'Right-click for resource options';
+    section.addEventListener('contextmenu', (e) => {
+      if (e.target.closest('input, button, .tag-chip')) return;
+      e.preventDefault(); e.stopPropagation();
+      showResourceContextMenu(e, row.id);
+    });
 
     const sectionTop = document.createElement('div');
     sectionTop.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:0.5rem;';
@@ -3346,6 +3359,12 @@ function renderCombinedBlocksView(view) {
       const trackRow = document.createElement('tr');
       trackRow.className = 'combined-track-title-row';
       trackRow.dataset.trackId = track.id;
+      trackRow.title = 'Right-click for track options';
+      trackRow.addEventListener('contextmenu', (e) => {
+        if (e.target.closest('input')) return;
+        e.preventDefault(); e.stopPropagation();
+        showTrackContextMenu(e, row.id, track.id);
+      });
       const trackCell = document.createElement('td');
       trackCell.colSpan = 6;
       const trackTitle = document.createElement('div');
@@ -3365,15 +3384,8 @@ function renderCombinedBlocksView(view) {
         renderStats();
         saveState();
       });
-      const trackDelete = document.createElement('button');
-      trackDelete.className = 'data-track-delete-btn';
-      trackDelete.type = 'button';
-      trackDelete.textContent = '×';
-      trackDelete.title = 'Delete track';
-      trackDelete.addEventListener('click', e => { e.stopPropagation(); deleteTrack(row, track.id); });
       trackTitle.appendChild(trackHandle);
       trackTitle.appendChild(trackName);
-      trackTitle.appendChild(trackDelete);
       trackCell.appendChild(trackTitle);
       trackRow.appendChild(trackCell);
       tbody.appendChild(trackRow);
@@ -3762,6 +3774,12 @@ function _render() {
 
     const summary = document.createElement('div');
     summary.className = 'resource-summary';
+    summary.title = 'Right-click for resource options';
+    summary.addEventListener('contextmenu', (e) => {
+      if (e.target.closest('input, button, .tag-chip')) return;
+      e.preventDefault(); e.stopPropagation();
+      showResourceContextMenu(e, row.id);
+    });
     summary.appendChild(makeSummaryResizeHandle());
 
     const titleRow = document.createElement('div');
@@ -3812,14 +3830,6 @@ function _render() {
       summary.appendChild(addTrackBtn);
     }
 
-    const deleteResourceBtn = document.createElement('button');
-    deleteResourceBtn.className = 'resource-delete-btn';
-    deleteResourceBtn.type = 'button';
-    deleteResourceBtn.title = 'Delete resource';
-    deleteResourceBtn.textContent = '×';
-    deleteResourceBtn.addEventListener('mousedown', e => e.stopPropagation());
-    deleteResourceBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteResource(row.id); });
-    header.appendChild(deleteResourceBtn);
     headerMain.appendChild(summary);
 
     const trackPanel = document.createElement('div');
@@ -4265,7 +4275,7 @@ function setupTrackSortables() {
       forceFallback: true,
       swapThreshold: 0.65,
       preventOnFilter: false,
-      filter: '.track-delete-btn',
+      filter: 'input,button',
       onClone(evt) {
         if (evt.clone) evt.clone.style.cssText += ';visibility:hidden!important;opacity:0!important;box-shadow:none!important;';
       },
@@ -4301,7 +4311,7 @@ function setupTrackSortables() {
       fallbackOnBody: true,
       swapThreshold: 0.65,
       preventOnFilter: false,
-      filter: '.data-track-delete-btn,input,button',
+      filter: 'input,button',
       onStart() {
         document.body.classList.add('row-reordering-sortable');
       },
@@ -5158,11 +5168,10 @@ document.addEventListener('mouseup', (e) => {
   flushPendingRemote();
 });
 
-function showMilestoneContextMenu(e, milestoneId) {
+// Shared "name + Delete" context menu (milestones, resources, tracks).
+function showSimpleContextMenu(e, titleText, onDelete) {
   const menu = document.getElementById('context-menu');
-  const m = milestones.find(x => x.id === milestoneId);
-  if (!m || !menu) return;
-
+  if (!menu) return;
   const menuW = 180, menuH = 80;
   menu.style.display = 'block';
   menu.style.left = Math.min(e.clientX, window.innerWidth - menuW - 8) + 'px';
@@ -5171,7 +5180,7 @@ function showMilestoneContextMenu(e, milestoneId) {
 
   const label = document.createElement('div');
   label.className = 'context-menu-label';
-  label.textContent = (m.name || '').trim() || 'Milestone';
+  label.textContent = titleText;
   menu.appendChild(label);
 
   const sep = document.createElement('div');
@@ -5181,11 +5190,27 @@ function showMilestoneContextMenu(e, milestoneId) {
   const del = document.createElement('div');
   del.className = 'context-menu-item danger';
   del.textContent = 'Delete';
-  del.addEventListener('click', () => {
-    menu.style.display = 'none';
-    deleteMilestone(milestoneId);
-  });
+  del.addEventListener('click', () => { menu.style.display = 'none'; onDelete(); });
   menu.appendChild(del);
+}
+
+function showMilestoneContextMenu(e, milestoneId) {
+  const m = milestones.find(x => x.id === milestoneId);
+  if (!m) return;
+  showSimpleContextMenu(e, (m.name || '').trim() || 'Milestone', () => deleteMilestone(milestoneId));
+}
+
+function showResourceContextMenu(e, rowId) {
+  const row = rows.find(r => r.id === rowId);
+  if (!row) return;
+  showSimpleContextMenu(e, (row.label || '').trim() || `Resource ${row.id}`, () => deleteResource(rowId));
+}
+
+function showTrackContextMenu(e, rowId, trackId) {
+  const row = rows.find(r => r.id === rowId);
+  const track = row && getRowTracks(row).find(t => t.id === trackId);
+  if (!row || !track) return;
+  showSimpleContextMenu(e, (track.label || '').trim() || 'Track', () => deleteTrack(row, trackId));
 }
 
 // --- Milestones ---
