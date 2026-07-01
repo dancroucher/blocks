@@ -555,29 +555,21 @@
     transform: translateX(-50%);
   }
   .track-delete-btn:hover { color: #dc2626; }
-  .track-add-row {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    height: var(--add-track-h, 18px);
-    min-height: var(--add-track-h, 18px);
-    flex: 0 0 var(--add-track-h, 18px);
-    padding-right: 0.4rem;
-    cursor: pointer;
-    user-select: none;
-  }
-  .track-add-btn {
+  .summary-add-track-btn {
+    margin-top: auto;
+    align-self: flex-end;
     border: 1px solid var(--border);
     border-radius: 4px;
     background: transparent;
     color: var(--dim);
     font-family: inherit;
-    font-size: 0.65rem;
+    font-size: 0.7rem;
     line-height: 1;
-    padding: 0.08rem 0.35rem;
+    padding: 0.28rem 0.55rem;
     cursor: pointer;
+    user-select: none;
   }
-  .track-add-row:hover .track-add-btn {
+  .summary-add-track-btn:hover {
     color: var(--accent);
     border-color: var(--accent);
     background: var(--accent-dim);
@@ -772,11 +764,7 @@
     height: 100%;
     cursor: crosshair;
   }
-  .track-add-lane {
-    cursor: pointer;
-    background: rgba(0,0,0,0.015);
-  }
-  .track-add-lane:hover { background: rgba(245,166,35,0.06); }
+
 
   /* Painted grid backgrounds — repeating gradients are dramatically faster
      than one DOM node per day for thousands of columns. Solid grey fill
@@ -1871,7 +1859,6 @@ const ROW_H_MAX = 360;
 const BLOCK_COMPACT_ROW_H = 40;
 const MAX_TRACKS_PER_ROW = 8;
 const RESOURCE_HEADER_MIN_H = 42;
-const ADD_TRACK_ROW_H = 18; // compact "+ Track" row at the bottom of each resource
 
 // --- Firebase shared state ---
 // Replace with your actual Firebase project config from:
@@ -2519,7 +2506,9 @@ function getRowTracks(row) {
 function getDefaultTrackId(row) { return getRowTracks(row)[0]?.id || null; }
 function getTrack(row, trackId) { return getRowTracks(row).find(track => track.id === trackId) || getRowTracks(row)[0]; }
 function canAddTrack(row) { return getRowTracks(row).length < MAX_TRACKS_PER_ROW; }
-function getAddRowH(row) { return canAddTrack(row) ? ADD_TRACK_ROW_H : 0; }
+// The "+ Track" control lives in the resource summary cell now; no extra
+// grid lane is reserved below the tracks.
+function getAddRowH(row) { return 0; }
 function getResourceGroupHeight(row) {
   const sum = getRowTracks(row).reduce((s, t) => s + (t.height || ROW_H_DEFAULT), 0);
   return Math.max(RESOURCE_HEADER_MIN_H, sum + getAddRowH(row));
@@ -2635,7 +2624,7 @@ function buildTrackList(row) {
 
     // Drag the divider below this track label to resize the track, matching the
     // resize handle on the timeline lane for the same dividing line.
-    if (idx < tracks.length - 1 || canAddTrack(row)) {
+    if (idx < tracks.length - 1) {
       const resize = document.createElement('div');
       resize.className = 'row-resize track-row-resize';
       resize.title = 'Drag to resize this track';
@@ -2646,20 +2635,6 @@ function buildTrackList(row) {
     wrap.appendChild(item);
   });
 
-  if (canAddTrack(row)) {
-    const addRow = document.createElement('div');
-    addRow.className = 'track-add-row';
-    addRow.title = 'Add a track to this resource';
-    addRow.style.setProperty('--add-track-h', ADD_TRACK_ROW_H + 'px');
-    const addBtn = document.createElement('button');
-    addBtn.type = 'button';
-    addBtn.className = 'track-add-btn';
-    addBtn.textContent = '+ Track';
-    addRow.appendChild(addBtn);
-    addRow.addEventListener('mousedown', e => e.stopPropagation());
-    addRow.addEventListener('click', e => { e.stopPropagation(); addTrack(row); });
-    wrap.appendChild(addRow);
-  }
   return wrap;
 }
 function addTrack(row) {
@@ -3640,6 +3615,17 @@ function _render() {
     summary.appendChild(titleRow);
     summary.appendChild(buildTagsRow(row));
 
+    if (canAddTrack(row)) {
+      const addTrackBtn = document.createElement('button');
+      addTrackBtn.type = 'button';
+      addTrackBtn.className = 'summary-add-track-btn';
+      addTrackBtn.textContent = '+ Track';
+      addTrackBtn.title = 'Add a track to this resource';
+      addTrackBtn.addEventListener('mousedown', e => e.stopPropagation());
+      addTrackBtn.addEventListener('click', (e) => { e.stopPropagation(); addTrack(row); });
+      summary.appendChild(addTrackBtn);
+    }
+
     const deleteResourceBtn = document.createElement('button');
     deleteResourceBtn.className = 'resource-delete-btn';
     deleteResourceBtn.type = 'button';
@@ -3723,7 +3709,7 @@ function _render() {
       // Drag the line dividing this track from the next to resize this track,
       // mirroring the resource-level resize handle. Skip the bottom-most edge
       // when it coincides with the resource resize handle (no add row below).
-      if (idx < rowTracks.length - 1 || canAddTrack(row)) {
+      if (idx < rowTracks.length - 1) {
         const trackResize = document.createElement('div');
         trackResize.className = 'row-resize track-row-resize';
         trackResize.title = 'Drag to resize this track';
@@ -3734,21 +3720,6 @@ function _render() {
       trackStack.appendChild(trackRow);
       trackCells.set(track.id, cells);
     });
-
-    if (canAddTrack(row)) {
-      const addLane = document.createElement('div');
-      addLane.className = 'row track-grid-row track-add-lane';
-      addLane.dataset.rowId = row.id;
-      addLane.title = 'Add a track to this resource';
-      addLane.style.setProperty('--row-h', ADD_TRACK_ROW_H + 'px');
-      addLane.addEventListener('click', (e) => { if (e.target.closest('.block')) return; addTrack(row); });
-      const addCells = document.createElement('div');
-      addCells.className = 'row-cells track-row-cells';
-      addCells.style.width = (TOTAL_COLS * dayPx()) + 'px';
-      addCells.style.minWidth = (TOTAL_COLS * dayPx()) + 'px';
-      addLane.appendChild(addCells);
-      trackStack.appendChild(addLane);
-    }
 
     const rowBlocks = blocks.filter(b => b.rowId === row.id);
     const holidayBands = mergeHolidayIntervals(row.id);
@@ -4029,12 +4000,10 @@ function reorderTracks(row, orderedIds) {
 function syncTrackGridOrder(rowId, orderedIds) {
   const stack = document.querySelector(`.resource-group[data-row-id="${rowId}"] .resource-track-stack`);
   if (!stack || !orderedIds.length) return;
-  const addLane = stack.querySelector('.track-add-lane');
   orderedIds.forEach(trackId => {
     const trackRow = stack.querySelector(`.track-grid-row[data-track-id="${trackId}"]`);
-    if (trackRow) stack.insertBefore(trackRow, addLane || null);
+    if (trackRow) stack.appendChild(trackRow);
   });
-  if (addLane) stack.appendChild(addLane);
 }
 
 function startTrackDragOverlay(rowId, trackId, originalEvent) {
