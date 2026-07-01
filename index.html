@@ -541,8 +541,9 @@
   }
   .track-delete-btn:hover { color: #dc2626; }
   .summary-add-track-btn {
-    margin-top: auto;
-    align-self: flex-end;
+    position: absolute;
+    right: 6px;
+    bottom: 4px;
     border: 1px solid var(--border);
     border-radius: 4px;
     background: transparent;
@@ -4438,10 +4439,14 @@ function getResourceContentMinHeight(row) {
   const styles = getComputedStyle(summary);
   const padY = cssPx(styles.paddingTop) + cssPx(styles.paddingBottom);
   const gap = cssPx(styles.rowGap || styles.gap) || 3;
-  const children = Array.from(summary.children).filter(el => !el.classList.contains('summary-col-resize'));
+  // The + Track button is absolutely positioned (bottom-right); measuring its
+  // auto margins would feed the current height back into the floor and lock
+  // resizing. Exclude it and reserve a fixed allowance instead.
+  const children = Array.from(summary.children).filter(el => !el.classList.contains('summary-col-resize') && !el.classList.contains('summary-add-track-btn'));
   const childH = children.reduce((sum, el) => sum + elementOuterHeight(el), 0);
   const gaps = Math.max(0, children.length - 1) * gap;
-  return Math.max(RESOURCE_HEADER_MIN_H, Math.ceil(padY + childH + gaps + 3));
+  const addBtnAllowance = summary.querySelector('.summary-add-track-btn') ? 24 : 0;
+  return Math.max(RESOURCE_HEADER_MIN_H, Math.ceil(padY + childH + gaps + addBtnAllowance + 3));
 }
 
 function startRowResize(e, rowId) {
