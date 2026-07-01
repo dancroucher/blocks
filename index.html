@@ -841,8 +841,8 @@
   .dependency-handle {
     position: absolute;
     top: 50%;
-    right: -34px;
-    width: 34px;
+    right: -30px;
+    width: 30px;
     height: 32px;
     transform: translateY(-50%);
     opacity: 0;
@@ -854,7 +854,7 @@
   .dependency-handle::before {
     content: '';
     position: absolute;
-    left: 8px;
+    left: 4px;
     top: 15px;
     width: 10px;
     height: 2px;
@@ -974,6 +974,8 @@
     cursor: ew-resize;
     z-index: 4;
   }
+  /* Keep the very corner for the delete ×, but let the rest of the right
+     edge stay grabbable for resize: the × hover zone is just 14×14px. */
 
   .block .handle-left { left: 0; }
   .block .handle-right { right: 0; }
@@ -1019,7 +1021,9 @@
     display: none;
     position: absolute;
     top: 1px;
-    right: 12px;
+    right: 3px;
+    width: 14px;
+    height: 14px;
     border: none;
     background: none;
     color: rgba(255,255,255,0.85);
