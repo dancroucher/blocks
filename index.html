@@ -337,21 +337,6 @@
   }
   .milestone-handle-left { left: 0; }
   .milestone-handle-right { right: 0; }
-  .milestone-delete {
-    display: none;
-    position: absolute;
-    right: 6px;
-    top: 1px;
-    border: none;
-    background: none;
-    color: rgba(255,255,255,0.85);
-    font-size: 0.8rem;
-    line-height: 1;
-    cursor: pointer;
-    padding: 2px;
-    z-index: 3;
-  }
-  .milestone:hover .milestone-delete { display: block; }
 
   /* Rows */
   .row {
@@ -1005,24 +990,6 @@
     z-index: 3;
     line-height: 1.2;
   }
-  .block-delete-btn {
-    display: none;
-    position: absolute;
-    top: 1px;
-    right: 3px;
-    width: 14px;
-    height: 14px;
-    border: none;
-    background: none;
-    color: rgba(255,255,255,0.85);
-    font-size: 0.8rem;
-    line-height: 1;
-    cursor: pointer;
-    padding: 2px;
-    z-index: 6;
-  }
-  .block:hover .block-delete-btn { display: block; }
-  .block-holiday .block-delete-btn { color: rgba(0,0,0,0.55); }
   .block.block-compact {
     flex-direction: row;
     justify-content: flex-start;
@@ -3763,16 +3730,6 @@ function _render() {
       daysBadge.replaceChildren(fmtBlockDuration(block));
       bEl.appendChild(daysBadge);
 
-      const blockDelBtn = document.createElement('button');
-      blockDelBtn.className = 'block-delete-btn';
-      blockDelBtn.type = 'button';
-      blockDelBtn.title = 'Delete block';
-      blockDelBtn.textContent = '\u00d7';
-      blockDelBtn.addEventListener('pointerdown', e => e.stopPropagation());
-      blockDelBtn.addEventListener('mousedown', e => e.stopPropagation());
-      blockDelBtn.addEventListener('dblclick', e => e.stopPropagation());
-      blockDelBtn.addEventListener('click', (e) => { e.stopPropagation(); confirmDeleteBlock(block.id); });
-      bEl.appendChild(blockDelBtn);
 
       const makeDependencyHandle = () => {
         if (isHolidayBlock(block) || dependencies.some(dep => dep.from === block.id)) return null;
@@ -4978,6 +4935,36 @@ document.addEventListener('mouseup', (e) => {
   flushPendingRemote();
 });
 
+function showMilestoneContextMenu(e, milestoneId) {
+  const menu = document.getElementById('context-menu');
+  const m = milestones.find(x => x.id === milestoneId);
+  if (!m || !menu) return;
+
+  const menuW = 180, menuH = 80;
+  menu.style.display = 'block';
+  menu.style.left = Math.min(e.clientX, window.innerWidth - menuW - 8) + 'px';
+  menu.style.top = Math.min(e.clientY, window.innerHeight - menuH - 8) + 'px';
+  menu.innerHTML = '';
+
+  const label = document.createElement('div');
+  label.className = 'context-menu-label';
+  label.textContent = (m.name || '').trim() || 'Milestone';
+  menu.appendChild(label);
+
+  const sep = document.createElement('div');
+  sep.className = 'context-menu-separator';
+  menu.appendChild(sep);
+
+  const del = document.createElement('div');
+  del.className = 'context-menu-item danger';
+  del.textContent = 'Delete';
+  del.addEventListener('click', () => {
+    menu.style.display = 'none';
+    deleteMilestone(milestoneId);
+  });
+  menu.appendChild(del);
+}
+
 // --- Milestones ---
 // Milestones live in a sticky lane under the date headers: named time periods
 // spanning the same weekday columns as blocks. Drag on the empty lane to
@@ -5105,16 +5092,14 @@ function buildMilestoneLane() {
       el.appendChild(h);
     });
 
-    const del = document.createElement('button');
-    del.className = 'milestone-delete';
-    del.type = 'button';
-    del.textContent = '\u00d7';
-    del.title = 'Delete milestone';
-    del.addEventListener('mousedown', e => e.stopPropagation());
-    del.addEventListener('click', (e) => { e.stopPropagation(); deleteMilestone(m.id); });
-    el.appendChild(del);
+    el.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      showMilestoneContextMenu(e, m.id);
+    });
 
     el.addEventListener('mousedown', (e) => {
+      if (e.button === 2) return;
       if (e.button !== 0) return;
       if (e.target.closest('.milestone-name-input')) return;
       e.stopPropagation();
