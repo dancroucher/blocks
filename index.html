@@ -280,7 +280,7 @@
   .milestone {
     position: absolute;
     height: 18px;
-    border-radius: 4px;
+    border-radius: 0;
     font-size: 0.7rem;
     font-weight: 600;
     color: #fff;
@@ -295,14 +295,11 @@
     z-index: 1;
   }
   .milestone:active { cursor: grabbing; }
-  .milestone-color-0 { background: #4e79a7; }
-  .milestone-color-1 { background: #59a14f; }
-  .milestone-color-2 { background: #e0913d; }
-  .milestone-color-3 { background: #b0656f; }
-  .milestone-color-4 { background: #7b6bb0; }
+  .milestone-color-0, .milestone-color-1, .milestone-color-2,
+  .milestone-color-3, .milestone-color-4 { background: #3d4247; }
   .milestone-preview {
-    background: rgba(78, 121, 167, 0.35);
-    border: 1px dashed #4e79a7;
+    background: rgba(61, 66, 71, 0.35);
+    border: 1px dashed #3d4247;
     pointer-events: none;
   }
   .milestone-name {
@@ -312,14 +309,23 @@
   }
   .milestone-name-input {
     border: none;
-    background: rgba(255,255,255,0.9);
-    border-radius: 3px;
+    background: transparent;
+    color: #fff;
     font-size: 0.7rem;
+    font-weight: 600;
     font-family: inherit;
-    padding: 0 3px;
+    padding: 0;
     width: 100%;
     min-width: 40px;
     outline: none;
+  }
+  .milestone-name-input::selection { background: rgba(255,255,255,0.35); }
+  .milestone-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 0;
+    display: inline-block;
+    flex: 0 0 auto;
   }
   .milestone-handle-left, .milestone-handle-right {
     position: absolute;
@@ -1008,6 +1014,22 @@
     z-index: 3;
     line-height: 1.2;
   }
+  .block-delete-btn {
+    display: none;
+    position: absolute;
+    top: 1px;
+    right: 3px;
+    border: none;
+    background: none;
+    color: rgba(255,255,255,0.85);
+    font-size: 0.8rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px;
+    z-index: 6;
+  }
+  .block:hover .block-delete-btn { display: block; }
+  .block-holiday .block-delete-btn { color: rgba(0,0,0,0.55); }
   .block.block-compact {
     flex-direction: row;
     justify-content: flex-start;
@@ -3226,10 +3248,122 @@ function renderCombinedBlocksView(view) {
   view.appendChild(shell);
 }
 
+function renderMilestonesSection(view) {
+  const toolbar = document.createElement('div');
+  toolbar.className = 'table-toolbar';
+  const title = document.createElement('h2');
+  title.textContent = 'Milestones';
+  toolbar.appendChild(title);
+  view.appendChild(toolbar);
+
+  const shell = document.createElement('div');
+  shell.className = 'combined-blocks';
+  const body = document.createElement('div');
+  body.className = 'panel-section-body';
+
+  if (!milestones.length) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'font-size:0.8rem;color:#aaa;padding:0.4rem 0.6rem;';
+    empty.textContent = 'No milestones yet. Drag on the Milestones lane above the timeline to add one.';
+    body.appendChild(empty);
+  } else {
+    const table = document.createElement('table');
+    table.className = 'block-table';
+    table.innerHTML = `<thead><tr>
+      <th style="width:42%">name</th>
+      <th style="width:19%">start</th>
+      <th style="width:19%">end</th>
+      <th style="width:12%">days</th>
+      <th style="width:8%"></th>
+    </tr></thead>`;
+    const tbody = document.createElement('tbody');
+
+    const sorted = [...milestones].sort((a, b) => (a.start - b.start) || (a.id - b.id));
+    sorted.forEach(m => {
+      const tr = document.createElement('tr');
+
+      const nameTd = document.createElement('td');
+      const nameWrap = document.createElement('div');
+      nameWrap.className = 'combined-name-cell';
+      const swatch = document.createElement('span');
+      swatch.className = `milestone-swatch milestone-color-${(m.color || 0) % MILESTONE_COLORS}`;
+      nameWrap.appendChild(swatch);
+      const nameInput = document.createElement('input');
+      nameInput.className = 'data-block-name-input';
+      nameInput.maxLength = MILESTONE_NAME_MAX_CHARS;
+      nameInput.value = m.name || '';
+      nameInput.placeholder = 'Untitled';
+      nameInput.onchange = () => { m.name = nameInput.value.trim().slice(0, MILESTONE_NAME_MAX_CHARS); render(); saveState(); };
+      nameWrap.appendChild(nameInput);
+      nameTd.appendChild(nameWrap);
+      tr.appendChild(nameTd);
+
+      const startTd = document.createElement('td');
+      const startInput = document.createElement('input');
+      startInput.type = 'date';
+      startInput.value = toDateInputValue(colToDate(m.start));
+      startInput.onchange = () => {
+        m.start = Math.max(0, Math.min(TOTAL_COLS - m.duration, dateInputToCol(startInput.value)));
+        render();
+        saveState();
+      };
+      startTd.appendChild(startInput);
+      tr.appendChild(startTd);
+
+      const endTd = document.createElement('td');
+      const endInput = document.createElement('input');
+      endInput.type = 'date';
+      endInput.value = toDateInputValue(colToDate(m.start + m.duration - 1));
+      endInput.onchange = () => {
+        const endCol = dateInputToCol(endInput.value);
+        m.duration = Math.max(1, endCol - m.start + 1);
+        render();
+        saveState();
+      };
+      endTd.appendChild(endInput);
+      tr.appendChild(endTd);
+
+      const daysTd = document.createElement('td');
+      const daysInput = document.createElement('input');
+      daysInput.type = 'number';
+      daysInput.inputMode = 'numeric';
+      daysInput.className = 'base-days-input';
+      daysInput.min = '1';
+      daysInput.value = m.duration;
+      daysInput.onchange = () => {
+        m.duration = Math.max(1, Math.min(TOTAL_COLS - m.start, toPositiveInt(daysInput.value, m.duration)));
+        render();
+        saveState();
+      };
+      daysTd.appendChild(daysInput);
+      tr.appendChild(daysTd);
+
+      const delTd = document.createElement('td');
+      const delBtn = document.createElement('button');
+      delBtn.className = 'data-track-delete-btn';
+      delBtn.type = 'button';
+      delBtn.textContent = '\u00d7';
+      delBtn.title = 'Delete milestone';
+      delBtn.addEventListener('click', (e) => { e.stopPropagation(); deleteMilestone(m.id); });
+      delTd.appendChild(delBtn);
+      tr.appendChild(delTd);
+
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    body.appendChild(table);
+  }
+
+  shell.appendChild(body);
+  view.appendChild(shell);
+}
+
 function renderTableView(wrapper) {
   const view = document.createElement('div');
   view.className = 'table-view';
   renderTableDataSection(view);
+  renderMilestonesSection(view);
   renderCombinedBlocksView(view);
   wrapper.appendChild(view);
 }
@@ -3654,6 +3788,17 @@ function _render() {
       daysBadge.className = 'block-days-badge';
       daysBadge.replaceChildren(fmtBlockDuration(block));
       bEl.appendChild(daysBadge);
+
+      const blockDelBtn = document.createElement('button');
+      blockDelBtn.className = 'block-delete-btn';
+      blockDelBtn.type = 'button';
+      blockDelBtn.title = 'Delete block';
+      blockDelBtn.textContent = '\u00d7';
+      blockDelBtn.addEventListener('pointerdown', e => e.stopPropagation());
+      blockDelBtn.addEventListener('mousedown', e => e.stopPropagation());
+      blockDelBtn.addEventListener('dblclick', e => e.stopPropagation());
+      blockDelBtn.addEventListener('click', (e) => { e.stopPropagation(); confirmDeleteBlock(block.id); });
+      bEl.appendChild(blockDelBtn);
 
       const makeDependencyHandle = () => {
         if (isHolidayBlock(block) || dependencies.some(dep => dep.from === block.id)) return null;
@@ -4221,6 +4366,14 @@ function deleteBlock(id) {
   dependencies = dependencies.filter(dep => dep.from !== id && dep.to !== id);
   render();
   saveState();
+}
+
+function confirmDeleteBlock(id) {
+  const block = blocks.find(b => b.id === id);
+  if (!block) return;
+  const name = (block.label || '').trim() || 'Untitled block';
+  if (!confirm(`Delete block "${name}"?`)) return;
+  deleteBlock(id);
 }
 
 function deleteResource(rowId) {
@@ -4878,7 +5031,11 @@ function packMilestoneLevels() {
 }
 
 function deleteMilestone(id) {
-  milestones = milestones.filter(m => m.id !== id);
+  const m = milestones.find(x => x.id === id);
+  if (!m) return;
+  const name = (m.name || '').trim() || 'Untitled milestone';
+  if (!confirm(`Delete milestone "${name}"?`)) return;
+  milestones = milestones.filter(x => x.id !== id);
   saveState();
   render();
 }
@@ -5218,7 +5375,7 @@ function showBlockContextMenu(e, blockId) {
   const del = document.createElement('div');
   del.className = 'context-menu-item danger';
   del.textContent = 'Delete';
-  del.addEventListener('click', () => deleteBlock(blockId));
+  del.addEventListener('click', () => confirmDeleteBlock(blockId));
   menu.appendChild(del);
 }
 
