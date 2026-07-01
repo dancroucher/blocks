@@ -260,6 +260,93 @@
     background: #f8f8f8;
   }
 
+  /* Milestones lane */
+  .milestone-lane {
+    position: relative;
+    background: #f8f8f8;
+  }
+  .milestone-lane-label {
+    display: flex;
+    align-items: center;
+    padding-left: 6px;
+    font-size: 0.7rem;
+    color: #999;
+  }
+  .milestone-lane-body {
+    position: relative;
+    cursor: crosshair;
+    flex-shrink: 0;
+  }
+  .milestone {
+    position: absolute;
+    height: 18px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    padding: 0 8px;
+    cursor: grab;
+    user-select: none;
+    overflow: hidden;
+    white-space: nowrap;
+    box-sizing: border-box;
+    z-index: 1;
+  }
+  .milestone:active { cursor: grabbing; }
+  .milestone-color-0 { background: #4e79a7; }
+  .milestone-color-1 { background: #59a14f; }
+  .milestone-color-2 { background: #e0913d; }
+  .milestone-color-3 { background: #b0656f; }
+  .milestone-color-4 { background: #7b6bb0; }
+  .milestone-preview {
+    background: rgba(78, 121, 167, 0.35);
+    border: 1px dashed #4e79a7;
+    pointer-events: none;
+  }
+  .milestone-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    pointer-events: none;
+  }
+  .milestone-name-input {
+    border: none;
+    background: rgba(255,255,255,0.9);
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-family: inherit;
+    padding: 0 3px;
+    width: 100%;
+    min-width: 40px;
+    outline: none;
+  }
+  .milestone-handle-left, .milestone-handle-right {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 7px;
+    cursor: ew-resize;
+    z-index: 2;
+  }
+  .milestone-handle-left { left: 0; }
+  .milestone-handle-right { right: 0; }
+  .milestone-delete {
+    display: none;
+    position: absolute;
+    right: 6px;
+    top: 1px;
+    border: none;
+    background: none;
+    color: rgba(255,255,255,0.85);
+    font-size: 0.8rem;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px;
+    z-index: 3;
+  }
+  .milestone:hover .milestone-delete { display: block; }
+
   /* Rows */
   .row {
     display: flex;
@@ -1750,6 +1837,9 @@ const TRACK_PANEL_MIN_W = 96;
 const HEADER_W_MIN = 240;       // min width that still wraps name/capacity/tags nicely
 const HEADER_W_MAX = 720;
 const COLORS = 18;
+const MILESTONE_COLORS = 5;
+const MILESTONE_LANE_H = 22;
+const MILESTONE_NAME_MAX_CHARS = 60;
 const ROW_H_MIN = 32;
 const ROW_H_DEFAULT = 36;
 const ROW_H_MAX = 360;
@@ -2021,6 +2111,18 @@ function sanitizeState(data) {
       .filter((dep, idx, arr) => arr.findIndex(other => other.from === dep.from && other.to === dep.to) === idx)
     : [];
 
+  const cleanMilestones = Array.isArray(data.milestones)
+    ? data.milestones
+      .filter(m => m && typeof m === 'object' && Number.isFinite(Number(m.id)))
+      .map(m => ({
+        id: toPositiveInt(m.id),
+        name: typeof m.name === 'string' ? m.name.trim().slice(0, MILESTONE_NAME_MAX_CHARS) : '',
+        start: toNonNegativeInt(m.start, 0),
+        duration: toPositiveInt(m.duration, 1),
+        color: ((toNonNegativeInt(m.color, 0) % MILESTONE_COLORS) + MILESTONE_COLORS) % MILESTONE_COLORS,
+      }))
+    : [];
+
   return {
     ...data,
     version: toPositiveInt(data.version, STATE_VERSION),
@@ -2029,6 +2131,8 @@ function sanitizeState(data) {
     rows: cleanRows,
     blocks: cleanBlocks,
     dependencies: cleanDependencies,
+    milestones: cleanMilestones,
+    nextMilestoneId: toPositiveInt(data.nextMilestoneId, cleanMilestones.reduce((mx, m) => Math.max(mx, m.id), 0) + 1),
     nextBlockId: toPositiveInt(data.nextBlockId, cleanBlocks.reduce((m, b) => Math.max(m, b.id), 0) + 1),
     nextRowId: toPositiveInt(data.nextRowId, cleanRows.reduce((m, r) => Math.max(m, r.id), 0) + 1),
     contingencyPct: Math.max(0, Math.min(100, toNonNegativeInt(data.contingencyPct, 0))),
@@ -2061,7 +2165,8 @@ function snapshotState() {
     rows,
     blocks: blocks.map(stripTransient),
     dependencies,
-    nextBlockId, nextRowId, contingencyPct,
+    milestones,
+    nextBlockId, nextRowId, nextMilestoneId, contingencyPct,
     projectStart: projectStart.toISOString(),
     projectEnd: PROJECT_END_DATE.toISOString(),
     savedAt: now,
@@ -2188,7 +2293,7 @@ function saveState() {
 // the stash (last-writer-wins; our write echoes to the other clients).
 let _pendingRemote = null;
 function uiBusy() {
-  return !!(_pointerDragging || dragState || dependencyDragState || createState || _saveTimer || _hasPendingLocalSave);
+  return !!(_pointerDragging || dragState || dependencyDragState || createState || msCreateState || msDragState || _saveTimer || _hasPendingLocalSave);
 }
 function flushPendingRemote() {
   if (!_pendingRemote || uiBusy()) return;
@@ -2228,6 +2333,8 @@ function applyRemoteState(data) {
   if (data.rows)     { rows           = data.rows; }
   if (data.blocks)   { blocks         = data.blocks; }
   if (Array.isArray(data.dependencies)) dependencies = data.dependencies;
+  if (Array.isArray(data.milestones)) milestones = data.milestones;
+  if (data.nextMilestoneId != null) nextMilestoneId = data.nextMilestoneId;
   if (typeof data.projectName === 'string' && data.projectName.trim()) currentProjectName = data.projectName.trim().slice(0, 80);
   updateProjectTitle();
   if (data.nextBlockId != null) nextBlockId = data.nextBlockId;
@@ -2293,8 +2400,10 @@ let rows = [
 ];
 let blocks = [];
 let dependencies = [];
+let milestones = []; // { id, name, start (col), duration (cols), color }
 let nextBlockId = 1;
 let nextRowId = 6;
+let nextMilestoneId = 1;
 let contingencyPct = 0;
 let headerWidth = ROW_HEADER_W; // total left header width (summary + track-label columns)
 let resourceSummaryWidth = RESOURCE_SUMMARY_W; // resizable first resource cell (name/capacity/tags)
@@ -2731,6 +2840,8 @@ function setRowCapacity(row, nextCapacity) {
 let dragState = null; // { type: 'move'|'resize-left'|'resize-right', blockId, startX, origStart, origDuration }
 let dependencyDragState = null; // { blockId, handle, svg, path, startX, startY }
 let createState = null; // { rowId, startCol }
+let msCreateState = null; // { startCol, currentCol, preview, body }
+let msDragState = null;   // { id, mode: 'move'|'left'|'right', startX, origStart, origDuration, el, moved }
 const _lastBlockClickAt = new Map(); // blockId → ts, for dblclick-to-edit detection
 
 // Grid wrapper reference (updated on each render)
@@ -3320,6 +3431,8 @@ function _render() {
       headersWrap.appendChild(halfRow);
     }
   }
+
+  headersWrap.appendChild(buildMilestoneLane());
 
   wrapper.appendChild(headersWrap);
 
@@ -4740,6 +4853,231 @@ document.addEventListener('mouseup', (e) => {
   flushPendingRemote();
 });
 
+// --- Milestones ---
+// Milestones live in a sticky lane under the date headers: named time periods
+// spanning the same weekday columns as blocks. Drag on the empty lane to
+// create, drag the pill to move, drag its edges to resize, dblclick to rename.
+function milestoneTitle(m) {
+  const startD = colToDate(m.start);
+  const endD = colToDate(m.start + m.duration - 1);
+  return `${m.name || 'Milestone'}: ${formatDateFull(startD)} \u2192 ${formatDateFull(endD)}`;
+}
+
+// Greedy level packing so overlapping milestones stack instead of colliding.
+function packMilestoneLevels() {
+  const sorted = [...milestones].sort((a, b) => a.start - b.start || a.id - b.id);
+  const levelEnds = []; // per level, the first free col
+  const levelOf = new Map();
+  sorted.forEach(m => {
+    let lv = levelEnds.findIndex(end => m.start >= end);
+    if (lv === -1) { lv = levelEnds.length; levelEnds.push(0); }
+    levelEnds[lv] = m.start + m.duration;
+    levelOf.set(m.id, lv);
+  });
+  return { levelOf, count: Math.max(1, levelEnds.length) };
+}
+
+function deleteMilestone(id) {
+  milestones = milestones.filter(m => m.id !== id);
+  saveState();
+  render();
+}
+
+function startMilestoneRename(el, m) {
+  const label = el.querySelector('.milestone-name');
+  if (!label) return;
+  const input = document.createElement('input');
+  input.className = 'milestone-name-input';
+  input.maxLength = MILESTONE_NAME_MAX_CHARS;
+  input.value = m.name || '';
+  label.replaceWith(input);
+  input.focus();
+  input.select();
+  let committed = false;
+  const commit = () => {
+    if (committed) return;
+    committed = true;
+    m.name = input.value.trim().slice(0, MILESTONE_NAME_MAX_CHARS);
+    saveState();
+    render();
+  };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') input.blur();
+    else if (e.key === 'Escape') { input.value = m.name || ''; input.blur(); }
+  });
+  input.addEventListener('mousedown', e => e.stopPropagation());
+  input.addEventListener('dblclick', e => e.stopPropagation());
+}
+
+function createMilestone(start, duration, openRename = true) {
+  const m = {
+    id: nextMilestoneId++,
+    name: '',
+    start: Math.max(0, Math.min(TOTAL_COLS - 1, start)),
+    duration: Math.max(1, Math.min(TOTAL_COLS - start, duration)),
+    color: (nextMilestoneId - 2 + MILESTONE_COLORS) % MILESTONE_COLORS,
+  };
+  milestones.push(m);
+  saveState();
+  render();
+  if (openRename) {
+    // render() is rAF-batched; open the rename input once the pill exists.
+    setTimeout(() => {
+      const el = document.querySelector(`.milestone[data-milestone-id="${m.id}"]`);
+      if (el) startMilestoneRename(el, m);
+    }, 80);
+  }
+  return m;
+}
+
+function buildMilestoneLane() {
+  const laneRow = document.createElement('div');
+  laneRow.className = 'col-headers milestone-lane';
+
+  const spacer = document.createElement('div');
+  spacer.className = 'row-header-spacer milestone-lane-label';
+  spacer.textContent = 'Milestones';
+  spacer.title = 'Drag on the lane to add a milestone';
+  laneRow.appendChild(spacer);
+
+  const body = document.createElement('div');
+  body.className = 'milestone-lane-body';
+  body.style.width = (TOTAL_COLS * dayPx()) + 'px';
+  body.style.minWidth = (TOTAL_COLS * dayPx()) + 'px';
+
+  const { levelOf, count } = packMilestoneLevels();
+  laneRow.style.height = (count * MILESTONE_LANE_H + 4) + 'px';
+
+  milestones.forEach(m => {
+    const el = document.createElement('div');
+    el.className = `milestone milestone-color-${(m.color || 0) % MILESTONE_COLORS}`;
+    el.style.left = (m.start * dayPx()) + 'px';
+    el.style.width = Math.max(8, m.duration * dayPx() - 2) + 'px';
+    el.style.top = (2 + (levelOf.get(m.id) || 0) * MILESTONE_LANE_H) + 'px';
+    el.dataset.milestoneId = m.id;
+    el.title = milestoneTitle(m);
+
+    const label = document.createElement('span');
+    label.className = 'milestone-name';
+    label.textContent = m.name || '...';
+    el.appendChild(label);
+
+    ['left', 'right'].forEach(side => {
+      const h = document.createElement('div');
+      h.className = `milestone-handle-${side}`;
+      h.addEventListener('mousedown', (e) => {
+        if (e.button !== 0) return;
+        e.stopPropagation();
+        e.preventDefault();
+        msDragState = { id: m.id, mode: side, startX: e.clientX, origStart: m.start, origDuration: m.duration, el, moved: false };
+      });
+      el.appendChild(h);
+    });
+
+    const del = document.createElement('button');
+    del.className = 'milestone-delete';
+    del.type = 'button';
+    del.textContent = '\u00d7';
+    del.title = 'Delete milestone';
+    del.addEventListener('mousedown', e => e.stopPropagation());
+    del.addEventListener('click', (e) => { e.stopPropagation(); deleteMilestone(m.id); });
+    el.appendChild(del);
+
+    el.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      if (e.target.closest('.milestone-name-input')) return;
+      e.stopPropagation();
+      e.preventDefault();
+      msDragState = { id: m.id, mode: 'move', startX: e.clientX, origStart: m.start, origDuration: m.duration, el, moved: false };
+    });
+
+    el.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      startMilestoneRename(el, m);
+    });
+
+    body.appendChild(el);
+  });
+
+  // Drag on the empty lane to create a milestone.
+  body.addEventListener('mousedown', (e) => {
+    if (e.button !== 0) return;
+    if (e.target !== body) return;
+    e.stopPropagation();
+    e.preventDefault();
+    const rect = body.getBoundingClientRect();
+    const col = Math.max(0, Math.floor((e.clientX - rect.left) / dayPx()));
+    const preview = document.createElement('div');
+    preview.className = 'milestone milestone-preview';
+    preview.style.left = (col * dayPx()) + 'px';
+    preview.style.width = dayPx() + 'px';
+    preview.style.top = '2px';
+    body.appendChild(preview);
+    msCreateState = { startCol: col, currentCol: col, preview, body };
+  });
+
+  // Dblclick on the empty lane drops a 5-day milestone.
+  body.addEventListener('dblclick', (e) => {
+    if (e.target !== body) return;
+    const rect = body.getBoundingClientRect();
+    const col = Math.max(0, Math.floor((e.clientX - rect.left) / dayPx()));
+    createMilestone(col, 5);
+  });
+
+  laneRow.appendChild(body);
+  return laneRow;
+}
+
+document.addEventListener('mousemove', (e) => {
+  if (msCreateState) {
+    const rect = msCreateState.body.getBoundingClientRect();
+    const endCol = Math.max(0, Math.min(TOTAL_COLS - 1, Math.floor((e.clientX - rect.left) / dayPx())));
+    const start = Math.min(msCreateState.startCol, endCol);
+    const end = Math.max(msCreateState.startCol, endCol);
+    msCreateState.currentCol = endCol;
+    msCreateState.preview.style.left = (start * dayPx()) + 'px';
+    msCreateState.preview.style.width = ((end - start + 1) * dayPx()) + 'px';
+  }
+  if (msDragState) {
+    const m = milestones.find(x => x.id === msDragState.id);
+    if (!m) { msDragState = null; return; }
+    const dCols = Math.round((e.clientX - msDragState.startX) / dayPx());
+    if (dCols !== 0) msDragState.moved = true;
+    if (msDragState.mode === 'move') {
+      m.start = Math.max(0, Math.min(TOTAL_COLS - m.duration, msDragState.origStart + dCols));
+    } else if (msDragState.mode === 'left') {
+      const newStart = Math.max(0, Math.min(msDragState.origStart + msDragState.origDuration - 1, msDragState.origStart + dCols));
+      m.duration = msDragState.origStart + msDragState.origDuration - newStart;
+      m.start = newStart;
+    } else {
+      m.duration = Math.max(1, Math.min(TOTAL_COLS - m.start, msDragState.origDuration + dCols));
+    }
+    msDragState.el.style.left = (m.start * dayPx()) + 'px';
+    msDragState.el.style.width = Math.max(8, m.duration * dayPx() - 2) + 'px';
+    msDragState.el.title = milestoneTitle(m);
+  }
+});
+
+document.addEventListener('mouseup', () => {
+  if (msCreateState) {
+    const start = Math.min(msCreateState.startCol, msCreateState.currentCol);
+    const end = Math.max(msCreateState.startCol, msCreateState.currentCol);
+    msCreateState.preview.remove();
+    const duration = end - start + 1;
+    msCreateState = null;
+    if (duration >= 2) createMilestone(start, duration);
+    flushPendingRemote();
+  }
+  if (msDragState) {
+    const moved = msDragState.moved;
+    msDragState = null;
+    if (moved) { saveState(); render(); }
+    flushPendingRemote();
+  }
+});
+
 // --- Context menu ---
 function removeDependency(from, to) {
   const before = dependencies.length;
@@ -5130,6 +5468,8 @@ async function updateProjectFromItem(projectId, item) {
       rows: clean.rows,
       blocks: clean.blocks.map(block => ({ ...stripTransient(block), start: Math.max(0, block.start + shift) })),
       dependencies: clean.dependencies || [],
+      milestones: (clean.milestones || []).map(m => ({ ...m, start: Math.max(0, m.start + shift) })),
+      nextMilestoneId: clean.nextMilestoneId || 1,
       nextBlockId: clean.nextBlockId,
       nextRowId: clean.nextRowId,
       contingencyPct: clean.contingencyPct,
@@ -5242,8 +5582,10 @@ function resetToEmptyProject() {
   rows = [makeRow(1), makeRow(2), makeRow(3), makeRow(4), makeRow(5)];
   blocks = [];
   dependencies = [];
+  milestones = [];
   nextBlockId = 1;
   nextRowId = 6;
+  nextMilestoneId = 1;
   contingencyPct = 0;
   normalizeRows();
 }
@@ -5312,6 +5654,8 @@ async function selectProject(projectId, projectName = '') {
     normalizeRows();
     blocks = saved.blocks || [];
     dependencies = saved.dependencies || [];
+    milestones = saved.milestones || [];
+    nextMilestoneId = saved.nextMilestoneId || (milestones.reduce((m, ms) => Math.max(m, ms.id), 0) + 1);
     if (!saved.version || saved.version < 2) blocks = migrateV1ToV2(blocks);
     normalizeBlocks();
     nextBlockId = saved.nextBlockId || (blocks.reduce((m, b) => Math.max(m, b.id), 0) + 1);

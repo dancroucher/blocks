@@ -22,7 +22,7 @@ service cloud.firestore {
     function optionalStateKeys() {
       return [
         'projectName', 'projectEnd', 'zoom', 'panelWidth', 'headerWidth', 'resourceSummaryWidth',
-        'collapsedRows', 'rowHeights', 'dependencies'
+        'collapsedRows', 'rowHeights', 'dependencies', 'milestones', 'nextMilestoneId'
       ];
     }
 
@@ -63,6 +63,12 @@ service cloud.firestore {
         && (!('dependencies' in request.resource.data)
             || (request.resource.data.dependencies is list
                 && request.resource.data.dependencies.size() <= 5000))
+        && (!('milestones' in request.resource.data)
+            || (request.resource.data.milestones is list
+                && request.resource.data.milestones.size() <= 500))
+        && (!('nextMilestoneId' in request.resource.data)
+            || (request.resource.data.nextMilestoneId is int
+                && request.resource.data.nextMilestoneId >= 1))
         && request.resource.data.nextBlockId is int
         && request.resource.data.nextBlockId >= 1
         && request.resource.data.nextRowId is int
