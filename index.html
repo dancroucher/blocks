@@ -279,7 +279,7 @@
   }
   .milestone {
     position: absolute;
-    height: 18px;
+    height: 27px;
     border-radius: 0;
     font-size: 0.7rem;
     font-weight: 600;
@@ -296,10 +296,10 @@
   }
   .milestone:active { cursor: grabbing; }
   .milestone-color-0, .milestone-color-1, .milestone-color-2,
-  .milestone-color-3, .milestone-color-4 { background: #3d4247; }
+  .milestone-color-3, .milestone-color-4 { background: #565d64; }
   .milestone-preview {
-    background: rgba(61, 66, 71, 0.35);
-    border: 1px dashed #3d4247;
+    background: rgba(86, 93, 100, 0.35);
+    border: 1px dashed #565d64;
     pointer-events: none;
   }
   .milestone-name {
@@ -770,6 +770,7 @@
   .track-row-cells {
     display: block;
     height: 100%;
+    cursor: crosshair;
   }
   .track-add-lane {
     cursor: pointer;
@@ -840,7 +841,7 @@
   .dependency-handle {
     position: absolute;
     top: 50%;
-    right: -26px;
+    right: -34px;
     width: 34px;
     height: 32px;
     transform: translateY(-50%);
@@ -1018,7 +1019,7 @@
     display: none;
     position: absolute;
     top: 1px;
-    right: 3px;
+    right: 12px;
     border: none;
     background: none;
     color: rgba(255,255,255,0.85);
@@ -1159,15 +1160,13 @@
     position: absolute;
     top: 3px;
     height: calc(100% - 6px);
-    border: 1px dotted rgba(55,55,55,0.62);
+    border: 1px dotted rgba(130,130,130,0.45);
     border-radius: 2px;
-    background-color: rgba(255,255,255,0.16);
+    background-color: rgba(130,130,130,0.12);
     background-image:
-      repeating-linear-gradient(-45deg, rgba(45,45,45,0.32) 0, rgba(45,45,45,0.32) 1px, transparent 1px, transparent 6px),
-      radial-gradient(rgba(45,45,45,0.34) 1px, transparent 1px);
-    background-size: 6px 6px, 5px 5px;
+      repeating-linear-gradient(-45deg, rgba(120,120,120,0.22) 0, rgba(120,120,120,0.22) 1px, transparent 1px, transparent 11px);
     pointer-events: none;
-    z-index: 7;
+    z-index: 1;
   }
 
   /* Stats/settings styles shared with the table (Data) view */
@@ -1860,7 +1859,7 @@ const HEADER_W_MIN = 240;       // min width that still wraps name/capacity/tags
 const HEADER_W_MAX = 720;
 const COLORS = 18;
 const MILESTONE_COLORS = 5;
-const MILESTONE_LANE_H = 22;
+const MILESTONE_LANE_H = 31;
 const MILESTONE_NAME_MAX_CHARS = 60;
 const ROW_H_MIN = 32;
 const ROW_H_DEFAULT = 36;
