@@ -613,7 +613,7 @@
     font-family: inherit;
   }
   .tag-add-btn:hover { border-color: #888; color: #555; }
-  .tag-add-input {
+  .tag-add-input, .tag-edit-input {
     font-family: inherit;
     font-size: 0.68rem;
     border: 1px solid var(--accent);
@@ -2640,6 +2640,59 @@ function tagColorIndex(tag) {
   return Math.abs(hash) % 10;
 }
 function tagColorClass(tag) { return `tag-color-${tagColorIndex(tag)}`; }
+// Inline-rename a tag: swap the chip for an input. commitFn receives the new
+// value and must persist + re-render (both helpers below always render).
+function startTagRename(chip, currentTag, commitFn) {
+  const input = document.createElement('input');
+  input.className = 'tag-edit-input';
+  input.value = currentTag;
+  input.maxLength = TAG_MAX_CHARS;
+  chip.replaceWith(input);
+  input.focus();
+  input.select();
+  let done = false;
+  const commit = () => { if (done) return; done = true; commitFn(input.value); };
+  input.addEventListener('blur', commit);
+  input.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') input.blur();
+    else if (e.key === 'Escape') { done = true; render(); }
+  });
+  input.addEventListener('mousedown', e => e.stopPropagation());
+  input.addEventListener('click', e => e.stopPropagation());
+}
+// Rename one tag on a single resource (used by the per-resource chips).
+function renameTagOnRow(rowId, oldTag, rawNew) {
+  const newTag = (rawNew || '').trim().slice(0, TAG_MAX_CHARS);
+  const row = rows.find(r => r.id === rowId);
+  if (row && newTag && newTag !== oldTag) {
+    const oldKey = oldTag.toLowerCase(), newKey = newTag.toLowerCase();
+    if (tagColors[oldKey] != null && tagColors[newKey] == null) tagColors[newKey] = tagColors[oldKey];
+    const idx = row.tags.findIndex(t => t === oldTag);
+    if (idx !== -1) {
+      if (row.tags.some(t => t.toLowerCase() === newKey)) row.tags.splice(idx, 1);
+      else row.tags[idx] = newTag;
+    }
+    saveState();
+  }
+  render();
+}
+// Rename a tag across every resource (used by the global Tags manager).
+function renameTagGlobally(oldTag, rawNew) {
+  const newTag = (rawNew || '').trim().slice(0, TAG_MAX_CHARS);
+  if (newTag && newTag !== oldTag) {
+    const oldKey = oldTag.toLowerCase(), newKey = newTag.toLowerCase();
+    if (tagColors[oldKey] != null && tagColors[newKey] == null) tagColors[newKey] = tagColors[oldKey];
+    rows.forEach(r => {
+      r.tags = r.tags || [];
+      if (!r.tags.some(t => t.toLowerCase() === oldKey)) return;
+      r.tags = r.tags.filter(t => t.toLowerCase() !== oldKey);
+      if (!r.tags.some(t => t.toLowerCase() === newKey)) r.tags.push(newTag);
+    });
+    saveState();
+  }
+  render();
+}
 function setTagColor(tag, idx) {
   tagColors[(tag || '').toLowerCase()] = idx;
   render();       // both panes rebuild — chips aren't focused inputs, no focus loss
@@ -2678,10 +2731,11 @@ function buildTagsRow(row) {
     const chip = document.createElement('span');
     chip.className = `tag-chip ${tagColorClass(tag)}`;
     chip.textContent = tag;
-    chip.title = 'Click to change colour';
+    chip.title = 'Click to rename · right-click to change colour';
     chip.style.cursor = 'pointer';
     chip.addEventListener('mousedown', e => e.stopPropagation());
-    chip.addEventListener('click', e => { e.stopPropagation(); showTagColorPicker(chip, tag); });
+    chip.addEventListener('click', e => { e.stopPropagation(); startTagRename(chip, tag, (v) => renameTagOnRow(row.id, tag, v)); });
+    chip.addEventListener('contextmenu', e => { e.preventDefault(); e.stopPropagation(); showTagColorPicker(chip, tag); });
     const rm = document.createElement('button');
     rm.className = 'tag-chip-remove';
     rm.type = 'button';
@@ -3153,9 +3207,10 @@ function renderTableDataSection(view) {
       const chip = document.createElement('span');
       chip.className = `tag-chip ${tagColorClass(tag)}`;
       chip.textContent = tag;
-      chip.title = 'Click to change colour';
+      chip.title = 'Click to rename · right-click to change colour';
       chip.style.cursor = 'pointer';
-      chip.addEventListener('click', (e) => { e.stopPropagation(); showTagColorPicker(chip, tag); });
+      chip.addEventListener('click', (e) => { e.stopPropagation(); startTagRename(chip, tag, (v) => renameTagGlobally(tag, v)); });
+      chip.addEventListener('contextmenu', (e) => { e.preventDefault(); e.stopPropagation(); showTagColorPicker(chip, tag); });
       const rm = document.createElement('button');
       rm.className = 'tag-chip-remove';
       rm.type = 'button';
