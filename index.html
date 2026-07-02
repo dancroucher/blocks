@@ -1181,7 +1181,7 @@
   .panel-section-body.collapsed { display: none; }
 
   /* Collapsible data-view sections (rollups) */
-  .rollup-header {
+  .table-toolbar.rollup-header {
     cursor: pointer;
     user-select: none;
     gap: 0.45rem;
@@ -3150,13 +3150,13 @@ function makeRollup(view, key, titleText) {
 
   const header = document.createElement('div');
   header.className = 'table-toolbar rollup-header';
+  const title = document.createElement('h2');
+  title.textContent = titleText;
   const caret = document.createElement('span');
   caret.className = 'rollup-caret';
   caret.textContent = '▾';
-  const title = document.createElement('h2');
-  title.textContent = titleText;
-  header.appendChild(caret);
   header.appendChild(title);
+  header.appendChild(caret);
   header.addEventListener('click', (e) => {
     if (e.target.closest('input, button, select, textarea')) return;
     const collapsed = !wrap.classList.contains('collapsed');
