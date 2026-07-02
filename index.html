@@ -106,32 +106,6 @@
   .topbar button:hover { color: var(--text); background: var(--surface); border-color: var(--border-soft); }
   .topbar button.active { background: var(--surface); color: var(--text); border-color: var(--border); box-shadow: 0 1px 2px rgba(0,0,0,0.04); }
 
-  .project-status-strip {
-    display: flex;
-    align-items: center;
-    gap: 0.35rem;
-    min-width: 0;
-    margin-left: 0.15rem;
-    color: var(--dim);
-    font-size: var(--font-sm);
-    white-space: nowrap;
-    overflow: hidden;
-  }
-  .status-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.25rem;
-    max-width: 13rem;
-    min-width: 0;
-    padding: 0.18rem 0.5rem;
-    border: 1px solid var(--border-soft);
-    border-radius: 999px;
-    background: rgba(255,255,255,0.68);
-    color: #68635c;
-  }
-  .status-chip strong { color: var(--text); font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
-  .status-chip .status-label { color: var(--dim); font-weight: 500; }
-  @media (max-width: 880px) { .project-status-strip { display: none; } }
 
   /* Main layout */
   .main {
@@ -1090,25 +1064,31 @@
     line-height: 1;
   }
 
-  /* Block colours — mid-saturation palette tuned for white text */
-  .block-color-0 { background: #8f4a5f; color: #fff; }  /* rose */
-  .block-color-1 { background: #9a4f3f; color: #fff; }  /* terracotta */
-  .block-color-2 { background: #9b6234; color: #fff; }  /* copper */
-  .block-color-3 { background: #8a6f2f; color: #fff; }  /* ochre */
-  .block-color-4 { background: #6f7f3a; color: #fff; }  /* olive */
-  .block-color-5 { background: #4f7c52; color: #fff; }  /* moss */
-  .block-color-6 { background: #3f7a66; color: #fff; }  /* sage */
-  .block-color-7 { background: #367b78; color: #fff; }  /* teal */
-  .block-color-8 { background: #3b728d; color: #fff; }  /* slate blue */
-  .block-color-9 { background: #4f6794; color: #fff; }  /* denim */
-  .block-color-10 { background: #675d94; color: #fff; } /* violet */
-  .block-color-11 { background: #7d5689; color: #fff; } /* plum */
-  .block-color-12 { background: #8d5273; color: #fff; } /* mauve */
-  .block-color-13 { background: #805447; color: #fff; } /* umber */
-  .block-color-14 { background: #6d6040; color: #fff; } /* khaki */
-  .block-color-15 { background: #536f62; color: #fff; } /* eucalyptus */
-  .block-color-16 { background: #4d6b7f; color: #fff; } /* steel */
-  .block-color-17 { background: #6b5f7d; color: #fff; } /* dusk */
+  /* Block colours — grouped into monochromatic families, all WCAG AA against white text */
+  .block-color-0 { background: #7f334b; color: #fff; }  /* rose / deep */
+  .block-color-1 { background: #8f3f59; color: #fff; }  /* rose / core */
+  .block-color-2 { background: #9e4b66; color: #fff; }  /* rose / soft */
+  .block-color-3 { background: #7c3f32; color: #fff; }  /* clay / deep */
+  .block-color-4 { background: #8d4b3b; color: #fff; }  /* clay / core */
+  .block-color-5 { background: #9d5948; color: #fff; }  /* clay / soft */
+  .block-color-6 { background: #73572b; color: #fff; }  /* ochre / deep */
+  .block-color-7 { background: #806431; color: #fff; }  /* ochre / core */
+  .block-color-8 { background: #8d7139; color: #fff; }  /* ochre / soft */
+  .block-color-9 { background: #566b35; color: #fff; }  /* olive / deep */
+  .block-color-10 { background: #62783e; color: #fff; } /* olive / core */
+  .block-color-11 { background: #687d43; color: #fff; } /* olive / soft */
+  .block-color-12 { background: #3f6d50; color: #fff; } /* sage / deep */
+  .block-color-13 { background: #4b7a5c; color: #fff; } /* sage / core */
+  .block-color-14 { background: #527f62; color: #fff; } /* sage / soft */
+  .block-color-15 { background: #2f6f69; color: #fff; } /* teal / deep */
+  .block-color-16 { background: #3a7c75; color: #fff; } /* teal / core */
+  .block-color-17 { background: #408078; color: #fff; } /* teal / soft */
+  .block-color-18 { background: #356783; color: #fff; } /* blue / deep */
+  .block-color-19 { background: #407590; color: #fff; } /* blue / core */
+  .block-color-20 { background: #477b96; color: #fff; } /* blue / soft */
+  .block-color-21 { background: #663f72; color: #fff; } /* plum / deep */
+  .block-color-22 { background: #744b80; color: #fff; } /* plum / core */
+  .block-color-23 { background: #83598d; color: #fff; } /* plum / soft */
   .block-holiday { background: #b3b3b3 !important; color: #fff; }
   .holiday-resource-band {
     position: absolute;
@@ -1337,24 +1317,30 @@
   }
   .block-contingency:active { cursor: grabbing; }
 
-  .block-contingency.block-color-0 { background: #a75e73; }
-  .block-contingency.block-color-1 { background: #b56554; }
-  .block-contingency.block-color-2 { background: #b47749; }
-  .block-contingency.block-color-3 { background: #a38645; }
-  .block-contingency.block-color-4 { background: #879750; }
-  .block-contingency.block-color-5 { background: #669566; }
-  .block-contingency.block-color-6 { background: #57927d; }
-  .block-contingency.block-color-7 { background: #4f9490; }
-  .block-contingency.block-color-8 { background: #528aa6; }
-  .block-contingency.block-color-9 { background: #677eae; }
-  .block-contingency.block-color-10 { background: #7f74ad; }
-  .block-contingency.block-color-11 { background: #966aa0; }
-  .block-contingency.block-color-12 { background: #a8668a; }
-  .block-contingency.block-color-13 { background: #98695b; }
-  .block-contingency.block-color-14 { background: #837650; }
-  .block-contingency.block-color-15 { background: #6a8778; }
-  .block-contingency.block-color-16 { background: #637f94; }
-  .block-contingency.block-color-17 { background: #807293; }
+  .block-contingency.block-color-0 { background: #91445d; }
+  .block-contingency.block-color-1 { background: #a0526a; }
+  .block-contingency.block-color-2 { background: #ad6079; }
+  .block-contingency.block-color-3 { background: #8e5142; }
+  .block-contingency.block-color-4 { background: #9f5d4d; }
+  .block-contingency.block-color-5 { background: #ad6a59; }
+  .block-contingency.block-color-6 { background: #846936; }
+  .block-contingency.block-color-7 { background: #917642; }
+  .block-contingency.block-color-8 { background: #9c824d; }
+  .block-contingency.block-color-9 { background: #687d43; }
+  .block-contingency.block-color-10 { background: #72894e; }
+  .block-contingency.block-color-11 { background: #7b9256; }
+  .block-contingency.block-color-12 { background: #517d61; }
+  .block-contingency.block-color-13 { background: #5d8a6d; }
+  .block-contingency.block-color-14 { background: #689477; }
+  .block-contingency.block-color-15 { background: #408078; }
+  .block-contingency.block-color-16 { background: #4c8d85; }
+  .block-contingency.block-color-17 { background: #579890; }
+  .block-contingency.block-color-18 { background: #477b96; }
+  .block-contingency.block-color-19 { background: #5488a2; }
+  .block-contingency.block-color-20 { background: #6093ad; }
+  .block-contingency.block-color-21 { background: #774f84; }
+  .block-contingency.block-color-22 { background: #856090; }
+  .block-contingency.block-color-23 { background: #936e9d; }
 
   /* Add row button — applied to the sticky row-header of the add-row row */
   .add-row-btn {
@@ -1467,22 +1453,35 @@
     margin: 0.3rem 0.3rem;
   }
   .color-swatch-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    padding: 0.35rem 0.75rem 0.55rem;
+  }
+  .color-family-row {
     display: grid;
-    grid-template-columns: repeat(6, 1fr);
-    gap: 5px;
-    padding: 0.3rem 0.8rem 0.4rem;
+    grid-template-columns: 4.8rem repeat(3, 28px);
+    align-items: center;
+    gap: 6px;
+  }
+  .color-family-label {
+    color: var(--dim);
+    font-size: var(--font-xs);
+    font-weight: 600;
   }
   .color-swatch {
-    width: 26px;
-    height: 26px;
-    border-radius: 5px;
+    width: 28px;
+    height: 24px;
+    border-radius: 7px;
     cursor: pointer;
-    transition: transform 0.1s, box-shadow 0.1s;
+    transition: transform 0.1s, box-shadow 0.1s, outline-color 0.1s;
     border-width: 1px;
     border-style: solid;
+    position: relative;
   }
-  .color-swatch:hover { transform: scale(1.15); box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+  .color-swatch:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.18); }
   .color-swatch.selected { outline: 2px solid var(--text); outline-offset: 2px; }
+  .color-swatch.selected::after { content: '✓'; position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font-size: 0.72rem; font-weight: 700; text-shadow: 0 1px 2px rgba(0,0,0,0.35); }
 
   /* Raw table/data-entry view */
   .table-view {
@@ -1841,7 +1840,6 @@
     <button id="btn-table" onclick="setView('data')">Data</button>
     <button id="btn-split" onclick="setView('split')">Split</button>
   </div>
-  <div class="project-status-strip" id="project-status-strip" aria-live="polite"></div>
   <div class="topbar-status">
     <div class="sync-pill" id="sync-status" data-status="offline"><span class="sync-dot"></span><span id="sync-status-text">Locked</span></div>
     <div class="user-pill auth-hidden" id="user-pill"><span id="user-email"></span><button id="btn-logout" type="button">Sign out</button></div>
@@ -1912,7 +1910,18 @@ const SUMMARY_W_MAX = 360;
 const TRACK_PANEL_MIN_W = 96;
 const HEADER_W_MIN = 240;       // min width that still wraps name/capacity/tags nicely
 const HEADER_W_MAX = 720;
-const COLORS = 18;
+const COLORS = 24;
+const BLOCK_COLOR_FAMILIES = [
+  { name: 'Rose', colors: [0, 1, 2] },
+  { name: 'Clay', colors: [3, 4, 5] },
+  { name: 'Ochre', colors: [6, 7, 8] },
+  { name: 'Olive', colors: [9, 10, 11] },
+  { name: 'Sage', colors: [12, 13, 14] },
+  { name: 'Teal', colors: [15, 16, 17] },
+  { name: 'Blue', colors: [18, 19, 20] },
+  { name: 'Plum', colors: [21, 22, 23] },
+];
+const BLOCK_COLOR_NAMES = ['Deep', 'Core', 'Soft'];
 const MILESTONE_COLORS = 5;
 const MILESTONE_LANE_H = 31;
 const MILESTONE_NAME_MAX_CHARS = 60;
@@ -4440,25 +4449,7 @@ function setupTrackSortables() {
   });
 }
 
-function renderStatusStrip() {
-  const strip = document.getElementById('project-status-strip');
-  if (!strip) return;
-  const starts = [
-    ...blocks.map(b => b.start),
-    ...milestones.map(m => m.start),
-  ].filter(v => Number.isFinite(v));
-  const ends = [
-    ...blocks.map(b => b.start + getBlockScheduledDuration(b) - 1),
-    ...milestones.map(m => m.start + (m.duration || 1) - 1),
-  ].filter(v => Number.isFinite(v));
-  const range = starts.length && ends.length
-    ? `${formatDate(colToDate(Math.min(...starts)))}–${formatDate(colToDate(Math.max(...ends)))}`
-    : 'No timeline range';
-  strip.innerHTML = `<span class="status-chip"><strong>${range}</strong></span>`;
-}
-
 function renderStats() {
-  renderStatusStrip();
   const stats = document.getElementById('panel-stats');
   if (!stats) return;
   const totalBlocks = blocks.length;
@@ -5625,7 +5616,7 @@ function showBlockContextMenu(e, blockId) {
   if (!block) return;
 
   // Position — clamp to viewport edges
-  const menuW = 180, menuH = 170;
+  const menuW = 250, menuH = 310;
   const left = Math.min(e.clientX, window.innerWidth - menuW - 8);
   const top  = Math.min(e.clientY, window.innerHeight - menuH - 8);
   menu.style.display = 'block';
@@ -5640,21 +5631,33 @@ function showBlockContextMenu(e, blockId) {
   label.textContent = 'Colour';
   menu.appendChild(label);
 
-  // Swatch grid
+  // Swatches grouped by hue so related blocks in a resource can stay monochromatic.
   const grid = document.createElement('div');
   grid.className = 'color-swatch-grid';
-  for (let i = 0; i < COLORS; i++) {
-    const sw = document.createElement('div');
-    sw.className = `color-swatch block-color-${i}`;
-    if (i === block.color) sw.classList.add('selected');
-    sw.addEventListener('click', () => {
-      block.color = i;
-      render();
-      saveState();
-      menu.style.display = 'none';
+  BLOCK_COLOR_FAMILIES.forEach(family => {
+    const row = document.createElement('div');
+    row.className = 'color-family-row';
+    const familyLabel = document.createElement('div');
+    familyLabel.className = 'color-family-label';
+    familyLabel.textContent = family.name;
+    row.appendChild(familyLabel);
+    family.colors.forEach((i, shadeIdx) => {
+      const sw = document.createElement('button');
+      sw.type = 'button';
+      sw.className = `color-swatch block-color-${i}`;
+      sw.title = `${family.name} ${BLOCK_COLOR_NAMES[shadeIdx] || ''} · AA contrast with white text`;
+      sw.setAttribute('aria-label', sw.title);
+      if (i === block.color) sw.classList.add('selected');
+      sw.addEventListener('click', () => {
+        block.color = i;
+        render();
+        saveState();
+        menu.style.display = 'none';
+      });
+      row.appendChild(sw);
     });
-    grid.appendChild(sw);
-  }
+    grid.appendChild(row);
+  });
   menu.appendChild(grid);
 
   const holidayItem = document.createElement('label');
