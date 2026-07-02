@@ -523,23 +523,6 @@
     font-weight: 400 !important;
     color: #555 !important;
   }
-  .track-delete-btn {
-    border: none;
-    background: transparent;
-    color: #aaa;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 0.75rem;
-    line-height: 1;
-    padding: 0;
-    width: 16px;
-    height: 14px;
-    position: absolute;
-    left: 50%;
-    top: 2px;
-    transform: translateX(-50%);
-  }
-  .track-delete-btn:hover { color: #dc2626; }
   .summary-add-track-btn {
     position: absolute;
     right: 6px;
@@ -686,22 +669,6 @@
   }
 
   .row-header input::placeholder { color: #ccc; }
-  .resource-delete-btn {
-    position: absolute;
-    top: 2px;
-    left: 3px;
-    z-index: 4;
-    border: none;
-    background: transparent;
-    color: #bbb;
-    cursor: pointer;
-    font-family: inherit;
-    font-size: 0.9rem;
-    line-height: 1;
-    padding: 0.05rem 0.2rem;
-    border-radius: 4px;
-  }
-  .resource-delete-btn:hover { color: #dc2626; background: rgba(220,38,38,0.08); }
 
   .row-cells {
     display: flex;
@@ -777,12 +744,6 @@
     background-color: var(--grid-bg);
   }
 
-  /* Month-view body cells (kept as DOM since month widths are variable). */
-  .cell-line {
-    height: 100%;
-    border-right: 1px solid var(--border);
-  }
-  .row-cells .cell-line:nth-child(even) { background: var(--alt-bg); }
 
   /* Blocks */
   .block {
@@ -1021,8 +982,7 @@
     color: #777;
     opacity: 0.75;
   }
-  .capacity-block,
-  .contingency-capacity-extension {
+  .capacity-block {
     position: absolute;
     top: 0;
     height: 100%;
@@ -1031,8 +991,7 @@
     cursor: grab;
     z-index: 1;
   }
-  .capacity-block:active,
-  .contingency-capacity-extension:active { cursor: grabbing; }
+  .capacity-block:active { cursor: grabbing; }
   .capacity-block {
     height: calc(100% - 6px);
     top: 3px;
@@ -1051,8 +1010,7 @@
     z-index: 2;
   }
   .holiday-extension:active { cursor: grabbing; }
-  .capacity-block::after,
-  .contingency-capacity-extension::after {
+  .capacity-block::after {
     content: '';
     position: absolute;
     inset: 0;
@@ -1065,16 +1023,6 @@
     );
   }
 
-  .block-contingency .contingency-days {
-    position: absolute;
-    right: 4px;
-    top: 50%;
-    transform: translateY(-50%);
-    font-size: 0.75rem;
-    font-weight: 500;
-    color: #777;
-    z-index: 2;
-  }
   .block .block-label-input {
     flex: 0 0 auto;
     min-width: 8ch;
@@ -1477,19 +1425,6 @@
   .color-swatch:hover { transform: scale(1.15); box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
   .color-swatch.selected { outline: 2px solid var(--text); outline-offset: 2px; }
 
-  .block.block-data {
-    cursor: default;
-    border-style: dashed;
-    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.55);
-  }
-  .block.block-data::before {
-    content: '🔒';
-    flex: 0 0 auto;
-    margin-right: 6px;
-    opacity: 0.7;
-    font-size: 0.75rem;
-  }
-
   /* Raw table/data-entry view */
   .table-view {
     min-width: 900px;
@@ -1540,14 +1475,12 @@
     color: var(--text);
   }
   .block-table .danger { color: #dc2626; }
-  .block-table .block-del-btn { padding: 0.15rem 0.45rem; font-size: 0.9rem; line-height: 1.1; }
   .combined-blocks { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: #fff; }
   .combined-blocks .panel-section-header { cursor: default; border-top: 14px solid var(--bg); background: #e9ecef; }
   .combined-blocks .panel-section-header .section-title { font-size: 15px; font-weight: 500; color: #555; }
   .combined-blocks .panel-section-header:first-child { border-top: none; }
   .combined-blocks .section-days-3col .sec-conting,
   .combined-blocks .section-days-3col .sec-total { display: none; }
-  .combined-blocks .resource-delete-btn { margin-left: 0.5rem; }
   .combined-blocks .panel-section-body { padding: 0; border-bottom: 1px solid #d7d7d7; }
   .combined-blocks .panel-section-body:last-child { border-bottom: none; }
   .section-actions { display: flex; justify-content: flex-start; padding: 0.55rem 1rem; background: #fbfbfb; border-top: 1px solid var(--border); }
@@ -1594,7 +1527,6 @@
   .combined-blocks .block-table tr.data-block-row .capacity-adjusted { color: rgba(255,255,255,0.82); opacity: 1; }
   .combined-name-cell { display: flex; align-items: center; gap: 0.45rem; }
   .combined-meta { color: var(--dim); font-size: 0.74rem; white-space: nowrap; }
-  .combined-empty { padding: 0.9rem 1rem; color: var(--dim); font-size: 0.85rem; border-bottom: 1px solid var(--border); }
 
  /* Header drag-to-pan */
  .grid-area.panning { cursor: grabbing; }
@@ -1804,7 +1736,6 @@
     cursor: pointer;
   }
   .project-item:hover { background: var(--header-bg); }
-  .project-title { font-weight: 700; }
   .project-meta { color: var(--dim); font-size: 0.82rem; margin-top: 0.15rem; }
   .project-fields {
     display: grid;
@@ -1883,7 +1814,6 @@ const DAY_LARGE_PX = 160;    // px per day in close day view
 const DAY_HALF_PX = 320;     // px per day in closest view, split into two half-day columns
 const WEEK_DAY_PX = 16;      // px per day in week view — 5 × 16 = 80px per week cell
 const MONTH_DAY_PX = 5;      // px per day in month view — typical ~22-day month ≈ 110px wide
-const ROW_H = 40;
 
 // Pixels per *day* at the current zoom. Blocks are always day-indexed in the
 // data model; this just controls how wide a day renders. In week view each
@@ -2589,12 +2519,10 @@ function getRowTracks(row) {
 function getDefaultTrackId(row) { return getRowTracks(row)[0]?.id || null; }
 function getTrack(row, trackId) { return getRowTracks(row).find(track => track.id === trackId) || getRowTracks(row)[0]; }
 function canAddTrack(row) { return getRowTracks(row).length < MAX_TRACKS_PER_ROW; }
-// The "+ Track" control lives in the resource summary cell now; no extra
-// grid lane is reserved below the tracks.
-function getAddRowH(row) { return 0; }
+
 function getResourceGroupHeight(row) {
   const sum = getRowTracks(row).reduce((s, t) => s + (t.height || ROW_H_DEFAULT), 0);
-  return Math.max(RESOURCE_HEADER_MIN_H, sum + getAddRowH(row));
+  return Math.max(RESOURCE_HEADER_MIN_H, sum);
 }
 function getRowCapacity(row) {
   const cap = Number(row && row.capacity);
@@ -2626,11 +2554,20 @@ function removeTagFromRow(rowId, tag) {
   const row = rows.find(r => r.id === rowId);
   if (!row) return;
   row.tags = row.tags.filter(t => t !== tag);
+  pruneTagColors();
   render(); saveState();
 }
 function deleteTagGlobally(tag) {
   rows.forEach(r => { r.tags = (r.tags || []).filter(t => t !== tag); });
+  pruneTagColors();
   render(); saveState();
+}
+// Drop stored colours for tags that no longer exist on any resource, so the
+// tagColors map doesn't accumulate orphans in the shared doc.
+function pruneTagColors() {
+  const live = new Set();
+  rows.forEach(r => (r.tags || []).forEach(t => live.add(t.toLowerCase())));
+  for (const key in tagColors) { if (!live.has(key)) delete tagColors[key]; }
 }
 function tagColorIndex(tag) {
   const key = (tag || '').toLowerCase();
@@ -2673,6 +2610,7 @@ function renameTagOnRow(rowId, oldTag, rawNew) {
       if (row.tags.some(t => t.toLowerCase() === newKey)) row.tags.splice(idx, 1);
       else row.tags[idx] = newTag;
     }
+    pruneTagColors();
     saveState();
   }
   render();
@@ -2689,6 +2627,7 @@ function renameTagGlobally(oldTag, rawNew) {
       r.tags = r.tags.filter(t => t.toLowerCase() !== oldKey);
       if (!r.tags.some(t => t.toLowerCase() === newKey)) r.tags.push(newTag);
     });
+    pruneTagColors();
     saveState();
   }
   render();
@@ -4545,7 +4484,7 @@ function applyRowHeights() {
     // Stored track heights are untouched (the floor is render-time only).
     const tracks = getRowTracks(row);
     const trackSum = tracks.reduce((s, t) => s + (t.height || ROW_H_DEFAULT), 0);
-    const targetSum = Math.max(trackSum, renderedH - getAddRowH(row));
+    const targetSum = Math.max(trackSum, renderedH);
     const scale = trackSum > 0 ? targetSum / trackSum : 1;
 
     let used = 0;
@@ -5430,7 +5369,6 @@ function buildMilestoneLane() {
     });
 
     el.addEventListener('mousedown', (e) => {
-      if (e.button === 2) return;
       if (e.button !== 0) return;
       if (e.target.closest('.milestone-name-input')) return;
       e.stopPropagation();
@@ -5552,43 +5490,6 @@ function showDependencyContextMenu(e, from, to) {
     removeDependency(from, to);
   });
   menu.appendChild(remove);
-}
-
-function showBlockColorMenu(e, blockId) {
-  e.preventDefault();
-  e.stopPropagation();
-  const menu = document.getElementById('context-menu');
-  const block = blocks.find(b => b.id === blockId);
-  if (!block) return;
-
-  const menuW = 180, menuH = 120;
-  const left = Math.min(e.clientX, window.innerWidth - menuW - 8);
-  const top  = Math.min(e.clientY, window.innerHeight - menuH - 8);
-  menu.style.display = 'block';
-  menu.style.left = left + 'px';
-  menu.style.top  = top  + 'px';
-  menu.innerHTML = '';
-
-  const label = document.createElement('div');
-  label.className = 'context-menu-label';
-  label.textContent = 'Colour';
-  menu.appendChild(label);
-
-  const grid = document.createElement('div');
-  grid.className = 'color-swatch-grid';
-  for (let i = 0; i < COLORS; i++) {
-    const sw = document.createElement('div');
-    sw.className = `color-swatch block-color-${i}`;
-    if (i === block.color) sw.classList.add('selected');
-    sw.addEventListener('click', () => {
-      block.color = i;
-      render();
-      saveState();
-      menu.style.display = 'none';
-    });
-    grid.appendChild(sw);
-  }
-  menu.appendChild(grid);
 }
 
 function showBlockContextMenu(e, blockId) {
@@ -5914,6 +5815,7 @@ async function updateProjectFromItem(projectId, item) {
       blocks: clean.blocks.map(block => ({ ...stripTransient(block), start: Math.max(0, block.start + shift) })),
       dependencies: clean.dependencies || [],
       milestones: (clean.milestones || []).map(m => ({ ...m, start: Math.max(0, m.start + shift) })),
+      tagColors: clean.tagColors || {},
       nextMilestoneId: clean.nextMilestoneId || 1,
       nextBlockId: clean.nextBlockId,
       nextRowId: clean.nextRowId,

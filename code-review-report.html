@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blocks — Code Review Report</title>
+<style>
+  :root { --ok:#1a7f37; --warn:#b45309; --info:#1d4ed8; --bad:#b91c1c; --border:#e5e2dd; --dim:#777; }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { font-family:-apple-system, "Segoe UI", Roboto, sans-serif; color:#222; background:#faf9f7; padding:2.5rem 1.5rem; line-height:1.55; }
+  .wrap { max-width:900px; margin:0 auto; }
+  h1 { font-size:1.5rem; margin-bottom:0.25rem; }
+  .sub { color:var(--dim); margin-bottom:2rem; font-size:0.9rem; }
+  h2 { font-size:1.1rem; margin:2.2rem 0 0.8rem; padding-bottom:0.35rem; border-bottom:2px solid var(--border); }
+  .card { background:#fff; border:1px solid var(--border); border-radius:10px; padding:1rem 1.2rem; margin-bottom:0.8rem; }
+  .card h3 { font-size:0.95rem; margin-bottom:0.3rem; display:flex; align-items:center; gap:0.5rem; }
+  .card p { font-size:0.88rem; color:#444; }
+  .card code { background:#f4f2ef; border-radius:4px; padding:0.05rem 0.35rem; font-size:0.82rem; }
+  .badge { font-size:0.68rem; font-weight:700; letter-spacing:0.03em; text-transform:uppercase; border-radius:99px; padding:0.15rem 0.6rem; color:#fff; flex-shrink:0; }
+  .b-fixed { background:var(--ok); }
+  .b-high { background:var(--bad); }
+  .b-med { background:var(--warn); }
+  .b-low { background:var(--info); }
+  .summary { display:grid; grid-template-columns:repeat(4,1fr); gap:0.8rem; margin-bottom:0.5rem; }
+  .stat { background:#fff; border:1px solid var(--border); border-radius:10px; padding:0.9rem; text-align:center; }
+  .stat .n { font-size:1.6rem; font-weight:700; }
+  .stat .l { font-size:0.75rem; color:var(--dim); }
+  ul.plain { margin:0.4rem 0 0 1.2rem; font-size:0.88rem; color:#444; }
+  ul.plain li { margin-bottom:0.25rem; }
+  .good { color:var(--ok); font-weight:600; }
+  @media (max-width:640px){ .summary{grid-template-columns:repeat(2,1fr);} }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Blocks — Full Code Review</h1>
+  <div class="sub">index.html (~6,000 lines, single-file app) + firestore.rules &middot; reviewed automatically (dead-code, orphan-CSS, XSS, listener-leak, duplication and practice passes) and by hand &middot; 2026-07-01</div>
+
+  <div class="summary">
+    <div class="stat"><div class="n">1</div><div class="l">Bug fixed</div></div>
+    <div class="stat"><div class="n">6</div><div class="l">Dead-code cleanups</div></div>
+    <div class="stat"><div class="n">~95</div><div class="l">Lines removed</div></div>
+    <div class="stat"><div class="n">8</div><div class="l">Recommendations</div></div>
+  </div>
+
+  <h2>Fixed during this review (already committed)</h2>
+
+  <div class="card"><h3><span class="badge b-fixed">Fixed</span> Bug: project duplication dropped tag colours</h3>
+  <p>The "duplicate project" path builds its Firestore document by hand and omitted the <code>tagColors</code> map, so every duplicated project silently lost its custom tag colours. Now copied across (milestones were already handled).</p></div>
+
+  <div class="card"><h3><span class="badge b-fixed">Fixed</span> Dead function: <code>showBlockColorMenu</code> (36 lines)</h3>
+  <p>Fully superseded by <code>showBlockContextMenu</code> (which contains the same swatch grid plus Holiday/Duplicate/Delete). Never referenced anywhere. Removed.</p></div>
+
+  <div class="card"><h3><span class="badge b-fixed">Fixed</span> Vestigial code from the add-track-lane removal</h3>
+  <p><code>getAddRowH()</code> hardcoded to return 0 since the +Track lane was removed — deleted along with its two call-sites (<code>getResourceGroupHeight</code>, <code>applyRowHeights</code>). Unused constant <code>ROW_H</code> (superseded by <code>ROW_H_DEFAULT</code>/<code>MIN</code>/<code>MAX</code>) removed. Redundant double button-guard in the milestone mousedown handler removed.</p></div>
+
+  <div class="card"><h3><span class="badge b-fixed">Fixed</span> Orphan CSS (~70 lines, 10 rule groups)</h3>
+  <p>Rules whose markup no longer exists:</p>
+  <ul class="plain">
+    <li><code>.track-delete-btn</code>, <code>.resource-delete-btn</code> (+ combined-blocks variant) — delete buttons replaced by right-click menus</li>
+    <li><code>.block.block-data</code> (2 rules incl. the 🔒 prefix) — legacy "locked data block" concept; <code>isDataBlock()</code> now always returns false</li>
+    <li><code>.contingency-capacity-extension</code> (3 grouped selectors) — element class was renamed to <code>.capacity-block</code> long ago</li>
+    <li><code>.block-contingency .contingency-days</code>, <code>.cell-line</code> (2 rules), <code>.block-del-btn</code>, <code>.combined-empty</code>, <code>.project-title</code> — no matching elements created anywhere</li>
+  </ul></div>
+
+  <div class="card"><h3><span class="badge b-fixed">Fixed</span> Data hygiene: orphaned <code>tagColors</code> entries</h3>
+  <p>Removing, renaming or globally deleting a tag left its colour entry in the shared <code>tagColors</code> map forever. Added <code>pruneTagColors()</code>, called from all four tag-mutation paths, so the shared doc only stores colours for tags that still exist.</p></div>
+
+  <h2>Recommendations (not applied — judgement calls or larger work)</h2>
+
+  <div class="card"><h3><span class="badge b-med">Medium</span> O(n²) date maths in header rendering</h3>
+  <p>The month/week header builders call <code>colToDate(c)</code> inside loops over all columns; <code>colToDate</code> itself walks from <code>projectStart</code> each call. With a 2-year+ window (500+ columns) that's &gt;100k date iterations per render. Works fine today, but will degrade as the window grows. Fix: walk a single date cursor once per render (O(n)), or memoise col→date in an array rebuilt when the anchor changes.</p></div>
+
+  <div class="card"><h3><span class="badge b-med">Medium</span> Firestore backups grow without bound</h3>
+  <p><code>writeBackup()</code> is nicely throttled (min interval between auto backups) but nothing ever deletes old backup docs, and rules forbid client deletes (<code>allow delete: if false</code>). Storage and read costs grow forever. Fix: a scheduled Cloud Function or TTL policy on the <code>backups</code> subcollection, or keep-last-N pruning done server-side.</p></div>
+
+  <div class="card"><h3><span class="badge b-med">Medium</span> Accessibility is minimal</h3>
+  <p>Zero <code>aria-*</code>/<code>role</code> attributes in the app; all core interactions (create/move/resize blocks, milestones, reorder) are mouse-drag only with no keyboard path; several controls are colour-only (tag colours, block colours). If accessibility matters for your audience, this is the largest gap. Quick wins: <code>aria-label</code> on icon-only buttons (⠿ handles, × removes), <code>role="menu"</code> on the context menu, focus trapping in the project picker.</p></div>
+
+  <div class="card"><h3><span class="badge b-low">Low</span> No SRI hashes on CDN scripts</h3>
+  <p>Firebase compat SDKs and Sortable are loaded from CDNs without <code>integrity</code>/<code>crossorigin</code> attributes. A compromised CDN could inject code with full access to the Firestore session. Adding SRI hashes is a one-line change per script tag (pin the exact versions you already use).</p></div>
+
+  <div class="card"><h3><span class="badge b-low">Low</span> Seven top-level document listeners could be consolidated</h3>
+  <p>There are 4 separate <code>document mousemove</code> and 3 <code>mouseup</code> top-level handlers (pan, block create-drag, milestone create/drag, etc.). No leak — all dynamic listeners were verified to have matching removals — but a single dispatcher per event would make interaction order explicit and debugging easier.</p></div>
+
+  <div class="card"><h3><span class="badge b-low">Low</span> Duplicate CSS selectors defined in two places</h3>
+  <p>Nine selectors (e.g. <code>.table-view</code>, <code>.combined-name-cell</code>, <code>.combined-meta</code>, <code>.block-table td</code>) appear twice in different stylesheet regions with different properties. They merge as intended today, but it's easy to edit one and be surprised by the other. Worth consolidating when next touching those areas.</p></div>
+
+  <div class="card"><h3><span class="badge b-low">Low</span> Rules don't deep-validate newer fields</h3>
+  <p><code>firestore.rules</code> checks <code>milestones</code> is a list (≤500) and <code>tagColors</code> is a map, but not item shapes/value types (client-side <code>sanitizeState</code> does re-clean everything on read, which mitigates this). If you ever open access beyond the two allow-listed emails, tighten the rules first.</p></div>
+
+  <div class="card"><h3><span class="badge b-low">Low</span> Inline <code>onclick=</code> handlers &amp; single-file architecture</h3>
+  <p>Seven functions are wired via inline HTML attributes (all verified to exist). Combined with the single ~200KB HTML file, this is a deliberate and coherent style — but if the app keeps growing, a light build step (split CSS/JS, ES modules, minify) would improve maintainability and enable caching.</p></div>
+
+  <h2>What's in good shape</h2>
+  <div class="card"><ul class="plain">
+    <li class="good">No XSS found:</li><li>all user content (labels, tags, names) rendered via <code>textContent</code>; every <code>innerHTML</code> interpolation carries only numbers or app-constant strings; the tag datalist XSS was already fixed with a comment.</li>
+    <li class="good">No listener leaks:</li><li>every dynamically-registered document/window listener has a verified matching <code>removeEventListener</code>; Sortable instances are destroyed each render.</li>
+    <li class="good">Robust sync design:</li><li>debounced saves, echo prevention via <code>_clientId</code>, deferred remote-apply while UI is busy, throttled backups, IndexedDB fallback, and defensive <code>sanitizeState</code> on every load path.</li>
+    <li class="good">Clean code hygiene:</li><li>no <code>var</code>, no stray <code>console.log</code>/<code>debugger</code>, only 3 intentional <code>== null</code> idioms, thoughtful comments explaining non-obvious decisions (object identity in drags, rAF-batched render, weekday-column model).</li>
+  </ul></div>
+
+</div>
+</body>
+</html>
