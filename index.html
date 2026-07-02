@@ -3534,7 +3534,12 @@ function renderMilestonesSection(view) {
       startInput.type = 'date';
       startInput.value = toDateInputValue(colToDate(m.start));
       startInput.onchange = () => {
-        m.start = Math.max(0, Math.min(TOTAL_COLS - m.duration, dateInputToCol(startInput.value)));
+        // Move the start, keep the end fixed (adjust duration). Never let the
+        // start pass the end.
+        const endCol = m.start + m.duration - 1;
+        const newStart = Math.max(0, Math.min(endCol, dateInputToCol(startInput.value)));
+        m.start = newStart;
+        m.duration = Math.max(1, endCol - newStart + 1);
         render();
         saveState();
       };
@@ -3546,7 +3551,9 @@ function renderMilestonesSection(view) {
       endInput.type = 'date';
       endInput.value = toDateInputValue(colToDate(m.start + m.duration - 1));
       endInput.onchange = () => {
-        const endCol = dateInputToCol(endInput.value);
+        // Move the end, keep the start fixed (adjust duration). Never let the
+        // end fall before the start.
+        const endCol = Math.max(m.start, Math.min(TOTAL_COLS - 1, dateInputToCol(endInput.value)));
         m.duration = Math.max(1, endCol - m.start + 1);
         render();
         saveState();
