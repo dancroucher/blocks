@@ -4014,7 +4014,12 @@ function _render() {
       const hasLabel = !!(block.label || '').trim();
       if (!hasLabel) labelEl.classList.add('block-label-empty');
       labelEl.textContent = hasLabel ? block.label : '...';
-      if (hasLabel) labelEl.title = block.label;
+      if (hasLabel) {
+        labelEl.title = block.label;
+        bEl.title = block.label;
+      } else {
+        bEl.removeAttribute('title');
+      }
       bEl.appendChild(labelEl);
 
       const daysBadge = document.createElement('span');
@@ -4661,7 +4666,13 @@ function startEditingBlockLabel(bEl, labelEl, block) {
       const hasLabel = !!(block.label || '').trim();
       labelEl.classList.toggle('block-label-empty', !hasLabel);
       labelEl.textContent = hasLabel ? block.label : '...';
-      if (hasLabel) labelEl.title = block.label; else labelEl.removeAttribute('title');
+      if (hasLabel) {
+        labelEl.title = block.label;
+        bEl.title = block.label;
+      } else {
+        labelEl.removeAttribute('title');
+        bEl.removeAttribute('title');
+      }
       renderDataPane();
       renderStats();
     }
