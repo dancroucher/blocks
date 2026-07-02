@@ -3944,7 +3944,7 @@ function _render() {
         const rect = cells.getBoundingClientRect();
         const x = e.clientX - rect.left + cells.scrollLeft;
         const col = Math.floor(x / dayPx());
-        createBlock(row.id, col, 3, '', false, 'grid', track.id);
+        createBlock(row.id, col, 3, '', false, 'grid', track.id, true);
       });
 
       cells.addEventListener('mousedown', (e) => {
@@ -4557,7 +4557,7 @@ function applyRowHeights() {
 }
 
 // --- Block operations ---
-function createBlock(rowId, startCol, duration, label, durationIsScheduled = false, kind = 'grid', trackId = null) {
+function createBlock(rowId, startCol, duration, label, durationIsScheduled = false, kind = 'grid', trackId = null, openLabel = false) {
   const row = rows.find(r => r.id === rowId);
   const resolvedTrackId = trackId || getDefaultTrackId(row);
   const inputDuration = duration || 3;
@@ -4578,6 +4578,14 @@ function createBlock(rowId, startCol, duration, label, durationIsScheduled = fal
   blocks.push(block);
   render();
   saveState();
+  if (openLabel) {
+    // render() is rAF-batched; open the name input once the block element exists.
+    setTimeout(() => {
+      const bEl = document.querySelector(`.block[data-block-id="${block.id}"]`);
+      const labelEl = bEl && bEl.querySelector('.block-label');
+      if (bEl && labelEl) startEditingBlockLabel(bEl, labelEl, block);
+    }, 60);
+  }
   return block;
 }
 
@@ -5215,7 +5223,7 @@ document.addEventListener('mouseup', (e) => {
       const duration = end - start + 1;
 
       if (duration >= 2) {
-        createBlock(createState.rowId, start, duration, '', false, 'grid', createState.trackId);
+        createBlock(createState.rowId, start, duration, '', false, 'grid', createState.trackId, true);
       } else if (createState.preview) {
         createState.preview.remove();
       }
