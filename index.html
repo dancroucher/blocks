@@ -1921,6 +1921,7 @@ function countWeekdaysInclusive(from, to) {
 let projectStart = null;     // Monday anchoring col 0; pinned to saved state
 let PROJECT_END_DATE = null;
 let TOTAL_COLS = 0;
+let _colDateCache = null; // col -> timestamp; see colToDate()
 function setTimelineAnchor(savedISO, savedEndISO = null) {
   const currentYear = new Date().getFullYear();
   const parsed = savedISO ? new Date(savedISO) : null;
@@ -1934,6 +1935,7 @@ function setTimelineAnchor(savedISO, savedEndISO = null) {
   projectStart = anchor;
   PROJECT_END_DATE = end;
   TOTAL_COLS = countWeekdaysInclusive(projectStart, PROJECT_END_DATE);
+  _colDateCache = null; // anchor/window changed — col→date mapping is stale
 }
 setTimelineAnchor(null); // default window until saved state arrives
 const STATE_VERSION = 4; // v4 = resource tracks
@@ -1979,6 +1981,8 @@ function rememberedProject() {
 function projectDocPath(projectId = currentProjectId) { return `${PROJECTS_COLLECTION}/${projectId || 'blocks'}`; }
 function projectBackupsPath(projectId = currentProjectId) { return `${projectDocPath(projectId)}/backups`; }
 const AUTO_BACKUP_MIN_INTERVAL_MS = 5 * 60 * 1000;
+const BACKUP_RETENTION_MS = 14 * 24 * 60 * 60 * 1000; // keep 14 days of backups
+const BACKUP_PRUNE_BATCH = 20; // max deletions per prune pass (bounds bandwidth)
 let _dbPromise = null;
 let _unsub = null; // Firestore listener unsubscribe
 let _lastBackupAt = 0;
@@ -2212,9 +2216,30 @@ async function writeBackup(snapshot, reason = 'auto') {
       backupReason: reason,
       backupCreatedAt: firebase.firestore.FieldValue.serverTimestamp(),
     });
+    // Fire-and-forget: drain expired backups a batch at a time. Runs at most
+    // once per backup write (itself throttled), so old docs bleed away
+    // gradually without a server-side job.
+    pruneOldBackups().catch(e => console.warn('Backup prune failed:', e));
   } catch (e) {
     console.warn('Firestore backup failed:', e);
   }
+}
+
+// Backups are keyed by Date.now() strings (fixed 13 digits until year 2286),
+// so a lexicographic documentId comparison is a numeric one. Delete anything
+// older than the retention window, capped per pass — the web SDK has no
+// projection, so each doc read pulls the full snapshot payload.
+async function pruneOldBackups() {
+  if (!_db || !_currentUser) return;
+  const cutoff = String(Date.now() - BACKUP_RETENTION_MS);
+  const expired = await _db.collection(projectBackupsPath())
+    .where(firebase.firestore.FieldPath.documentId(), '<', cutoff)
+    .limit(BACKUP_PRUNE_BATCH)
+    .get();
+  if (expired.empty) return;
+  const batch = _db.batch();
+  expired.docs.forEach(doc => batch.delete(doc.ref));
+  await batch.commit();
 }
 
 function openDB() {
@@ -2987,10 +3012,28 @@ function todayWeekdayCol() {
 }
 
 // Grid is weekday-only: col 0 = projectStart (always a Monday), col 1 = next
-// weekday, weekends never get a column. `colToDate` advances one weekday at a time.
+// weekday, weekends never get a column.
+//
+// colToDate is called inside per-column loops when building the month/week
+// headers; walking from projectStart on every call made those loops O(cols²)
+// (100k+ date iterations per render on a 2-year window). Memoise one
+// timestamp per column — built in a single O(cols) pass, invalidated by
+// setTimelineAnchor — and return a fresh Date copy so callers can mutate.
 function colToDate(col) {
-  const d = new Date(projectStart);
-  let added = 0;
+  if (!_colDateCache || _colDateCache.length !== TOTAL_COLS) {
+    _colDateCache = new Array(Math.max(0, TOTAL_COLS));
+    const d = new Date(projectStart);
+    for (let c = 0; c < TOTAL_COLS; c++) {
+      _colDateCache[c] = d.getTime();
+      d.setDate(d.getDate() + 1);
+      while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+    }
+  }
+  if (col <= 0) return new Date(_colDateCache[0] ?? projectStart);
+  if (col < _colDateCache.length) return new Date(_colDateCache[col]);
+  // Past the window end (clamp edge cases): walk on from the last cached day.
+  const d = new Date(_colDateCache[_colDateCache.length - 1] ?? projectStart);
+  let added = Math.max(0, _colDateCache.length - 1);
   while (added < col) {
     d.setDate(d.getDate() + 1);
     const day = d.getDay();

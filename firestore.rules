@@ -106,7 +106,10 @@ service cloud.firestore {
           && validBackupStateKeys()
           && hasValidStateShape()
           && request.resource.data.backupReason is string;
-        allow update, delete: if false;
+        allow update: if false;
+        // Clients prune their own expired backups (retention window enforced
+        // client-side; only allow-listed users can delete).
+        allow delete: if isAllowedUser();
       }
     }
   }
