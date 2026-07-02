@@ -4443,9 +4443,6 @@ function setupTrackSortables() {
 function renderStatusStrip() {
   const strip = document.getElementById('project-status-strip');
   if (!strip) return;
-  const totalBlocks = blocks.length;
-  const totalMilestones = milestones.length;
-  const totalTracks = rows.reduce((sum, row) => sum + getRowTracks(row).length, 0);
   const starts = [
     ...blocks.map(b => b.start),
     ...milestones.map(m => m.start),
@@ -4457,13 +4454,7 @@ function renderStatusStrip() {
   const range = starts.length && ends.length
     ? `${formatDate(colToDate(Math.min(...starts)))}–${formatDate(colToDate(Math.max(...ends)))}`
     : 'No timeline range';
-  strip.innerHTML = `
-    <span class="status-chip"><strong>${rows.length}</strong> <span class="status-label">resources</span></span>
-    <span class="status-chip"><strong>${totalTracks}</strong> <span class="status-label">tracks</span></span>
-    <span class="status-chip"><strong>${totalBlocks}</strong> <span class="status-label">blocks</span></span>
-    <span class="status-chip"><strong>${totalMilestones}</strong> <span class="status-label">milestones</span></span>
-    <span class="status-chip"><strong>${range}</strong></span>
-  `;
+  strip.innerHTML = `<span class="status-chip"><strong>${range}</strong></span>`;
 }
 
 function renderStats() {
