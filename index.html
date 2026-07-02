@@ -1429,7 +1429,7 @@
     border: 1px solid var(--border);
     border-radius: 8px;
     padding: 0.3rem;
-    z-index: 100;
+    z-index: 10000;
     min-width: 160px;
     box-shadow: 0 4px 16px rgba(0,0,0,0.1);
   }
@@ -5623,7 +5623,7 @@ function showBlockContextMenu(e, blockId) {
   const dup = document.createElement('div');
   dup.className = 'context-menu-item';
   dup.textContent = 'Duplicate';
-  dup.addEventListener('click', () => duplicateBlock(blockId));
+  dup.addEventListener('click', () => { menu.style.display = 'none'; duplicateBlock(blockId); });
   menu.appendChild(dup);
 
   // Separator
@@ -5635,7 +5635,7 @@ function showBlockContextMenu(e, blockId) {
   const del = document.createElement('div');
   del.className = 'context-menu-item danger';
   del.textContent = 'Delete';
-  del.addEventListener('click', () => confirmDeleteBlock(blockId));
+  del.addEventListener('click', () => { menu.style.display = 'none'; confirmDeleteBlock(blockId); });
   menu.appendChild(del);
 }
 
