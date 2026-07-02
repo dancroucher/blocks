@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blocks × Linear Style Review</title>
+<style>
+  :root{
+    --bg:#f7f5f2; --card:#fff; --ink:#171717; --muted:#6b6761; --line:#e7e1d8;
+    --linear:#5e6ad2; --linear2:#8b5cf6; --ok:#157f3b; --warn:#a16207;
+  }
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.6 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;padding:40px 22px}
+  main{max-width:980px;margin:0 auto}.eyebrow{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);font-weight:700}
+  h1{font-size:34px;line-height:1.08;margin:8px 0 12px;letter-spacing:-.04em}.lead{font-size:16px;color:var(--muted);max-width:780px;margin-bottom:26px}
+  h2{font-size:18px;margin:32px 0 12px;letter-spacing:-.02em}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:18px 0 28px}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;box-shadow:0 1px 0 rgba(0,0,0,.03)}
+  .card h3{font-size:14px;margin:0 0 8px}.card p{margin:0;color:var(--muted);font-size:13px}.tag{display:inline-flex;border:1px solid var(--line);border-radius:999px;padding:2px 8px;font-size:11px;font-weight:700;color:#4f46e5;background:#f4f2ff;margin-right:6px}.prio{color:#fff;background:var(--linear);border-color:transparent}.quick{background:#f0fdf4;color:#166534}.warn{background:#fff7ed;color:#9a3412}
+  table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}th,td{padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:top}th{text-align:left;font-size:12px;color:var(--muted);background:#fbfaf8;text-transform:uppercase;letter-spacing:.05em}tr:last-child td{border-bottom:none}td:first-child{font-weight:650}td{font-size:13px;color:#383532}.score{font-weight:750;color:var(--linear)}
+  ul{margin:8px 0 0 18px;color:#3d3934}li{margin:6px 0}.note{padding:14px 16px;background:linear-gradient(135deg,#fff,#f7f7ff);border:1px solid #ddd9ff;border-radius:14px;color:#3d3a4f}.swatches{display:flex;gap:8px;margin-top:10px}.sw{width:26px;height:26px;border-radius:8px;border:1px solid rgba(0,0,0,.08)}
+  code{background:#f3eee7;border-radius:4px;padding:1px 5px;font-size:12px}.rank{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:7px;background:#111;color:#fff;font-size:12px;margin-right:6px}
+  @media(max-width:760px){.grid{grid-template-columns:1fr}h1{font-size:28px}table{font-size:12px}}
+</style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Design research · Linear.app → Blocks</div>
+  <h1>Linear lessons we can apply without copying Linear</h1>
+  <p class="lead">Linear's public site and product positioning repeatedly emphasize purpose-built workflows, speed, reduced noise, momentum, and craft. Blocks already has a strong functional core; the opportunity is to make it feel calmer, sharper, faster, and more intentional.</p>
+
+  <div class="grid">
+    <div class="card"><h3>Linear principle: focus</h3><p>Reduce visual noise and expose controls only when contextually needed.</p></div>
+    <div class="card"><h3>Linear principle: speed</h3><p>Keyboard-first flows, instant command access, fewer modal interruptions.</p></div>
+    <div class="card"><h3>Linear principle: craft</h3><p>Precise spacing, subdued colour, crisp surfaces, high-quality micro-interactions.</p></div>
+  </div>
+
+  <h2>Best lessons for Blocks</h2>
+  <table>
+    <thead><tr><th>Recommendation</th><th>Why it fits Blocks</th><th>Effort</th></tr></thead>
+    <tbody>
+      <tr><td><span class="rank">1</span>Calmer visual system</td><td>Blocks has many borders, greys, and saturated block colours. Linear-style refinement would mean fewer hard outlines, softer surfaces, consistent radius scale, and a more deliberate neutral palette.</td><td><span class="tag quick">Quick</span></td></tr>
+      <tr><td><span class="rank">2</span>Command menu</td><td>Linear heavily communicates speed via command surfaces. Blocks would benefit from <code>⌘K</code>/<code>Ctrl+K</code>: add resource, add milestone, jump today, zoom, collapse sections, export, duplicate project, etc.</td><td><span class="tag prio">High value</span></td></tr>
+      <tr><td><span class="rank">3</span>Contextual controls over persistent chrome</td><td>We've already moved deletes to right-click menus; continue this direction. Hide secondary controls until hover/right-click, keep row headers clean, and use tooltips/menus for advanced actions.</td><td><span class="tag quick">Quick</span></td></tr>
+      <tr><td><span class="rank">4</span>Stronger hierarchy in data view</td><td>Linear pages have clear hierarchy and progressive disclosure. Blocks' rollups are a good start; make headers more polished: consistent height, subtle card backgrounds, better count/meta text, and compact secondary stats.</td><td><span class="tag quick">Quick</span></td></tr>
+      <tr><td><span class="rank">5</span>Keyboard-native editing</td><td>Blocks is timeline-heavy. Linear's feel comes partly from not reaching for the mouse. Add shortcuts for create block, rename selected, delete selected, move left/right, resize, duplicate, open context menu.</td><td><span class="tag prio">High value</span></td></tr>
+      <tr><td><span class="rank">6</span>Selection model</td><td>Linear always makes the active object feel obvious. Blocks could have a selected block/milestone/resource state with inspector-like affordances and keyboard operations.</td><td><span class="tag warn">Medium</span></td></tr>
+      <tr><td><span class="rank">7</span>Subtle motion</td><td>Linear uses restrained transitions. Blocks currently re-renders hard; add tiny transitions to context menus, rollup collapse, hover states, selected blocks, and milestone movement previews.</td><td><span class="tag quick">Quick</span></td></tr>
+      <tr><td><span class="rank">8</span>Status and activity clarity</td><td>Linear communicates momentum. Blocks could improve sync/save states, recent edits, last updated by, and project status in a small unobtrusive header area.</td><td><span class="tag warn">Medium</span></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Suggested visual direction</h2>
+  <div class="card">
+    <p><strong>Do not make Blocks dark or purple just because Linear is sleek.</strong> Blocks is a planning canvas, so keep it light and quiet. Borrow Linear's restraint: low-contrast chrome, sharp typography, fewer competing borders, and colour used for information rather than decoration.</p>
+    <div class="swatches">
+      <div class="sw" style="background:#fbfaf8"></div><div class="sw" style="background:#f1eee9"></div><div class="sw" style="background:#dfd8cf"></div><div class="sw" style="background:#242323"></div><div class="sw" style="background:#5e6ad2"></div><div class="sw" style="background:#6b7280"></div>
+    </div>
+  </div>
+
+  <h2>Concrete CSS/UI changes worth doing first</h2>
+  <div class="card">
+    <ul>
+      <li><strong>Reduce border density:</strong> replace many 1px grid/header outlines with softer <code>rgba(0,0,0,.06)</code> and section backgrounds.</li>
+      <li><strong>Normalize radius scale:</strong> use 4px for dense controls, 8px for menus/popovers, 12–14px for panels; avoid mixed 2/4/5/6/8/12 unless intentional.</li>
+      <li><strong>Make context menus feel premium:</strong> slightly darker text, 10–12px radius, <code>box-shadow: 0 12px 40px rgba(0,0,0,.14)</code>, tiny scale/fade in.</li>
+      <li><strong>Improve timeline header hierarchy:</strong> month row bolder/darker, week/day rows smaller/subtler; milestone lane as a calm neutral band.</li>
+      <li><strong>Unify controls:</strong> inputs in map and data should share focus ring, hover border, and padding.</li>
+      <li><strong>Use accent sparingly:</strong> one accent colour for active/selected/focus, not for every decorative element.</li>
+    </ul>
+  </div>
+
+  <h2>Product/workflow changes inspired by Linear</h2>
+  <div class="grid">
+    <div class="card"><h3>⌘K command palette</h3><p>Best single Linear-style improvement. Speeds up experienced users and reduces visible UI clutter.</p></div>
+    <div class="card"><h3>Selected item actions</h3><p>Click block/milestone to select; actions become keyboard/context-menu driven rather than always visible.</p></div>
+    <div class="card"><h3>Project health/status strip</h3><p>Show save state, project date range, block count, milestone count, last edited — minimal, status-oriented.</p></div>
+    <div class="card"><h3>Updates/change log panel</h3><p>Linear uses updates to create momentum; Blocks could show recent changes or last 10 edits.</p></div>
+    <div class="card"><h3>Smart defaults</h3><p>When creating blocks, keep recent track/resource/duration/tag colour defaults to reduce repetitive setup.</p></div>
+    <div class="card"><h3>Keyboard shortcuts help</h3><p>A small <code>?</code> overlay: create, rename, delete, move, resize, jump today, zoom, collapse.</p></div>
+  </div>
+
+  <h2>Recommended implementation order</h2>
+  <div class="note">
+    <ol>
+      <li><strong>Polish pass:</strong> neutral palette, border/radius scale, context menu styling, timeline header hierarchy.</li>
+      <li><strong>Command menu:</strong> start with 8–10 commands, no AI/features bloat.</li>
+      <li><strong>Keyboard selection model:</strong> selected block/milestone, rename/delete/move/resize shortcuts.</li>
+      <li><strong>Status strip + recent activity:</strong> make progress and sync feel more intentional.</li>
+    </ol>
+  </div>
+
+  <h2>Bottom line</h2>
+  <div class="card"><p>Yes — Blocks can benefit a lot from Linear's lessons. The best transfer is not the exact look; it's the discipline: reduce noise, optimize for speed, make every interaction feel intentional, and hide complexity until it is needed. Blocks should stay a precise timeline/planning tool, but with Linear-like calmness and keyboard momentum.</p></div>
+</main>
+</body>
+</html>
