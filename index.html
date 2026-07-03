@@ -317,6 +317,15 @@
     border: 1px dashed #565d64;
     pointer-events: none;
   }
+  .milestone-end-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    border-left: 1px dotted rgba(47,45,41,0.42);
+    pointer-events: none;
+    z-index: 1;
+  }
   .milestone-name {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -499,7 +508,10 @@
   }
   .track-label-row {
     display: flex;
-    align-items: center;
+    /* Anchor content to a fixed-height top band instead of centering in the
+       full (variable) row height — centring makes the name shift sub-pixel
+       amounts every frame while the row is resized, which reads as jitter. */
+    align-items: flex-start;
     gap: 0.25rem;
     height: var(--track-h, 36px);
     min-height: var(--track-h, 36px);
@@ -507,6 +519,9 @@
     padding-right: 0.4rem;
     border-bottom: 1px solid var(--grid-line);
     position: relative;
+  }
+  .track-label-row > .track-label-input {
+    height: min(var(--track-h, 36px), 36px);
   }
   .track-list > .track-label-row:last-child { border-bottom: none; }
   .track-controls {
@@ -527,7 +542,7 @@
     min-width: 16px;
     position: absolute;
     left: 50%;
-    top: 50%;
+    top: min(calc(var(--track-h, 36px) / 2), 18px);
     transform: translate(-50%, -50%);
   }
   .track-drag-handle:hover { color: #999; }
@@ -748,7 +763,7 @@
     position: absolute;
     height: calc(100% - 6px);
     top: 3px;
-    border-radius: 6px;
+    border-radius: 0;
     cursor: grab;
     display: flex;
     flex-direction: column;
@@ -920,7 +935,7 @@
     top: 3px;
     height: calc(100% - 6px);
     border: 2px dotted #777;
-    border-radius: 2px;
+    border-radius: 0;
     background: rgba(255,255,255,0.25);
     pointer-events: none;
     z-index: 3;
@@ -996,7 +1011,7 @@
     height: calc(100% - 6px);
     top: 3px;
     border: 1px dashed #888;
-    border-radius: 2px;
+    border-radius: 0;
     user-select: none;
   }
   .holiday-extension {
@@ -1004,7 +1019,7 @@
     height: calc(100% - 4px);
     top: 2px;
     border: none;
-    border-radius: 0 2px 2px 0;
+    border-radius: 0;
     cursor: grab;
     user-select: none;
     z-index: 2;
@@ -1302,7 +1317,7 @@
     position: absolute;
     height: 100%;
     top: 0;
-    border-radius: 0 2px 2px 0;
+    border-radius: 0;
     pointer-events: auto;
     cursor: grab;
     z-index: 1;
@@ -2827,8 +2842,9 @@ function buildTrackList(row) {
     if (idx < tracks.length - 1) {
       const resize = document.createElement('div');
       resize.className = 'row-resize track-row-resize';
-      resize.title = 'Drag to resize this track';
+      resize.title = 'Drag to resize this track. Double-click for minimum height.';
       resize.addEventListener('pointerdown', e => startTrackResize(e, row.id, track.id));
+      resize.addEventListener('dblclick', e => resetTrackHeight(e, row.id, track.id));
       item.appendChild(resize);
     }
 
@@ -3854,8 +3870,9 @@ function _render() {
 
     const resourceResize = document.createElement('div');
     resourceResize.className = 'row-resize resource-row-resize';
-    resourceResize.title = 'Drag to resize all tracks in this resource. Hold Shift to apply to all resources.';
+    resourceResize.title = 'Drag to resize all tracks in this resource. Double-click for minimum height. Hold Shift to apply to all resources.';
     resourceResize.addEventListener('pointerdown', (e) => startRowResize(e, row.id));
+    resourceResize.addEventListener('dblclick', (e) => resetResourceHeight(e, row.id));
     group.appendChild(resourceResize);
 
     const header = document.createElement('div');
@@ -3996,13 +4013,24 @@ function _render() {
       if (idx < rowTracks.length - 1) {
         const trackResize = document.createElement('div');
         trackResize.className = 'row-resize track-row-resize';
-        trackResize.title = 'Drag to resize this track';
+        trackResize.title = 'Drag to resize this track. Double-click for minimum height.';
         trackResize.addEventListener('pointerdown', (e) => startTrackResize(e, row.id, track.id));
+        trackResize.addEventListener('dblclick', (e) => resetTrackHeight(e, row.id, track.id));
         trackRow.appendChild(trackResize);
       }
 
       trackStack.appendChild(trackRow);
       trackCells.set(track.id, cells);
+    });
+
+    trackCells.forEach(cells => {
+      milestones.forEach(m => {
+        const line = document.createElement('div');
+        line.className = 'milestone-end-line';
+        line.style.left = ((m.start + Math.max(1, m.duration || 1)) * dayPx() - 1) + 'px';
+        line.title = milestoneTitle(m);
+        cells.appendChild(line);
+      });
     });
 
     const rowBlocks = blocks.filter(b => b.rowId === row.id);
@@ -4443,6 +4471,27 @@ function renderStats() {
 }
 
 // --- Row vertical resize ---
+function resetTrackHeight(e, rowId, trackId) {
+  e.preventDefault();
+  e.stopPropagation();
+  const row = rows.find(r => r.id === rowId);
+  const track = getTrack(row, trackId);
+  if (!track) return;
+  track.height = ROW_H_MIN;
+  render();
+  saveState();
+}
+
+function resetResourceHeight(e, rowId) {
+  e.preventDefault();
+  e.stopPropagation();
+  const row = rows.find(r => r.id === rowId);
+  if (!row) return;
+  getRowTracks(row).forEach(track => { track.height = ROW_H_MIN; });
+  render();
+  saveState();
+}
+
 function resourceNameMinWidth() {
   const sampleInput = document.querySelector('.row-label-input');
   const font = sampleInput ? getComputedStyle(sampleInput).font : '15px Inter, sans-serif';
