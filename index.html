@@ -281,9 +281,88 @@
   .milestone-lane-label {
     display: flex;
     align-items: center;
-    padding-left: 6px;
+    justify-content: space-between;
+    gap: 0.45rem;
+    padding: 0 0.55rem;
     font-size: var(--font-xs);
     color: #999;
+  }
+  .milestone-lane-label-text {
+    margin-left: auto;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .tag-filter-control {
+    position: relative;
+    min-width: 0;
+  }
+  .tag-filter-button {
+    display: inline-flex;
+    align-items: center;
+    max-width: 8.8rem;
+    height: 22px;
+    padding: 0 0.45rem;
+    border: 1px solid var(--border-soft);
+    border-radius: 6px;
+    background: rgba(255,255,255,0.78);
+    color: var(--dim);
+    font: inherit;
+    font-size: var(--font-xs);
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .tag-filter-button.active {
+    color: var(--text);
+    border-color: rgba(55,53,47,0.16);
+    background: #fff;
+    font-weight: 600;
+  }
+  .tag-filter-menu {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 0;
+    z-index: 70;
+    min-width: 11rem;
+    max-width: 16rem;
+    max-height: 15rem;
+    overflow: auto;
+    padding: 0.35rem;
+    background: rgba(255,255,255,0.98);
+    border: 1px solid var(--border-soft);
+    border-radius: 10px;
+    box-shadow: 0 14px 38px rgba(0,0,0,0.14);
+    animation: menu-in 120ms ease;
+  }
+  .tag-filter-menu[hidden] { display: none; }
+  .tag-filter-option,
+  .tag-filter-empty,
+  .tag-filter-clear {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    width: 100%;
+    min-height: 28px;
+    padding: 0.25rem 0.45rem;
+    border-radius: 7px;
+    color: var(--text);
+    font-size: var(--font-xs);
+    line-height: 1.2;
+  }
+  .tag-filter-option { cursor: pointer; }
+  .tag-filter-option:hover,
+  .tag-filter-clear:hover { background: #f6f3ee; }
+  .tag-filter-option input { accent-color: var(--text); }
+  .tag-filter-option span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag-filter-empty { color: var(--dim); }
+  .tag-filter-clear {
+    justify-content: center;
+    border: none;
+    background: transparent;
+    color: var(--dim);
+    font-family: inherit;
+    cursor: pointer;
   }
   .milestone-lane-body {
     position: relative;
@@ -2496,7 +2575,7 @@ let splitPct = 58; // map pane width in split mode, % of .main
 const VIEW_PREFS_KEY = 'blocks-view-prefs';
 function saveViewPrefs() {
   try {
-    localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify({ viewMode, zoom, splitPct, headerWidth, resourceSummaryWidth, resourceTrackPanelWidth, collapsedDataSections }));
+    localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify({ viewMode, zoom, splitPct, headerWidth, resourceSummaryWidth, resourceTrackPanelWidth, collapsedDataSections, selectedTagFilter }));
   } catch (e) { /* private mode / quota — view prefs just won't stick */ }
 }
 function loadViewPrefs(saved) {
@@ -2516,6 +2595,9 @@ function loadViewPrefs(saved) {
   if (src.collapsedDataSections && typeof src.collapsedDataSections === 'object') {
     Object.assign(collapsedDataSections, src.collapsedDataSections);
   }
+  if (Array.isArray(src.selectedTagFilter)) {
+    selectedTagFilter = [...new Set(src.selectedTagFilter.map(t => String(t).trim()).filter(Boolean))];
+  }
 }
 
 let rows = [
@@ -2529,6 +2611,7 @@ let blocks = [];
 let dependencies = [];
 let milestones = []; // { id, name, start (col), duration (cols), color }
 let collapsedDataSections = {}; // { projectData|milestones|blocks: true } — per-client view pref
+let selectedTagFilter = []; // per-client local tag filter; OR-matches resource tags
 let tagColors = {}; // { [tagLowercase]: colorIndex 0-9 } — shared, project-wide
 let nextBlockId = 1;
 let nextRowId = 6;
@@ -2643,6 +2726,37 @@ function allTags() {
   const seen = new Set();
   rows.forEach(r => (r.tags || []).forEach(t => seen.add(t)));
   return [...seen].sort();
+}
+function normalizeSelectedTagFilter({ persist = false } = {}) {
+  const existing = new Set(allTags().map(t => t.toLowerCase()));
+  const before = selectedTagFilter.join('\u0000');
+  selectedTagFilter = [...new Set((selectedTagFilter || []).map(t => String(t).trim()).filter(t => t && existing.has(t.toLowerCase())))];
+  if (persist && before !== selectedTagFilter.join('\u0000')) saveViewPrefs();
+}
+function rowMatchesTagFilter(row) {
+  normalizeSelectedTagFilter();
+  if (!selectedTagFilter.length) return true;
+  const rowTags = new Set((row.tags || []).map(t => String(t).toLowerCase()));
+  return selectedTagFilter.some(tag => rowTags.has(tag.toLowerCase()));
+}
+function visibleRows() {
+  normalizeSelectedTagFilter();
+  return rows.filter(rowMatchesTagFilter);
+}
+function setTagFilterTag(tag, checked) {
+  const value = String(tag || '').trim();
+  if (!value) return;
+  const existing = new Set(selectedTagFilter.map(t => t.toLowerCase()));
+  if (checked && !existing.has(value.toLowerCase())) selectedTagFilter.push(value);
+  if (!checked) selectedTagFilter = selectedTagFilter.filter(t => t.toLowerCase() !== value.toLowerCase());
+  normalizeSelectedTagFilter({ persist: true });
+  render();
+}
+function clearTagFilter() {
+  if (!selectedTagFilter.length) return;
+  selectedTagFilter = [];
+  saveViewPrefs();
+  render();
 }
 function addTagToRow(rowId, tag) {
   tag = tag.trim().slice(0, TAG_MAX_CHARS);
@@ -3386,7 +3500,7 @@ function renderCombinedBlocksView(view) {
   const shell = document.createElement('div');
   shell.className = 'combined-blocks';
 
-  rows.forEach(row => {
+  visibleRows().forEach(row => {
     const rowBlocks = blocks
       .filter(b => b.rowId === row.id)
       .slice()
@@ -3862,7 +3976,7 @@ function _render() {
   wrapper.appendChild(headersWrap);
 
   // Resources. Each track is rendered as a real grid row, grouped under one resource header.
-  rows.forEach(row => {
+  visibleRows().forEach(row => {
     const group = document.createElement('div');
     group.className = 'resource-group';
     group.dataset.rowId = row.id;
@@ -4226,7 +4340,9 @@ function _render() {
   addRowHeader.className = 'row-header add-row-btn';
   addRowHeader.textContent = '+ Add row';
   addRowHeader.onclick = () => {
-    rows.push(makeRow(nextRowId++));
+    const row = makeRow(nextRowId++);
+    if (selectedTagFilter.length) row.tags = [...selectedTagFilter];
+    rows.push(row);
     render();
     saveState();
   };
@@ -4258,6 +4374,7 @@ function setupGridRowSortable() {
     _gridRowSortable.destroy();
     _gridRowSortable = null;
   }
+  if (selectedTagFilter.length) return;
   _gridRowSortable = Sortable.create(wrapper, {
     draggable: '.resource-group[data-row-id]',
     handle: '.row-header-main > .row-drag-handle',
@@ -5487,14 +5604,73 @@ function createMilestone(start, duration, openRename = true) {
   return m;
 }
 
+function buildTagFilterControl() {
+  normalizeSelectedTagFilter({ persist: true });
+  const tags = allTags();
+  const control = document.createElement('div');
+  control.className = 'tag-filter-control';
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'tag-filter-button';
+  if (selectedTagFilter.length) btn.classList.add('active');
+  btn.textContent = selectedTagFilter.length ? `${selectedTagFilter.length} tag${selectedTagFilter.length === 1 ? '' : 's'}` : 'Filter tags';
+  btn.title = selectedTagFilter.length ? `Filtering: ${selectedTagFilter.join(', ')}` : 'Filter resources by tag';
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const menu = control.querySelector('.tag-filter-menu');
+    if (menu) menu.hidden = !menu.hidden;
+  });
+  control.appendChild(btn);
+
+  const menu = document.createElement('div');
+  menu.className = 'tag-filter-menu';
+  menu.hidden = true;
+  menu.addEventListener('click', e => e.stopPropagation());
+  if (!tags.length) {
+    const empty = document.createElement('div');
+    empty.className = 'tag-filter-empty';
+    empty.textContent = 'No tags yet';
+    menu.appendChild(empty);
+  } else {
+    tags.forEach(tag => {
+      const label = document.createElement('label');
+      label.className = 'tag-filter-option';
+      const input = document.createElement('input');
+      input.type = 'checkbox';
+      input.checked = selectedTagFilter.some(t => t.toLowerCase() === tag.toLowerCase());
+      input.addEventListener('change', () => setTagFilterTag(tag, input.checked));
+      const text = document.createElement('span');
+      text.textContent = tag;
+      label.appendChild(input);
+      label.appendChild(text);
+      menu.appendChild(label);
+    });
+    if (selectedTagFilter.length) {
+      const clear = document.createElement('button');
+      clear.type = 'button';
+      clear.className = 'tag-filter-clear';
+      clear.textContent = 'Clear filter';
+      clear.addEventListener('click', clearTagFilter);
+      menu.appendChild(clear);
+    }
+  }
+  control.appendChild(menu);
+  return control;
+}
+
 function buildMilestoneLane() {
   const laneRow = document.createElement('div');
   laneRow.className = 'col-headers milestone-lane';
 
   const spacer = document.createElement('div');
   spacer.className = 'row-header-spacer milestone-lane-label';
-  spacer.textContent = 'Milestones';
   spacer.title = 'Drag on the lane to add a milestone';
+  spacer.appendChild(buildTagFilterControl());
+  const labelText = document.createElement('span');
+  labelText.className = 'milestone-lane-label-text';
+  labelText.textContent = 'Milestones';
+  spacer.appendChild(labelText);
   laneRow.appendChild(spacer);
 
   const body = document.createElement('div');
@@ -5748,6 +5924,9 @@ function showBlockContextMenu(e, blockId) {
 document.addEventListener('click', (e) => {
   if (!e.target.closest('.context-menu')) {
     document.getElementById('context-menu').style.display = 'none';
+  }
+  if (!e.target.closest('.tag-filter-control')) {
+    document.querySelectorAll('.tag-filter-menu').forEach(menu => { menu.hidden = true; });
   }
 });
 
