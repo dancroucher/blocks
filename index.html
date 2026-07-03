@@ -538,26 +538,6 @@
     font-weight: 400 !important;
     color: #555 !important;
   }
-  .summary-add-track-btn {
-    position: absolute;
-    right: 6px;
-    bottom: 4px;
-    border: 1px solid var(--border);
-    border-radius: 4px;
-    background: transparent;
-    color: var(--dim);
-    font-family: inherit;
-    font-size: 0.7rem;
-    line-height: 1;
-    padding: 0.28rem 0.55rem;
-    cursor: pointer;
-    user-select: none;
-  }
-  .summary-add-track-btn:hover {
-    color: var(--accent);
-    border-color: var(--accent);
-    background: var(--accent-dim);
-  }
   .tag-chip {
     display: inline-flex;
     align-items: center;
@@ -1917,7 +1897,7 @@ function daysPerCell() { return zoom === 'week' ? 5 : 1; }
 // Fixed left chrome inside .row-header-main that sits before the two resizable
 // columns: the ⠿ drag handle (border-box ~20px) plus row-header-main's 0.4rem
 // padding-left. headerWidth must reserve this or the track panel (and its
-// right-aligned ×/+ Track buttons) overflow past the header into the timeline.
+// right-aligned track controls) overflow past the header into the timeline.
 const HEADER_CHROME_W = 28;
 const ROW_HEADER_W = 300;       // default header column width
 const RESOURCE_SUMMARY_W = 112; // default width of the name/capacity/tags cell
@@ -3535,15 +3515,6 @@ function renderCombinedBlocksView(view) {
     `;
     sectionBody.appendChild(totals);
 
-    const actions = document.createElement('div');
-    actions.className = 'section-actions';
-    const addSectionBtn = document.createElement('button');
-    addSectionBtn.className = 'section-add-block-btn';
-    addSectionBtn.type = 'button';
-    addSectionBtn.textContent = '+ Add track';
-    addSectionBtn.onclick = () => addTrack(row);
-    actions.appendChild(addSectionBtn);
-    sectionBody.appendChild(actions);
     shell.appendChild(sectionBody);
   });
 
@@ -3946,17 +3917,6 @@ function _render() {
     titleRow.appendChild(capacityWrap);
     summary.appendChild(titleRow);
     summary.appendChild(buildTagsRow(row));
-
-    if (canAddTrack(row)) {
-      const addTrackBtn = document.createElement('button');
-      addTrackBtn.type = 'button';
-      addTrackBtn.className = 'summary-add-track-btn';
-      addTrackBtn.textContent = '+ Track';
-      addTrackBtn.title = 'Add a track to this resource';
-      addTrackBtn.addEventListener('mousedown', e => e.stopPropagation());
-      addTrackBtn.addEventListener('click', (e) => { e.stopPropagation(); addTrack(row); });
-      summary.appendChild(addTrackBtn);
-    }
 
     headerMain.appendChild(summary);
 
@@ -4605,9 +4565,8 @@ function applyRowHeights() {
     rowEl.style.setProperty('--row-h', renderedH + 'px');
     rowEl.style.minHeight = renderedH + 'px';
 
-    // When the header-content floor makes the group taller than tracks + add
-    // row, stretch the *displayed* track heights to absorb the slack so the
-    // "+ Track" row keeps its fixed height, pinned to the group's bottom.
+    // When the header-content floor makes the group taller than the stored
+    // track heights, stretch the displayed tracks to absorb the slack.
     // Stored track heights are untouched (the floor is render-time only).
     const tracks = getRowTracks(row);
     const trackSum = tracks.reduce((s, t) => s + (t.height || ROW_H_DEFAULT), 0);
@@ -4825,14 +4784,10 @@ function getResourceContentMinHeight(row) {
   const styles = getComputedStyle(summary);
   const padY = cssPx(styles.paddingTop) + cssPx(styles.paddingBottom);
   const gap = cssPx(styles.rowGap || styles.gap) || 3;
-  // The + Track button is absolutely positioned (bottom-right); measuring its
-  // auto margins would feed the current height back into the floor and lock
-  // resizing. Exclude it and reserve a fixed allowance instead.
-  const children = Array.from(summary.children).filter(el => !el.classList.contains('summary-col-resize') && !el.classList.contains('summary-add-track-btn'));
+  const children = Array.from(summary.children).filter(el => !el.classList.contains('summary-col-resize'));
   const childH = children.reduce((sum, el) => sum + elementOuterHeight(el), 0);
   const gaps = Math.max(0, children.length - 1) * gap;
-  const addBtnAllowance = summary.querySelector('.summary-add-track-btn') ? 24 : 0;
-  return Math.max(RESOURCE_HEADER_MIN_H, Math.ceil(padY + childH + gaps + addBtnAllowance + 3));
+  return Math.max(RESOURCE_HEADER_MIN_H, Math.ceil(padY + childH + gaps + 3));
 }
 
 function startRowResize(e, rowId) {
@@ -5361,7 +5316,36 @@ function showMilestoneContextMenu(e, milestoneId) {
 function showResourceContextMenu(e, rowId) {
   const row = rows.find(r => r.id === rowId);
   if (!row) return;
-  showSimpleContextMenu(e, (row.label || '').trim() || `Resource ${row.id}`, () => deleteResource(rowId));
+  const menu = document.getElementById('context-menu');
+  if (!menu) return;
+  const menuW = 180, menuH = canAddTrack(row) ? 124 : 88;
+  menu.style.display = 'block';
+  menu.style.left = Math.min(e.clientX, window.innerWidth - menuW - 8) + 'px';
+  menu.style.top = Math.min(e.clientY, window.innerHeight - menuH - 8) + 'px';
+  menu.innerHTML = '';
+
+  const label = document.createElement('div');
+  label.className = 'context-menu-label';
+  label.textContent = (row.label || '').trim() || `Resource ${row.id}`;
+  menu.appendChild(label);
+
+  if (canAddTrack(row)) {
+    const add = document.createElement('div');
+    add.className = 'context-menu-item';
+    add.textContent = 'Add track';
+    add.addEventListener('click', () => { menu.style.display = 'none'; addTrack(row); });
+    menu.appendChild(add);
+  }
+
+  const sep = document.createElement('div');
+  sep.className = 'context-menu-separator';
+  menu.appendChild(sep);
+
+  const del = document.createElement('div');
+  del.className = 'context-menu-item danger';
+  del.textContent = 'Delete';
+  del.addEventListener('click', () => { menu.style.display = 'none'; deleteResource(rowId); });
+  menu.appendChild(del);
 }
 
 function showTrackContextMenu(e, rowId, trackId) {
