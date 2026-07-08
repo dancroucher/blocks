@@ -2085,17 +2085,31 @@ const DAY_HALF_PX = 320;     // px per day in closest view, split into two half-
 const WEEK_DAY_PX = 16;      // px per day in week view — 5 × 16 = 80px per week cell
 const MONTH_DAY_PX = 5;      // px per day in month view — typical ~22-day month ≈ 110px wide
 
-// Pixels per *day* at the current zoom. Blocks are always day-indexed in the
-// data model; this just controls how wide a day renders. In week view each
-// visual cell is 5 × WEEK_DAY_PX = 80px wide with no day subdivisions drawn,
-// but blocks position + size against day-level pixels underneath.
-function dayPx() {
-  if (zoom === 'day-large') return DAY_LARGE_PX;
-  if (zoom === 'day-half') return DAY_HALF_PX;
-  if (zoom === 'week') return WEEK_DAY_PX;
-  if (zoom === 'month') return MONTH_DAY_PX;
-  return CELL_W;
+// Continuous zoom: dayPxValue is the live px-per-day value (any float in
+// [DAY_PX_MIN, DAY_PX_MAX]). The old named zoom levels survive as presets the
+// dropdown jumps to, and `zoom` becomes a *derived* mode (from px thresholds)
+// that decides which header rows and grid paint style render.
+const DAY_PX_MIN = 3;
+const DAY_PX_MAX = 320;
+const ZOOM_PRESET_PX = { month: MONTH_DAY_PX, week: WEEK_DAY_PX, day: CELL_W, 'day-large': DAY_LARGE_PX, 'day-half': DAY_HALF_PX };
+let dayPxValue = CELL_W;
+function clampDayPx(px) {
+  const n = Number(px);
+  if (!Number.isFinite(n)) return CELL_W;
+  return Math.max(DAY_PX_MIN, Math.min(DAY_PX_MAX, n));
 }
+// Derive the render mode from px/day. Thresholds sit between the preset
+// values so each preset lands in its own band.
+function zoomModeForPx(px) {
+  if (px < 9) return 'month';
+  if (px < 26) return 'week';
+  if (px < 110) return 'day';
+  if (px < 240) return 'day-large';
+  return 'day-half';
+}
+// Pixels per *day* at the current zoom. Blocks are always day-indexed in the
+// data model; this just controls how wide a day renders.
+function dayPx() { return dayPxValue; }
 // For week view we use a fixed 5-day stride. Month view has variable month
 // widths (handled inline in render via per-month iteration), so daysPerCell
 // is only meaningful for day/week.
@@ -2677,7 +2691,7 @@ function applyRemoteState(data) {
   renderStats();
 }
 
-let zoom = 'day'; // map zoom level only: day, week, month, day-large, day-half
+let zoom = 'day'; // derived render mode: day, week, month, day-large, day-half (see zoomModeForPx)
 const VIEW_MODES = ['map', 'split', 'data'];
 let viewMode = 'map'; // which pane(s) are shown: map, split (both), data
 let splitPct = 58; // map pane width in split mode, % of .main
@@ -2688,7 +2702,7 @@ let splitPct = 58; // map pane width in split mode, % of .main
 const VIEW_PREFS_KEY = 'blocks-view-prefs';
 function saveViewPrefs() {
   try {
-    localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify({ viewMode, zoom, splitPct, headerWidth, resourceSummaryWidth, resourceTrackPanelWidth, collapsedDataSections, selectedTagFilter }));
+    localStorage.setItem(VIEW_PREFS_KEY, JSON.stringify({ viewMode, zoom, dayPx: dayPxValue, splitPct, headerWidth, resourceSummaryWidth, resourceTrackPanelWidth, collapsedDataSections, selectedTagFilter }));
   } catch (e) { /* private mode / quota — view prefs just won't stick */ }
 }
 function loadViewPrefs(saved) {
@@ -2701,6 +2715,10 @@ function loadViewPrefs(saved) {
   else if (src.zoom === 'table') viewMode = 'data';
   if (MAP_ZOOM_LEVELS.includes(src.zoom)) zoom = src.zoom;
   else if (MAP_ZOOM_LEVELS.includes(src.mapZoom)) zoom = src.mapZoom;
+  // Continuous zoom value; older prefs only stored the named level.
+  if (Number.isFinite(Number(src.dayPx))) dayPxValue = clampDayPx(src.dayPx);
+  else dayPxValue = clampDayPx(ZOOM_PRESET_PX[zoom] || CELL_W);
+  zoom = zoomModeForPx(dayPxValue);
   if (typeof src.splitPct === 'number') splitPct = Math.max(20, Math.min(80, src.splitPct));
   if (typeof src.resourceSummaryWidth === 'number') resourceSummaryWidth = src.resourceSummaryWidth;
   if (typeof src.resourceTrackPanelWidth === 'number') resourceTrackPanelWidth = src.resourceTrackPanelWidth;
@@ -3423,10 +3441,12 @@ function schedulePostRenderWork() {
 function renderMapControls() {
   const controls = document.createElement('div');
   controls.className = 'map-header-controls';
-  const options = MAP_ZOOM_LEVELS.map(level => `<button type="button" class="${level === zoom ? 'active' : ''}" onclick="selectZoomLevel('${level}')">${ZOOM_LABELS[level] || level}</button>`).join('');
+  const preset = nearestZoomPreset();
+  const zoomLabel = (ZOOM_LABELS[preset.level] || preset.level) + (preset.exact ? '' : ' ·');
+  const options = MAP_ZOOM_LEVELS.map(level => `<button type="button" class="${preset.exact && level === preset.level ? 'active' : ''}" onclick="selectZoomLevel('${level}')">${ZOOM_LABELS[level] || level}</button>`).join('');
   controls.innerHTML = `
     <div class="zoom-controls">
-      <button type="button" class="zoom-select-btn" onclick="toggleZoomMenu(event)" title="Timeline zoom">${ZOOM_LABELS[zoom] || zoom}</button>
+      <button type="button" class="zoom-select-btn" onclick="toggleZoomMenu(event)" title="Timeline zoom">${zoomLabel}</button>
       <div class="zoom-menu" id="zoom-menu" hidden>${options}</div>
     </div>
     <div class="map-nav-controls">
@@ -4217,12 +4237,17 @@ function _render() {
             : `repeating-linear-gradient(to right, transparent 0, transparent ${px - 1}px, var(--grid-line) ${px - 1}px, var(--grid-line) ${px}px)`;
         }
         if (zoom === 'week') {
+          // Continuous zoom: paint week gridlines inline at the live 5-day
+          // stride (the CSS class assumes the fixed 80px preset), aligned to
+          // the first Monday boundary.
+          const weekPx = dayPx() * 5;
+          cells.style.backgroundImage = `repeating-linear-gradient(to right, transparent 0, transparent ${weekPx - 1}px, var(--grid-line) ${weekPx - 1}px, var(--grid-line) ${weekPx}px)`;
           let firstWeekDays = 0;
           for (let wc = 0; wc < TOTAL_COLS; wc++) {
             if (wc > 0 && colToDate(wc).getDay() === 1) break;
             firstWeekDays++;
           }
-          cells.style.backgroundPositionX = (firstWeekDays * WEEK_DAY_PX - 79) + 'px';
+          cells.style.backgroundPositionX = (firstWeekDays * dayPx() - (weekPx - 1)) + 'px';
         }
       }
       cells.style.width = (TOTAL_COLS * dayPx()) + 'px';
@@ -6130,9 +6155,11 @@ function setView(mode) {
 }
 
 function syncViewButtons() {
+  const preset = nearestZoomPreset();
+  const zoomLabel = (ZOOM_LABELS[preset.level] || preset.level) + (preset.exact ? '' : ' ·');
   const btn = document.querySelector('.zoom-select-btn');
-  if (btn) btn.childNodes[0].nodeValue = ZOOM_LABELS[zoom] || zoom;
-  document.querySelectorAll('.zoom-menu button').forEach(item => item.classList.toggle('active', item.textContent === (ZOOM_LABELS[zoom] || zoom)));
+  if (btn) btn.childNodes[0].nodeValue = zoomLabel;
+  document.querySelectorAll('.zoom-menu button').forEach(item => item.classList.toggle('active', preset.exact && item.textContent === (ZOOM_LABELS[preset.level] || preset.level)));
   document.getElementById('btn-map')?.classList.toggle('active', viewMode === 'map');
   document.getElementById('btn-split')?.classList.toggle('active', viewMode === 'split');
   document.getElementById('btn-table')?.classList.toggle('active', viewMode === 'data');
@@ -6140,48 +6167,69 @@ function syncViewButtons() {
 
 const MAP_ZOOM_LEVELS = ['month', 'week', 'day', 'day-large', 'day-half'];
 const ZOOM_LABELS = { month: 'Month', week: 'Week', day: 'Day', 'day-large': 'Day+', 'day-half': '½ Day' };
-let _lastZoomWheelAt = 0;
 
-function setZoom(z, anchorClientX = null) {
-  if (!MAP_ZOOM_LEVELS.includes(z)) return;
+// Nearest preset to the current continuous zoom (log-scale distance), plus
+// whether we're exactly on it — drives the dropdown button label/active state.
+function nearestZoomPreset() {
+  let best = 'day', bestDiff = Infinity;
+  MAP_ZOOM_LEVELS.forEach(level => {
+    const diff = Math.abs(Math.log(dayPxValue / ZOOM_PRESET_PX[level]));
+    if (diff < bestDiff) { bestDiff = diff; best = level; }
+  });
+  return { level: best, exact: Math.abs(dayPxValue - ZOOM_PRESET_PX[best]) < 0.5 };
+}
+
+// Core continuous zoom: set px-per-day, preserving the timeline position under
+// the anchor (pointer for wheel zooms, left edge of the visible timeline for
+// button/menu zooms). _pendingZoomScrollLeft carries the intended scrollLeft
+// across rapid wheel notches whose render hasn't committed yet, so successive
+// notches don't compute their anchor from a stale scroll position.
+let _pendingZoomScrollLeft = null;
+function setDayPx(px, anchorClientX = null) {
+  const next = clampDayPx(px);
+  if (Math.abs(next - dayPxValue) < 0.01) return;
   const gridArea = document.getElementById('grid-area');
-  const oldDayPx = dayPx();
+  const oldDayPx = dayPxValue;
   let anchorOffset = null;
   let anchorCol = null;
 
   if (gridArea && viewMode !== 'data') {
     const rect = gridArea.getBoundingClientRect();
     const timelineLeft = Math.min(headerWidth || 0, Math.max(0, gridArea.clientWidth - 1));
-    // Preserve the week/day under the visible timeline, not under the sticky
-    // resource header. Button/menu zooms keep the left-most visible week stable;
-    // wheel zooms keep the week under the pointer stable.
     anchorOffset = anchorClientX == null
       ? timelineLeft
       : Math.max(timelineLeft, Math.min(gridArea.clientWidth, anchorClientX - rect.left));
-    anchorCol = (gridArea.scrollLeft + anchorOffset - timelineLeft) / oldDayPx;
+    const scrollLeft = _pendingZoomScrollLeft != null ? _pendingZoomScrollLeft : gridArea.scrollLeft;
+    anchorCol = (scrollLeft + anchorOffset - timelineLeft) / oldDayPx;
   }
 
-  zoom = z;
+  dayPxValue = next;
+  zoom = zoomModeForPx(dayPxValue);
   syncViewButtons();
   render();
 
   if (gridArea && anchorCol != null) {
+    const timelineLeft = Math.min(headerWidth || 0, Math.max(0, gridArea.clientWidth - 1));
+    _pendingZoomScrollLeft = Math.max(0, anchorCol * dayPxValue - (anchorOffset - timelineLeft));
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        const timelineLeft = Math.min(headerWidth || 0, Math.max(0, gridArea.clientWidth - 1));
-        gridArea.scrollLeft = Math.max(0, anchorCol * dayPx() - (anchorOffset - timelineLeft));
+        if (_pendingZoomScrollLeft == null) return;
+        gridArea.scrollLeft = _pendingZoomScrollLeft;
+        _pendingZoomScrollLeft = null;
       });
     });
   }
   saveViewPrefs();
 }
 
-function zoomRelative(direction, anchorClientX = null) {
+function setZoom(z, anchorClientX = null) {
+  if (!ZOOM_PRESET_PX[z]) return;
+  setDayPx(ZOOM_PRESET_PX[z], anchorClientX);
+}
+
+function zoomRelative(direction, anchorClientX = null, factor = 1.25) {
   if (viewMode === 'data') return;
-  const idx = MAP_ZOOM_LEVELS.indexOf(zoom);
-  if (idx === -1) return;
-  const nextIdx = Math.max(0, Math.min(MAP_ZOOM_LEVELS.length - 1, idx + direction));
-  if (nextIdx !== idx) setZoom(MAP_ZOOM_LEVELS[nextIdx], anchorClientX);
+  setDayPx(dayPxValue * Math.pow(factor, direction), anchorClientX);
 }
 
 function toggleZoomMenu(e) {
@@ -6199,10 +6247,10 @@ function selectZoomLevel(level) {
 function onTimelineWheel(e) {
   if (viewMode === 'data' || (!e.ctrlKey && !e.metaKey)) return;
   e.preventDefault();
-  const now = Date.now();
-  if (now - _lastZoomWheelAt < 140) return;
-  _lastZoomWheelAt = now;
-  zoomRelative(e.deltaY < 0 ? 1 : -1, e.clientX);
+  // Continuous zoom: scale by wheel delta so trackpads glide and mouse wheels
+  // step ~12% per notch, anchored under the pointer.
+  const factor = Math.exp(-e.deltaY * 0.0022);
+  setDayPx(dayPxValue * factor, e.clientX);
 }
 
 // --- Panel toggle ---
