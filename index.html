@@ -2079,11 +2079,11 @@
 
 <script>
 // --- State ---
-const CELL_W = 40;           // px per day in day view
-const DAY_LARGE_PX = 160;    // px per day in close day view
-const DAY_HALF_PX = 320;     // px per day in closest view, split into two half-day columns
-const WEEK_DAY_PX = 16;      // px per day in week view — 5 × 16 = 80px per week cell
-const MONTH_DAY_PX = 5;      // px per day in month view — typical ~22-day month ≈ 110px wide
+const CELL_W = 120;          // px per day at the Day preset — ~7 days onscreen
+const DAY_LARGE_PX = 160;    // legacy Day+ preset px (kept for saved-pref migration)
+const DAY_HALF_PX = 320;     // deepest zoom — splits days into two half-day columns
+const WEEK_DAY_PX = 40;      // px per day at the Week preset — 5 × 40 = 200px per week cell, ~4 weeks onscreen
+const MONTH_DAY_PX = 10;     // px per day at the Month preset — typical ~22-day month ≈ 220px wide
 
 // Continuous zoom: dayPxValue is the live px-per-day value (any float in
 // [DAY_PX_MIN, DAY_PX_MAX]). The old named zoom levels survive as presets the
@@ -2092,7 +2092,7 @@ const MONTH_DAY_PX = 5;      // px per day in month view — typical ~22-day mon
 const DAY_PX_MIN = 3;
 const DAY_PX_MAX = 320;
 const ZOOM_PRESET_PX = { month: MONTH_DAY_PX, week: WEEK_DAY_PX, day: CELL_W, 'day-large': DAY_LARGE_PX, 'day-half': DAY_HALF_PX };
-let dayPxValue = CELL_W;
+let dayPxValue = WEEK_DAY_PX;
 function clampDayPx(px) {
   const n = Number(px);
   if (!Number.isFinite(n)) return CELL_W;
@@ -2101,10 +2101,9 @@ function clampDayPx(px) {
 // Derive the render mode from px/day. Thresholds sit between the preset
 // values so each preset lands in its own band.
 function zoomModeForPx(px) {
-  if (px < 9) return 'month';
-  if (px < 26) return 'week';
-  if (px < 110) return 'day';
-  if (px < 240) return 'day-large';
+  if (px < 20) return 'month';
+  if (px < 70) return 'week';
+  if (px < 240) return 'day';
   return 'day-half';
 }
 // Pixels per *day* at the current zoom. Blocks are always day-indexed in the
@@ -2691,7 +2690,7 @@ function applyRemoteState(data) {
   renderStats();
 }
 
-let zoom = 'day'; // derived render mode: day, week, month, day-large, day-half (see zoomModeForPx)
+let zoom = 'week'; // derived render mode: month, week, day, day-half (see zoomModeForPx)
 const VIEW_MODES = ['map', 'split', 'data'];
 let viewMode = 'map'; // which pane(s) are shown: map, split (both), data
 let splitPct = 58; // map pane width in split mode, % of .main
