@@ -2713,11 +2713,13 @@ function loadViewPrefs(saved) {
   if (VIEW_MODES.includes(src.viewMode)) viewMode = src.viewMode;
   // Legacy prefs: zoom === 'table' meant the Data view, with the map zoom in mapZoom.
   else if (src.zoom === 'table') viewMode = 'data';
-  if (MAP_ZOOM_LEVELS.includes(src.zoom)) zoom = src.zoom;
-  else if (MAP_ZOOM_LEVELS.includes(src.mapZoom)) zoom = src.mapZoom;
+  // Accept legacy preset names too (day-large / day-half) via ZOOM_PRESET_PX.
+  let savedLevel = null;
+  if (ZOOM_PRESET_PX[src.zoom]) savedLevel = src.zoom;
+  else if (ZOOM_PRESET_PX[src.mapZoom]) savedLevel = src.mapZoom;
   // Continuous zoom value; older prefs only stored the named level.
   if (Number.isFinite(Number(src.dayPx))) dayPxValue = clampDayPx(src.dayPx);
-  else dayPxValue = clampDayPx(ZOOM_PRESET_PX[zoom] || CELL_W);
+  else if (savedLevel) dayPxValue = clampDayPx(ZOOM_PRESET_PX[savedLevel]);
   zoom = zoomModeForPx(dayPxValue);
   if (typeof src.splitPct === 'number') splitPct = Math.max(20, Math.min(80, src.splitPct));
   if (typeof src.resourceSummaryWidth === 'number') resourceSummaryWidth = src.resourceSummaryWidth;
@@ -6165,7 +6167,10 @@ function syncViewButtons() {
   document.getElementById('btn-table')?.classList.toggle('active', viewMode === 'data');
 }
 
-const MAP_ZOOM_LEVELS = ['month', 'week', 'day', 'day-large', 'day-half'];
+// Dropdown presets — Day+/½ Day were removed as presets but their zoom depth
+// is still reachable by continuous zoom (DAY_PX_MAX). ZOOM_PRESET_PX keeps the
+// legacy names so old saved prefs still map to a px value.
+const MAP_ZOOM_LEVELS = ['month', 'week', 'day'];
 const ZOOM_LABELS = { month: 'Month', week: 'Week', day: 'Day', 'day-large': 'Day+', 'day-half': '½ Day' };
 
 // Nearest preset to the current continuous zoom (log-scale distance), plus
