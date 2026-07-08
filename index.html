@@ -301,7 +301,7 @@
     padding: 0;
     border: 1px solid var(--border-soft);
     border-radius: 999px;
-    background: rgba(255,255,255,0.86);
+    background: var(--header-bg);
     color: #6f6a62;
     cursor: pointer;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
@@ -311,7 +311,7 @@
   .tag-filter-button.active {
     color: var(--text);
     border-color: rgba(55,53,47,0.18);
-    background: #fff;
+    background: var(--header-bg);
     box-shadow: 0 4px 14px rgba(0,0,0,0.12);
   }
   .tag-filter-icon {
@@ -500,6 +500,15 @@
     pointer-events: none;
     z-index: 1;
   }
+  .today-row-line {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 0;
+    border-left: 1px dotted rgba(80, 165, 220, 0.72);
+    pointer-events: none;
+    z-index: 1;
+  }
   .milestone-name {
     overflow: hidden;
     text-overflow: ellipsis;
@@ -629,7 +638,7 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
-    padding: 0.28rem 0.4rem 0.22rem 0.5rem;
+    padding: 0.42rem 0.4rem 0.22rem 0.5rem;
     border-right: 1px solid rgba(0,0,0,0.10);
     position: relative;
   }
@@ -2112,12 +2121,12 @@ const BLOCK_COLOR_FAMILIES = Array.from({ length: 12 }, (_, i) => [i * 3, i * 3 
 const MILESTONE_COLORS = 5;
 const MILESTONE_LANE_H = 31;
 const MILESTONE_NAME_MAX_CHARS = 60;
-const ROW_H_MIN = 32;
+const ROW_H_MIN = 24;
 const ROW_H_DEFAULT = 36;
 const ROW_H_MAX = 360;
 const BLOCK_COMPACT_ROW_H = 40;
 const MAX_TRACKS_PER_ROW = 8;
-const RESOURCE_HEADER_MIN_H = 42;
+const RESOURCE_HEADER_MIN_H = 28;
 
 // --- Firebase shared state ---
 // Replace with your actual Firebase project config from:
@@ -3602,6 +3611,16 @@ function syncResourceNameToMap(rowId, value) {
   const el = document.querySelector(`.resource-group[data-row-id="${rowId}"] .row-label-input`);
   if (el && el.value !== value) el.value = value;
 }
+function focusResourceName(rowId) {
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const el = document.querySelector(`.resource-group[data-row-id="${rowId}"] .row-label-input`);
+      if (!el) return;
+      el.focus({ preventScroll: true });
+      el.select();
+    });
+  });
+}
 function syncTrackNameToMap(rowId, trackId, value) {
   const el = document.querySelector(`.track-list[data-row-id="${rowId}"] .track-label-row[data-track-id="${trackId}"] .track-label-input`);
   if (el && el.value !== value) el.value = value;
@@ -4250,7 +4269,15 @@ function _render() {
       trackCells.set(track.id, cells);
     });
 
+    const todayCol = todayWeekdayCol();
     trackCells.forEach(cells => {
+      if (todayCol >= 0) {
+        const todayLine = document.createElement('div');
+        todayLine.className = 'today-row-line';
+        todayLine.style.left = (todayCol * dayPx() + (dayPx() / 2) - 1) + 'px';
+        todayLine.title = 'Today';
+        cells.appendChild(todayLine);
+      }
       milestones.forEach(m => {
         const line = document.createElement('div');
         line.className = 'milestone-end-line';
@@ -4457,6 +4484,7 @@ function _render() {
     if (selectedTagFilter.length) row.tags = [...selectedTagFilter];
     rows.push(row);
     render();
+    focusResourceName(row.id);
     saveState();
   };
   addRowWrapper.appendChild(addRowHeader);
@@ -5058,15 +5086,13 @@ function wrappedTagsHeight(tagsEl) {
 function getResourceContentMinHeight(row) {
   const summary = document.querySelector(`.resource-group[data-row-id="${row.id}"] .resource-summary`);
   if (!summary) return RESOURCE_HEADER_MIN_H;
-  // Keep enough resource height for wrapped name/capacity/tags content. Measure
-  // direct children and explicitly calculate tag wrapping from chip widths.
+  // The minimum row height should be based on the resource name line only, not
+  // wrapped labels. Labels may overflow at the smallest row sizes by design.
   const styles = getComputedStyle(summary);
   const padY = cssPx(styles.paddingTop) + cssPx(styles.paddingBottom);
-  const gap = cssPx(styles.rowGap || styles.gap) || 3;
-  const children = Array.from(summary.children).filter(el => !el.classList.contains('summary-col-resize'));
-  const childH = children.reduce((sum, el) => sum + elementOuterHeight(el), 0);
-  const gaps = Math.max(0, children.length - 1) * gap;
-  return Math.max(RESOURCE_HEADER_MIN_H, Math.ceil(padY + childH + gaps + 3));
+  const title = summary.querySelector('.resource-title-row');
+  const titleH = title ? elementOuterHeight(title) : 0;
+  return Math.max(RESOURCE_HEADER_MIN_H, Math.ceil(padY + titleH));
 }
 
 function startRowResize(e, rowId) {
@@ -6125,8 +6151,14 @@ function setZoom(z, anchorClientX = null) {
 
   if (gridArea && viewMode !== 'data') {
     const rect = gridArea.getBoundingClientRect();
-    anchorOffset = anchorClientX == null ? gridArea.clientWidth / 2 : Math.max(0, Math.min(gridArea.clientWidth, anchorClientX - rect.left));
-    anchorCol = (gridArea.scrollLeft + anchorOffset) / oldDayPx;
+    const timelineLeft = Math.min(headerWidth || 0, Math.max(0, gridArea.clientWidth - 1));
+    // Preserve the week/day under the visible timeline, not under the sticky
+    // resource header. Button/menu zooms keep the left-most visible week stable;
+    // wheel zooms keep the week under the pointer stable.
+    anchorOffset = anchorClientX == null
+      ? timelineLeft
+      : Math.max(timelineLeft, Math.min(gridArea.clientWidth, anchorClientX - rect.left));
+    anchorCol = (gridArea.scrollLeft + anchorOffset - timelineLeft) / oldDayPx;
   }
 
   zoom = z;
@@ -6136,7 +6168,8 @@ function setZoom(z, anchorClientX = null) {
   if (gridArea && anchorCol != null) {
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        gridArea.scrollLeft = Math.max(0, anchorCol * dayPx() - anchorOffset);
+        const timelineLeft = Math.min(headerWidth || 0, Math.max(0, gridArea.clientWidth - 1));
+        gridArea.scrollLeft = Math.max(0, anchorCol * dayPx() - (anchorOffset - timelineLeft));
       });
     });
   }
