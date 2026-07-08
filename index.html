@@ -16,11 +16,11 @@
 
   :root {
     --bg: #fbfaf8;
-    --surface: #ffffff;
-    --surface-subtle: #f6f3ee;
+    --surface: var(--bg);
+    --surface-subtle: var(--bg);
     --border: #e9e3da;
     --border-soft: rgba(55, 53, 47, 0.07);
-    --grid-bg: #f7f5f1;
+    --grid-bg: var(--bg);
     --grid-line: rgba(55, 53, 47, 0.065);
     --text: #242321;
     --dim: #827d74;
@@ -28,8 +28,8 @@
     --accent-dim: rgba(184, 95, 12, 0.09);
     --focus-ring: rgba(184, 95, 12, 0.20);
     --contingency: #3f7f5a;
-    --header-bg: #f7f5f1;
-    --row-alt: #fffdf9;
+    --header-bg: var(--bg);
+    --row-alt: var(--bg);
     --font-xs: 0.72rem;
     --font-sm: 0.78rem;
     --font-md: 0.85rem;
@@ -38,7 +38,7 @@
     --row-header-width: 300px;
     --resource-summary-width: 112px;
     --track-panel-width: 188px;
-    --alt-bg: #f8f8f8;
+    --alt-bg: var(--bg);
   }
 
   /* day-unit spans inherit surrounding text colour */
@@ -60,7 +60,7 @@
     display: flex;
     align-items: center;
     padding: 0.6rem 1.2rem;
-    background: rgba(251,250,248,0.94);
+    background: var(--bg);
     border-bottom: 1px solid var(--border-soft);
     gap: 0.85rem;
     backdrop-filter: blur(12px);
@@ -230,16 +230,14 @@
   .month-span:nth-child(even) { background: var(--alt-bg); }
   .week-span:nth-child(even)  { background: var(--alt-bg); }
 
-  .today-bubble {
-    display: inline-block;
+  /* Today highlight — fills the whole header cell (month/week/date). Placed
+     after the nth-child banding rules so it wins the specificity tie. */
+  .month-span.is-today,
+  .week-span.is-today,
+  .col-header.is-today {
     background: rgba(40, 54, 62, 0.92);
     color: #fff;
-    border-radius: 5px;
-    padding: 0.1rem 0.35rem;
-    font-size: 0.72rem;
     font-weight: 600;
-    line-height: 1.4;
-    white-space: nowrap;
   }
 
 
@@ -274,7 +272,7 @@
   /* Milestones lane */
   .milestone-lane {
     position: relative;
-    background: #f3f0ea;
+    background: var(--bg);
     border-top: 1px solid rgba(55,53,47,0.035);
     border-bottom: 1px solid rgba(55,53,47,0.055);
   }
@@ -328,7 +326,7 @@
     max-width: 15rem;
     overflow: hidden;
     padding: 0.35rem;
-    background: #fff;
+    background: var(--bg);
     border: 1px solid rgba(55,53,47,0.10);
     border-radius: 12px;
     box-shadow: 0 14px 38px rgba(0,0,0,0.14);
@@ -428,7 +426,7 @@
   }
   .tag-filter-action:hover { background: rgba(255,255,255,0.72); }
   .tag-filter-save {
-    background: #fff;
+    background: var(--bg);
     border: 1px solid rgba(55,53,47,0.10);
     box-shadow: 0 1px 3px rgba(0,0,0,0.06);
   }
@@ -439,7 +437,7 @@
     max-height: 15rem;
     overflow: auto;
     padding: 0;
-    background: #fff;
+    background: var(--bg);
   }
   .tag-filter-option,
   .tag-filter-empty {
@@ -740,7 +738,7 @@
     display: inline-flex;
     align-items: center;
     gap: 0.38rem;
-    background: rgba(255,255,255,0.92);
+    background: var(--bg);
     color: #2f2d29;
     border: 1px solid rgba(55,53,47,0.13);
     border-radius: 999px;
@@ -810,7 +808,7 @@
     line-height: 1;
     outline: none;
     width: 5rem;
-    background: #fff;
+    background: var(--bg);
     color: #333;
   }
 
@@ -1333,7 +1331,7 @@
     font-size: 0.85rem;
     font-weight: 500;
     color: #444;
-    background: #f7f5f1;
+    background: var(--bg);
     border-bottom: 1px solid var(--border-soft);
     display: flex;
     justify-content: space-between;
@@ -1384,7 +1382,7 @@
     grid-template-columns: repeat(5, 1fr);
     gap: 5px;
     padding: 7px;
-    background: #fff;
+    background: var(--bg);
     border: 1px solid var(--border-soft);
     border-radius: 12px;
     box-shadow: 0 12px 34px rgba(0,0,0,0.16);
@@ -1471,7 +1469,7 @@
     align-items: center;
     padding: 0.4rem 1rem;
     border-top: 1px solid var(--border);
-    background: #f8f8f8;
+    background: var(--bg);
     font-size: 0.8rem;
     gap: 0.5rem;
     color: var(--dim);
@@ -1606,7 +1604,7 @@
     z-index: 10000;
     opacity: 0.94;
     box-shadow: 0 8px 24px rgba(0,0,0,0.18);
-    background: #fff;
+    background: var(--bg);
   }
   .track-drag-overlay .track-label-row,
   .track-drag-overlay .track-grid-row {
@@ -1617,7 +1615,7 @@
   /* Context menu */
   .context-menu {
     position: fixed;
-    background: rgba(255,255,255,0.98);
+    background: var(--bg);
     border: 1px solid var(--border-soft);
     border-radius: 12px;
     padding: 0.35rem;
@@ -1730,7 +1728,7 @@
     text-align: left;
     vertical-align: middle;
   }
-  .block-table th { background: #f5f5f5; color: #555; font-weight: 500; }
+  .block-table th { background: var(--bg); color: #555; font-weight: 500; }
   .block-table input,
   .block-table select {
     width: 100%;
@@ -1744,21 +1742,21 @@
     color: var(--text);
   }
   .block-table .danger { color: #dc2626; }
-  .combined-blocks { border: 1px solid var(--border-soft); border-radius: 14px; overflow: hidden; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
-  .combined-blocks .panel-section-header { cursor: default; border-top: 12px solid var(--bg); background: linear-gradient(180deg,#f7f5f1,#f2eee8); }
+  .combined-blocks { border: 1px solid var(--border-soft); border-radius: 14px; overflow: hidden; background: var(--bg); box-shadow: 0 1px 2px rgba(0,0,0,0.03); }
+  .combined-blocks .panel-section-header { cursor: default; border-top: 12px solid var(--bg); background: var(--bg); }
   .combined-blocks .panel-section-header .section-title { font-size: 15px; font-weight: 500; color: #555; }
   .combined-blocks .panel-section-header:first-child { border-top: none; }
   .combined-blocks .section-days-3col .sec-conting,
   .combined-blocks .section-days-3col .sec-total { display: none; }
   .combined-blocks .panel-section-body { padding: 0; border-bottom: 1px solid #d7d7d7; }
   .combined-blocks .panel-section-body:last-child { border-bottom: none; }
-  .section-actions { display: flex; justify-content: flex-start; padding: 0.55rem 1rem; background: #fbfbfb; border-top: 1px solid var(--border); }
+  .section-actions { display: flex; justify-content: flex-start; padding: 0.55rem 1rem; background: var(--bg); border-top: 1px solid var(--border); }
   .section-add-block-btn { font-size: 0.82rem; color: var(--accent); }
   .combined-blocks .block-table { border: none; border-radius: 0; }
   .combined-blocks .block-table th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--dim); }
   .combined-blocks .block-table tr:last-child td { border-bottom: none; }
   .combined-blocks .block-table tr.combined-track-title-row td {
-    background: #fbfaf7;
+    background: var(--bg);
     font-size: 0.78rem;
     font-weight: 500;
     color: #5f5a52;
@@ -1769,7 +1767,7 @@
   .data-track-name { flex: 1; min-width: 0; }
   .data-track-delete-btn { border: none; background: transparent; color: #aaa; cursor: pointer; font-family: inherit; font-size: 0.85rem; line-height: 1; padding: 0.05rem 0.25rem; }
   .data-track-delete-btn:hover { color: #dc2626; }
-  .combined-blocks .block-table tr.combined-empty-row td { color: var(--dim); font-size: 0.85rem; background: #fff; }
+  .combined-blocks .block-table tr.combined-empty-row td { color: var(--dim); font-size: 0.85rem; background: var(--bg); }
   .combined-blocks .block-table tr.data-block-row td { background: inherit; color: #fff; border-bottom-color: rgba(255,255,255,0.22); }
   .combined-blocks .block-table tr.data-block-row input,
   .combined-blocks .block-table tr.data-block-row select {
@@ -1809,13 +1807,13 @@
     align-items: center;
     justify-content: center;
     padding: 1.5rem;
-    background: radial-gradient(circle at top left, rgba(245,166,35,0.16), transparent 36%), #fbfbfb;
+    background: var(--bg);
   }
   .auth-card {
     width: min(420px, 100%);
     border: 1px solid var(--border);
     border-radius: 18px;
-    background: rgba(255,255,255,0.92);
+    background: var(--bg);
     box-shadow: 0 24px 80px rgba(0,0,0,0.10);
     padding: 1.5rem;
   }
@@ -1841,7 +1839,7 @@
     border-radius: 999px;
     padding: 0.28rem 0.65rem;
     color: #666;
-    background: #fff;
+    background: var(--bg);
     font-size: 0.82rem;
     white-space: nowrap;
   }
@@ -1876,7 +1874,7 @@
     font-family: inherit;
     font-size: 0.78rem;
     color: var(--text);
-    background: #fff;
+    background: var(--bg);
     border: 1px solid var(--border-soft);
     border-radius: 7px;
     padding: 0.22rem 0.45rem;
@@ -1897,7 +1895,7 @@
     z-index: 50;
     min-width: 7.5rem;
     padding: 0.25rem;
-    background: rgba(255,255,255,0.98);
+    background: var(--bg);
     border: 1px solid var(--border-soft);
     border-radius: 10px;
     box-shadow: 0 14px 38px rgba(0,0,0,0.14);
@@ -1948,7 +1946,7 @@
   .table-data-top {
     border: 1px solid var(--border);
     border-radius: 12px;
-    background: #fff;
+    background: var(--bg);
     padding: 1rem;
     margin-bottom: 1rem;
   }
@@ -1970,7 +1968,7 @@
     width: min(720px, 100%);
     border: 1px solid var(--border);
     border-radius: 16px;
-    background: #fff;
+    background: var(--bg);
     padding: 1.5rem;
     box-shadow: 0 18px 44px rgba(0,0,0,0.08);
   }
@@ -1989,7 +1987,7 @@
     font-family: inherit;
     border: 1px solid var(--border);
     border-radius: 6px;
-    background: #fff;
+    background: var(--bg);
     padding: 0.55rem 0.8rem;
     cursor: pointer;
   }
@@ -2103,8 +2101,7 @@ function clampDayPx(px) {
 function zoomModeForPx(px) {
   if (px < 20) return 'month';
   if (px < 70) return 'week';
-  if (px < 240) return 'day';
-  return 'day-half';
+  return 'day';
 }
 // Pixels per *day* at the current zoom. Blocks are always day-indexed in the
 // data model; this just controls how wide a day renders.
@@ -2112,7 +2109,7 @@ function dayPx() { return dayPxValue; }
 // For week view we use a fixed 5-day stride. Month view has variable month
 // widths (handled inline in render via per-month iteration), so daysPerCell
 // is only meaningful for day/week.
-function isDayLikeZoom() { return zoom === 'day' || zoom === 'day-large' || zoom === 'day-half'; }
+function isDayLikeZoom() { return zoom === 'day'; }
 function daysPerCell() { return zoom === 'week' ? 5 : 1; }
 // Fixed left chrome inside .row-header-main that sits before the two resizable
 // columns: the ⠿ drag handle (border-box ~20px) plus row-header-main's 0.4rem
@@ -4002,11 +3999,8 @@ function _render() {
     monthEl.style.width = (span * dayPx()) + 'px';
     monthEl.style.minWidth = (span * dayPx()) + 'px';
     const monthLabel = monthNames[thisMonth] + ' ' + thisYear;
-    if (monthHasToday) {
-      monthEl.innerHTML = `<span class="today-bubble">${monthLabel}</span>`;
-    } else {
-      monthEl.textContent = monthLabel;
-    }
+    if (monthHasToday) monthEl.classList.add('is-today');
+    monthEl.textContent = monthLabel;
     monthRow.appendChild(monthEl);
     c += span;
   }
@@ -4044,11 +4038,8 @@ function _render() {
       const monday = new Date(d);
       monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
       const weekLabel = 'w/c ' + formatDate(monday);
-      if (weekHasToday) {
-        weekEl.innerHTML = `<span class="today-bubble">${weekLabel}</span>`;
-      } else {
-        weekEl.textContent = weekLabel;
-      }
+      if (weekHasToday) weekEl.classList.add('is-today');
+      weekEl.textContent = weekLabel;
       weekRow.appendChild(weekEl);
       c += span;
     }
@@ -4088,11 +4079,8 @@ function _render() {
       dateCh.className = 'col-header';
       dateCh.style.width = dayPx() + 'px';
       dateCh.style.minWidth = dayPx() + 'px';
-      if (today) {
-        dateCh.innerHTML = `<span class="today-bubble">${walker.getDate()}</span>`;
-      } else {
-        dateCh.textContent = walker.getDate();
-      }
+      if (today) dateCh.classList.add('is-today');
+      dateCh.textContent = walker.getDate();
       dateFrag.appendChild(dateCh);
 
       walker.setDate(walker.getDate() + 1);
@@ -4101,27 +4089,6 @@ function _render() {
     dateRow.appendChild(dateFrag);
     headersWrap.appendChild(dayRow);
     headersWrap.appendChild(dateRow);
-
-    if (zoom === 'day-half') {
-      const halfRow = document.createElement('div');
-      halfRow.className = 'col-headers';
-      const halfSpacer = document.createElement('div');
-      halfSpacer.className = 'row-header-spacer';
-      halfRow.appendChild(halfSpacer);
-      const halfFrag = document.createDocumentFragment();
-      for (let c = 0; c < TOTAL_COLS; c++) {
-        ['AM', 'PM'].forEach(label => {
-          const halfCh = document.createElement('div');
-          halfCh.className = 'col-header';
-          halfCh.style.width = (dayPx() / 2) + 'px';
-          halfCh.style.minWidth = (dayPx() / 2) + 'px';
-          halfCh.textContent = label;
-          halfFrag.appendChild(halfCh);
-        });
-      }
-      halfRow.appendChild(halfFrag);
-      headersWrap.appendChild(halfRow);
-    }
   }
 
   headersWrap.appendChild(buildMilestoneLane());
@@ -4233,9 +4200,7 @@ function _render() {
         cells.classList.add(zoom === 'week' ? 'painted-week' : 'painted-day');
         if (isDayLikeZoom()) {
           const px = dayPx();
-          cells.style.backgroundImage = zoom === 'day-half'
-            ? `repeating-linear-gradient(to right, transparent 0, transparent ${px / 2 - 1}px, rgba(180,180,180,0.45) ${px / 2 - 1}px, rgba(180,180,180,0.45) ${px / 2}px, transparent ${px / 2}px, transparent ${px - 1}px, var(--grid-line) ${px - 1}px, var(--grid-line) ${px}px)`
-            : `repeating-linear-gradient(to right, transparent 0, transparent ${px - 1}px, var(--grid-line) ${px - 1}px, var(--grid-line) ${px}px)`;
+          cells.style.backgroundImage = `repeating-linear-gradient(to right, transparent 0, transparent ${px - 1}px, var(--grid-line) ${px - 1}px, var(--grid-line) ${px}px)`;
         }
         if (zoom === 'week') {
           // Continuous zoom: paint week gridlines inline at the live 5-day
