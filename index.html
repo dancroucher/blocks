@@ -466,6 +466,63 @@
   .tag-filter-option input { accent-color: var(--text); }
   .tag-filter-option span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tag-filter-empty { color: var(--dim); grid-column: 1 / -1; }
+  .tag-filter-menu-section {
+    border-top: 1px solid rgba(55,53,47,0.08);
+    margin-top: 0.35rem;
+    padding-top: 0.35rem;
+  }
+  .tag-filter-menu-section:first-child { border-top: none; margin-top: 0; padding-top: 0; }
+  .tag-filter-menu-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.12rem 0.5rem 0.3rem;
+    color: var(--dim);
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .tag-filter-save-icon,
+  .saved-tag-filter-delete {
+    display: inline-grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border: 1px solid rgba(55,53,47,0.10);
+    border-radius: 999px;
+    background: var(--bg);
+    color: var(--dim);
+    cursor: pointer;
+    font: inherit;
+    line-height: 1;
+  }
+  .tag-filter-save-icon:hover,
+  .saved-tag-filter-delete:hover { color: var(--text); border-color: rgba(55,53,47,0.20); }
+  .tag-filter-save-icon:disabled { opacity: 0.35; cursor: default; }
+  .saved-tag-filter-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.12rem 0.18rem 0.12rem 0.5rem;
+    border-radius: 999px;
+    font-size: var(--font-xs);
+  }
+  .saved-tag-filter-row:hover { background: #f6f3ee; }
+  .saved-tag-filter-apply {
+    min-width: 0;
+    border: none;
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+    font: inherit;
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
   .milestone-lane-body {
     position: relative;
     cursor: crosshair;
@@ -2444,6 +2501,7 @@ function sanitizeState(data) {
     dependencies: cleanDependencies,
     milestones: cleanMilestones,
     tagColors: cleanTagColors,
+    savedTagFilters: normalizeSavedTagFilters(data.savedTagFilters || []),
     nextMilestoneId: toPositiveInt(data.nextMilestoneId, cleanMilestones.reduce((mx, m) => Math.max(mx, m.id), 0) + 1),
     nextBlockId: toPositiveInt(data.nextBlockId, cleanBlocks.reduce((m, b) => Math.max(m, b.id), 0) + 1),
     nextRowId: toPositiveInt(data.nextRowId, cleanRows.reduce((m, r) => Math.max(m, r.id), 0) + 1),
@@ -2479,6 +2537,7 @@ function snapshotState() {
     dependencies,
     milestones,
     tagColors,
+    savedTagFilters,
     nextBlockId, nextRowId, nextMilestoneId, contingencyPct,
     projectStart: projectStart.toISOString(),
     projectEnd: PROJECT_END_DATE.toISOString(),
@@ -2670,6 +2729,7 @@ function applyRemoteState(data) {
   if (Array.isArray(data.milestones)) milestones = data.milestones;
   if (data.nextMilestoneId != null) nextMilestoneId = data.nextMilestoneId;
   if (data.tagColors && typeof data.tagColors === 'object') tagColors = data.tagColors;
+  savedTagFilters = normalizeSavedTagFilters(data.savedTagFilters || []);
   if (typeof data.projectName === 'string' && data.projectName.trim()) currentProjectName = data.projectName.trim().slice(0, 80);
   updateProjectTitle();
   if (data.nextBlockId != null) nextBlockId = data.nextBlockId;
@@ -2750,6 +2810,7 @@ let dependencies = [];
 let milestones = []; // { id, name, start (col), duration (cols), color }
 let collapsedDataSections = {}; // { projectData|milestones|blocks: true } — per-client view pref
 let selectedTagFilter = []; // per-client local tag filter; OR-matches resource tags
+let savedTagFilters = []; // shared project-wide saved label filters: [{id, name, tags[]}]
 let tagColors = {}; // { [tagLowercase]: colorIndex 0-9 } — shared, project-wide
 let nextBlockId = 1;
 let nextRowId = 6;
@@ -2864,6 +2925,68 @@ function allTags() {
   const seen = new Set();
   rows.forEach(r => (r.tags || []).forEach(t => seen.add(t)));
   return [...seen].sort();
+}
+function canonicalTagList(tags, { requireExisting = false } = {}) {
+  const existing = requireExisting ? new Set(allTags().map(t => t.toLowerCase())) : null;
+  const seen = new Set();
+  return (Array.isArray(tags) ? tags : [])
+    .map(t => String(t || '').trim().slice(0, TAG_MAX_CHARS))
+    .filter(t => t && (!existing || existing.has(t.toLowerCase())))
+    .filter(t => {
+      const key = t.toLowerCase();
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 24);
+}
+function normalizeSavedTagFilters(filters) {
+  const seen = new Set();
+  return (Array.isArray(filters) ? filters : [])
+    .filter(filter => filter && typeof filter === 'object')
+    .map((filter, idx) => {
+      const tags = canonicalTagList(filter.tags, { requireExisting: false });
+      const key = tags.map(t => t.toLowerCase()).sort().join('\u0000');
+      if (!tags.length || seen.has(key)) return null;
+      seen.add(key);
+      const fallbackName = tags.join(', ');
+      return {
+        id: typeof filter.id === 'string' && filter.id ? filter.id.slice(0, 64) : `filter-${Date.now().toString(36)}-${idx}`,
+        name: (typeof filter.name === 'string' && filter.name.trim() ? filter.name.trim() : fallbackName).slice(0, 80),
+        tags,
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 24);
+}
+function savedTagFilterKey(tags) { return canonicalTagList(tags).map(t => t.toLowerCase()).sort().join('\u0000'); }
+function isCurrentTagFilterSaved() {
+  const key = savedTagFilterKey(selectedTagFilter);
+  return !!key && savedTagFilters.some(filter => savedTagFilterKey(filter.tags) === key);
+}
+function saveCurrentTagFilter() {
+  normalizeSelectedTagFilter({ persist: true });
+  if (!selectedTagFilter.length || isCurrentTagFilterSaved()) return;
+  const tags = canonicalTagList(selectedTagFilter, { requireExisting: true });
+  if (!tags.length) return;
+  savedTagFilters.push({ id: `filter-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`, name: tags.join(', '), tags });
+  savedTagFilters = normalizeSavedTagFilters(savedTagFilters);
+  render();
+  saveState();
+}
+function applySavedTagFilter(id) {
+  const filter = savedTagFilters.find(f => f.id === id);
+  if (!filter) return;
+  selectedTagFilter = canonicalTagList(filter.tags, { requireExisting: true });
+  saveViewPrefs();
+  render();
+}
+function deleteSavedTagFilter(id) {
+  const before = savedTagFilters.length;
+  savedTagFilters = savedTagFilters.filter(filter => filter.id !== id);
+  if (savedTagFilters.length === before) return;
+  render();
+  saveState();
 }
 function normalizeSelectedTagFilter({ persist = false } = {}) {
   const existing = new Set(allTags().map(t => t.toLowerCase()));
@@ -5818,6 +5941,21 @@ function buildTagFilterControl() {
   menu.hidden = true;
   menu.addEventListener('click', e => e.stopPropagation());
 
+  const labelsSection = document.createElement('div');
+  labelsSection.className = 'tag-filter-menu-section';
+  const labelsTitle = document.createElement('div');
+  labelsTitle.className = 'tag-filter-menu-title';
+  labelsTitle.appendChild(document.createTextNode('Labels'));
+  const saveFilter = document.createElement('button');
+  saveFilter.type = 'button';
+  saveFilter.className = 'tag-filter-save-icon';
+  saveFilter.textContent = '💾';
+  saveFilter.title = selectedTagFilter.length ? 'Save current label filter' : 'Select labels to save a filter';
+  saveFilter.disabled = !selectedTagFilter.length || isCurrentTagFilterSaved();
+  saveFilter.addEventListener('click', (e) => { e.stopPropagation(); saveCurrentTagFilter(); });
+  labelsTitle.appendChild(saveFilter);
+  labelsSection.appendChild(labelsTitle);
+
   const options = document.createElement('div');
   options.className = 'tag-filter-options';
   if (!tags.length) {
@@ -5843,7 +5981,37 @@ function buildTagFilterControl() {
       options.appendChild(label);
     });
   }
-  menu.appendChild(options);
+  labelsSection.appendChild(options);
+  menu.appendChild(labelsSection);
+
+  if (savedTagFilters.length) {
+    const savedSection = document.createElement('div');
+    savedSection.className = 'tag-filter-menu-section';
+    const savedTitle = document.createElement('div');
+    savedTitle.className = 'tag-filter-menu-title';
+    savedTitle.textContent = 'Saved';
+    savedSection.appendChild(savedTitle);
+    savedTagFilters.forEach(filter => {
+      const row = document.createElement('div');
+      row.className = 'saved-tag-filter-row';
+      const apply = document.createElement('button');
+      apply.type = 'button';
+      apply.className = 'saved-tag-filter-apply';
+      apply.textContent = filter.name || filter.tags.join(', ');
+      apply.title = filter.tags.join(', ');
+      apply.addEventListener('click', (e) => { e.stopPropagation(); applySavedTagFilter(filter.id); });
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'saved-tag-filter-delete';
+      del.textContent = '×';
+      del.title = 'Delete saved filter';
+      del.addEventListener('click', (e) => { e.stopPropagation(); deleteSavedTagFilter(filter.id); });
+      row.appendChild(apply);
+      row.appendChild(del);
+      savedSection.appendChild(row);
+    });
+    menu.appendChild(savedSection);
+  }
   control.appendChild(menu);
   return control;
 }
@@ -6390,6 +6558,7 @@ async function updateProjectFromItem(projectId, item) {
       dependencies: clean.dependencies || [],
       milestones: (clean.milestones || []).map(m => ({ ...m, start: Math.max(0, m.start + shift) })),
       tagColors: clean.tagColors || {},
+      savedTagFilters: normalizeSavedTagFilters(clean.savedTagFilters || []),
       nextMilestoneId: clean.nextMilestoneId || 1,
       nextBlockId: clean.nextBlockId,
       nextRowId: clean.nextRowId,
@@ -6505,6 +6674,7 @@ function resetToEmptyProject() {
   dependencies = [];
   milestones = [];
   tagColors = {};
+  savedTagFilters = [];
   nextBlockId = 1;
   nextRowId = 6;
   nextMilestoneId = 1;
@@ -6578,6 +6748,7 @@ async function selectProject(projectId, projectName = '') {
     dependencies = saved.dependencies || [];
     milestones = saved.milestones || [];
     tagColors = (saved.tagColors && typeof saved.tagColors === 'object') ? saved.tagColors : {};
+    savedTagFilters = normalizeSavedTagFilters(saved.savedTagFilters || []);
     nextMilestoneId = saved.nextMilestoneId || (milestones.reduce((m, ms) => Math.max(m, ms.id), 0) + 1);
     if (!saved.version || saved.version < 2) blocks = migrateV1ToV2(blocks);
     normalizeBlocks();
