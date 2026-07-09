@@ -681,7 +681,7 @@
     background: var(--header-bg);
     position: sticky;
     left: 0;
-    z-index: 3;
+    z-index: 300;
     font-size: 14px;
     font-weight: 500;
     cursor: text;
@@ -958,7 +958,8 @@
     align-self: stretch;
   }
   .resource-row-resize {
-    z-index: 200;
+    left: var(--row-header-width);
+    z-index: 60;
     pointer-events: auto;
   }
   .track-row-resize {
@@ -1315,43 +1316,27 @@
     line-height: 1;
   }
 
-  /* Block colours — muted blue and grey tonal families, all WCAG AA against white text */
+  /* Block colours — 20 muted blue and grey tones, all WCAG AA against white text */
   .block-color-0 { background: #3f5368; color: #fff; }
-  .block-color-1 { background: #4b6178; color: #fff; }
-  .block-color-2 { background: #58708a; color: #fff; }
-  .block-color-3 { background: #435b72; color: #fff; }
-  .block-color-4 { background: #506a84; color: #fff; }
-  .block-color-5 { background: #5d7893; color: #fff; }
-  .block-color-6 { background: #465f7b; color: #fff; }
-  .block-color-7 { background: #536f8d; color: #fff; }
-  .block-color-8 { background: #607d9f; color: #fff; }
-  .block-color-9 { background: #485a78; color: #fff; }
-  .block-color-10 { background: #566985; color: #fff; }
-  .block-color-11 { background: #647894; color: #fff; }
-  .block-color-12 { background: #3f5f79; color: #fff; }
-  .block-color-13 { background: #4c6e89; color: #fff; }
-  .block-color-14 { background: #5a7d98; color: #fff; }
-  .block-color-15 { background: #41677f; color: #fff; }
-  .block-color-16 { background: #4f768e; color: #fff; }
-  .block-color-17 { background: #5d859d; color: #fff; }
-  .block-color-18 { background: #4c5f73; color: #fff; }
-  .block-color-19 { background: #5a6e82; color: #fff; }
-  .block-color-20 { background: #687d91; color: #fff; }
-  .block-color-21 { background: #405a82; color: #fff; }
-  .block-color-22 { background: #4d6991; color: #fff; }
-  .block-color-23 { background: #5a78a0; color: #fff; }
-  .block-color-24 { background: #526070; color: #fff; }
-  .block-color-25 { background: #606e7e; color: #fff; }
-  .block-color-26 { background: #6e7c8c; color: #fff; }
-  .block-color-27 { background: #575f66; color: #fff; }
-  .block-color-28 { background: #646c73; color: #fff; }
-  .block-color-29 { background: #717980; color: #fff; }
-  .block-color-30 { background: #5d6369; color: #fff; }
-  .block-color-31 { background: #6a7076; color: #fff; }
-  .block-color-32 { background: #777d83; color: #fff; }
-  .block-color-33 { background: #62676d; color: #fff; }
-  .block-color-34 { background: #6f747a; color: #fff; }
-  .block-color-35 { background: #7c8187; color: #fff; }
+  .block-color-1 { background: #496177; color: #fff; }
+  .block-color-2 { background: #536f88; color: #fff; }
+  .block-color-3 { background: #5d7d99; color: #fff; }
+  .block-color-4 { background: #6789a8; color: #fff; }
+  .block-color-5 { background: #405a75; color: #fff; }
+  .block-color-6 { background: #4a6886; color: #fff; }
+  .block-color-7 { background: #557697; color: #fff; }
+  .block-color-8 { background: #6184a6; color: #fff; }
+  .block-color-9 { background: #6d91b5; color: #fff; }
+  .block-color-10 { background: #455b72; color: #fff; }
+  .block-color-11 { background: #50697f; color: #fff; }
+  .block-color-12 { background: #5d778d; color: #fff; }
+  .block-color-13 { background: #6a849a; color: #fff; }
+  .block-color-14 { background: #7892a8; color: #fff; }
+  .block-color-15 { background: #525a62; color: #fff; }
+  .block-color-16 { background: #5e666e; color: #fff; }
+  .block-color-17 { background: #6a727a; color: #fff; }
+  .block-color-18 { background: #767e86; color: #fff; }
+  .block-color-19 { background: #828a92; color: #fff; }
   .block-holiday { background: #b3b3b3 !important; color: #fff; }
   .holiday-resource-band {
     position: absolute;
@@ -1581,41 +1566,25 @@
   .block-contingency:active { cursor: grabbing; }
 
   .block-contingency.block-color-0 { background: #586b80; }
-  .block-contingency.block-color-1 { background: #63788e; }
-  .block-contingency.block-color-2 { background: #70869e; }
-  .block-contingency.block-color-3 { background: #5b7288; }
-  .block-contingency.block-color-4 { background: #688096; }
-  .block-contingency.block-color-5 { background: #748da4; }
-  .block-contingency.block-color-6 { background: #5f768f; }
-  .block-contingency.block-color-7 { background: #6b849f; }
-  .block-contingency.block-color-8 { background: #7892b0; }
-  .block-contingency.block-color-9 { background: #62708c; }
-  .block-contingency.block-color-10 { background: #6f7e99; }
-  .block-contingency.block-color-11 { background: #7c8da8; }
-  .block-contingency.block-color-12 { background: #58768e; }
-  .block-contingency.block-color-13 { background: #66859f; }
-  .block-contingency.block-color-14 { background: #7593ad; }
-  .block-contingency.block-color-15 { background: #5b7d94; }
-  .block-contingency.block-color-16 { background: #6a8ca3; }
-  .block-contingency.block-color-17 { background: #799ab2; }
-  .block-contingency.block-color-18 { background: #647789; }
-  .block-contingency.block-color-19 { background: #728598; }
-  .block-contingency.block-color-20 { background: #8094a7; }
-  .block-contingency.block-color-21 { background: #5a7298; }
-  .block-contingency.block-color-22 { background: #6981a7; }
-  .block-contingency.block-color-23 { background: #778fb5; }
-  .block-contingency.block-color-24 { background: #6b7887; }
-  .block-contingency.block-color-25 { background: #788696; }
-  .block-contingency.block-color-26 { background: #8795a5; }
-  .block-contingency.block-color-27 { background: #70777e; }
-  .block-contingency.block-color-28 { background: #7d858c; }
-  .block-contingency.block-color-29 { background: #8b9399; }
-  .block-contingency.block-color-30 { background: #757b81; }
-  .block-contingency.block-color-31 { background: #83898f; }
-  .block-contingency.block-color-32 { background: #90969c; }
-  .block-contingency.block-color-33 { background: #797e84; }
-  .block-contingency.block-color-34 { background: #878c91; }
-  .block-contingency.block-color-35 { background: #94999e; }
+  .block-contingency.block-color-1 { background: #62778c; }
+  .block-contingency.block-color-2 { background: #6c849a; }
+  .block-contingency.block-color-3 { background: #7791a8; }
+  .block-contingency.block-color-4 { background: #819cb5; }
+  .block-contingency.block-color-5 { background: #596f88; }
+  .block-contingency.block-color-6 { background: #647d98; }
+  .block-contingency.block-color-7 { background: #708aa7; }
+  .block-contingency.block-color-8 { background: #7c98b5; }
+  .block-contingency.block-color-9 { background: #87a4c2; }
+  .block-contingency.block-color-10 { background: #5e7083; }
+  .block-contingency.block-color-11 { background: #6a7d91; }
+  .block-contingency.block-color-12 { background: #778b9f; }
+  .block-contingency.block-color-13 { background: #8397ab; }
+  .block-contingency.block-color-14 { background: #90a5b9; }
+  .block-contingency.block-color-15 { background: #6b7279; }
+  .block-contingency.block-color-16 { background: #777e85; }
+  .block-contingency.block-color-17 { background: #838a91; }
+  .block-contingency.block-color-18 { background: #8f969d; }
+  .block-contingency.block-color-19 { background: #9ba2a8; }
 
   /* Add row button — applied to the sticky row-header of the add-row row */
   .add-row-btn {
@@ -1735,7 +1704,7 @@
   }
   .color-family-row {
     display: grid;
-    grid-template-columns: repeat(3, 28px);
+    grid-template-columns: repeat(5, 28px);
     align-items: center;
     gap: 6px;
   }
@@ -2088,7 +2057,13 @@
   }
   .project-field-label { color: var(--dim); font-size: 0.72rem; margin-bottom: 0.15rem; }
   .project-error { color: #c23b22; min-height: 1.2rem; margin-top: 0.75rem; }
-  .project-switch-btn { font-weight: 600; color: var(--text) !important; }
+  .project-title-link {
+    cursor: pointer;
+    border-radius: 6px;
+    padding: 0.1rem 0.2rem;
+    margin-left: -0.2rem;
+  }
+  .project-title-link:hover { background: var(--surface); }
 </style>
 </head>
 <body>
@@ -2103,8 +2078,7 @@
 </div>
 
 <div class="topbar">
-  <h1 id="app-title">BL■CKS</h1>
-  <button class="project-switch-btn" id="btn-projects" type="button" onclick="showProjectPicker()">Projects</button>
+  <h1 id="app-title" class="project-title-link" onclick="showProjectPicker()" title="Switch project">BL■CKS</h1>
   <div class="topbar-controls">
     <button id="btn-map" class="active" onclick="setView('map')">Map</button>
     <button id="btn-table" onclick="setView('data')">Data</button>
@@ -2192,8 +2166,8 @@ const SUMMARY_W_MAX = 360;
 const TRACK_PANEL_MIN_W = 96;
 const HEADER_W_MIN = 240;       // min width that still wraps name/capacity/tags nicely
 const HEADER_W_MAX = 720;
-const COLORS = 36;
-const BLOCK_COLOR_FAMILIES = Array.from({ length: 12 }, (_, i) => [i * 3, i * 3 + 1, i * 3 + 2]);
+const COLORS = 20;
+const BLOCK_COLOR_FAMILIES = Array.from({ length: 4 }, (_, i) => [i * 5, i * 5 + 1, i * 5 + 2, i * 5 + 3, i * 5 + 4]);
 const MILESTONE_COLORS = 5;
 const MILESTONE_LANE_H = 31;
 const MILESTONE_NAME_MAX_CHARS = 60;
@@ -3347,6 +3321,7 @@ function normalizeBlocks() {
     const tracks = getRowTracks(row);
     if (!block.trackId || !tracks.some(track => track.id === block.trackId)) block.trackId = tracks[0]?.id || null;
     block.holiday = !!block.holiday || block.kind === 'data' || !!block.locked;
+    block.color = ((toNonNegativeInt(block.color, 0) % COLORS) + COLORS) % COLORS;
     block.kind = 'grid';
     if (!Number.isFinite(Number(block.baseDuration)) || Number(block.baseDuration) <= 0) {
       block.baseDuration = adjustedDurationForCapacity(block.duration || 1, getRowCapacity(row), 100);
@@ -6204,15 +6179,14 @@ function showBlockContextMenu(e, blockId) {
   const block = blocks.find(b => b.id === blockId);
   if (!block) return;
 
-  // Position — clamp to viewport edges
-  const menuW = 150, menuH = 390;
-  const left = Math.min(e.clientX, window.innerWidth - menuW - 8);
-  const top  = Math.min(e.clientY, window.innerHeight - menuH - 8);
-  menu.style.display = 'block';
-  menu.style.left = left + 'px';
-  menu.style.top  = top  + 'px';
-
+  // Build first, then measure and clamp so block menus near the bottom/right
+  // never render off-screen. Start at the click point while hidden to avoid a
+  // visible jump after measuring.
   menu.innerHTML = '';
+  menu.style.visibility = 'hidden';
+  menu.style.display = 'block';
+  menu.style.left = e.clientX + 'px';
+  menu.style.top = e.clientY + 'px';
 
   // Colour label
   const label = document.createElement('div');
@@ -6230,7 +6204,7 @@ function showBlockContextMenu(e, blockId) {
       const sw = document.createElement('button');
       sw.type = 'button';
       sw.className = `color-swatch block-color-${i}`;
-      sw.title = `${familyIdx < 9 ? 'Blue' : 'Grey'} ${familyIdx + 1}.${shadeIdx + 1} · AA contrast with white text`;
+      sw.title = `${familyIdx < 3 ? 'Blue' : 'Grey'} ${familyIdx + 1}.${shadeIdx + 1} · AA contrast with white text`;
       sw.setAttribute('aria-label', sw.title);
       if (i === block.color) sw.classList.add('selected');
       sw.addEventListener('click', () => {
@@ -6281,6 +6255,13 @@ function showBlockContextMenu(e, blockId) {
   del.textContent = 'Delete';
   del.addEventListener('click', () => { menu.style.display = 'none'; confirmDeleteBlock(blockId); });
   menu.appendChild(del);
+
+  const rect = menu.getBoundingClientRect();
+  const left = Math.max(8, Math.min(e.clientX, window.innerWidth - rect.width - 8));
+  const top = Math.max(8, Math.min(e.clientY, window.innerHeight - rect.height - 8));
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+  menu.style.visibility = 'visible';
 }
 
 document.addEventListener('click', (e) => {
@@ -6492,7 +6473,9 @@ function migrateV1ToV2(savedBlocks) {
 // --- Projects ---
 function updateProjectTitle() {
   const title = document.getElementById('app-title');
-  if (title) title.textContent = currentProjectName ? `BL■CKS · ${currentProjectName}` : 'BL■CKS';
+  if (!title) return;
+  title.textContent = currentProjectName ? `BL■CKS · ${currentProjectName}` : 'BL■CKS';
+  title.title = currentProjectName ? `Switch project from ${currentProjectName}` : 'Switch project';
 }
 
 function showProjectPicker() {
