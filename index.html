@@ -230,10 +230,19 @@
   .month-span:nth-child(even) { background: var(--alt-bg); }
   .week-span:nth-child(even)  { background: var(--alt-bg); }
 
-  /* Today highlight — fills the whole header cell (month/week/date). Placed
-     after the nth-child banding rules so it wins the specificity tie. */
-  .month-span.is-today,
-  .week-span.is-today,
+  .today-bubble {
+    display: inline-block;
+    background: rgba(40, 54, 62, 0.92);
+    color: #fff;
+    border-radius: 5px;
+    padding: 0.1rem 0.35rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    line-height: 1.4;
+    white-space: nowrap;
+  }
+  /* Today highlight for day-letter/date cells. Placed after nth-child banding
+     so it wins the specificity tie. */
   .col-header.is-today {
     background: rgba(40, 54, 62, 0.92);
     color: #fff;
@@ -3999,8 +4008,11 @@ function _render() {
     monthEl.style.width = (span * dayPx()) + 'px';
     monthEl.style.minWidth = (span * dayPx()) + 'px';
     const monthLabel = monthNames[thisMonth] + ' ' + thisYear;
-    if (monthHasToday) monthEl.classList.add('is-today');
-    monthEl.textContent = monthLabel;
+    if (monthHasToday) {
+      monthEl.innerHTML = `<span class="today-bubble">${monthLabel}</span>`;
+    } else {
+      monthEl.textContent = monthLabel;
+    }
     monthRow.appendChild(monthEl);
     c += span;
   }
@@ -4038,8 +4050,11 @@ function _render() {
       const monday = new Date(d);
       monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
       const weekLabel = 'w/c ' + formatDate(monday);
-      if (weekHasToday) weekEl.classList.add('is-today');
-      weekEl.textContent = weekLabel;
+      if (weekHasToday) {
+        weekEl.innerHTML = `<span class="today-bubble">${weekLabel}</span>`;
+      } else {
+        weekEl.textContent = weekLabel;
+      }
       weekRow.appendChild(weekEl);
       c += span;
     }
@@ -4072,6 +4087,7 @@ function _render() {
       dayCh.className = 'col-header';
       dayCh.style.width = dayPx() + 'px';
       dayCh.style.minWidth = dayPx() + 'px';
+      if (today) dayCh.classList.add('is-today');
       dayCh.textContent = dayLetters[walker.getDay()];
       dayFrag.appendChild(dayCh);
 
