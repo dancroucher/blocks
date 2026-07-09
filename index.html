@@ -333,7 +333,8 @@
     z-index: 70;
     min-width: 11rem;
     max-width: 15rem;
-    overflow: hidden;
+    max-height: min(70vh, 32rem);
+    overflow: auto;
     padding: 0.35rem;
     background: var(--bg);
     border: 1px solid rgba(55,53,47,0.10);
@@ -401,7 +402,7 @@
     color: #5f5b55;
     font-size: 1.05rem;
   }
-  .tag-filter-pill-remove {
+  .tag-filter-pill-action {
     display: inline-grid;
     place-items: center;
     align-self: stretch;
@@ -415,7 +416,9 @@
     font-size: 0.85rem;
     cursor: pointer;
   }
-  .tag-filter-pill-remove:hover { background: rgba(255,255,255,0.72); color: var(--text); }
+  .tag-filter-pill-action svg { width: 13px; height: 13px; display: block; }
+  .tag-filter-pill-action:hover { background: rgba(255,255,255,0.72); color: var(--text); }
+  .tag-filter-pill-action:disabled { opacity: 0.35; cursor: default; }
   .tag-filter-builder-actions {
     display: inline-flex;
     align-items: center;
@@ -484,7 +487,6 @@
     letter-spacing: 0.06em;
     text-transform: uppercase;
   }
-  .tag-filter-save-icon,
   .saved-tag-filter-delete {
     display: inline-grid;
     place-items: center;
@@ -498,9 +500,7 @@
     font: inherit;
     line-height: 1;
   }
-  .tag-filter-save-icon:hover,
   .saved-tag-filter-delete:hover { color: var(--text); border-color: rgba(55,53,47,0.20); }
-  .tag-filter-save-icon:disabled { opacity: 0.35; cursor: default; }
   .saved-tag-filter-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
@@ -5896,15 +5896,23 @@ function buildActiveTagFilterPill() {
   selectedText.className = 'tag-filter-chip-text';
   selectedText.textContent = selectedTagFilter.join(', ');
   selected.appendChild(selectedText);
+  const save = document.createElement('button');
+  save.type = 'button';
+  save.className = 'tag-filter-pill-action';
+  save.title = isCurrentTagFilterSaved() ? 'Filter already saved' : 'Save current label filter';
+  save.disabled = isCurrentTagFilterSaved();
+  save.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h11l3 3v12H5z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M8 4.5v5h7v-5M8 19v-6h8v6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>`;
+  save.addEventListener('click', (e) => { e.stopPropagation(); saveCurrentTagFilter(); });
   const remove = document.createElement('button');
   remove.type = 'button';
-  remove.className = 'tag-filter-pill-remove';
+  remove.className = 'tag-filter-pill-action';
   remove.textContent = '×';
   remove.title = 'Clear label filter';
   remove.addEventListener('click', (e) => { e.stopPropagation(); clearTagFilter(); });
   builder.appendChild(field);
   builder.appendChild(op);
   builder.appendChild(selected);
+  builder.appendChild(save);
   builder.appendChild(remove);
   pill.appendChild(builder);
   return pill;
@@ -5912,6 +5920,7 @@ function buildActiveTagFilterPill() {
 
 function buildTagFilterControl() {
   normalizeSelectedTagFilter({ persist: true });
+  savedTagFilters = normalizeSavedTagFilters(savedTagFilters);
   const tags = allTags();
   const control = document.createElement('div');
   control.className = 'tag-filter-control';
@@ -5945,15 +5954,7 @@ function buildTagFilterControl() {
   labelsSection.className = 'tag-filter-menu-section';
   const labelsTitle = document.createElement('div');
   labelsTitle.className = 'tag-filter-menu-title';
-  labelsTitle.appendChild(document.createTextNode('Labels'));
-  const saveFilter = document.createElement('button');
-  saveFilter.type = 'button';
-  saveFilter.className = 'tag-filter-save-icon';
-  saveFilter.textContent = '💾';
-  saveFilter.title = selectedTagFilter.length ? 'Save current label filter' : 'Select labels to save a filter';
-  saveFilter.disabled = !selectedTagFilter.length || isCurrentTagFilterSaved();
-  saveFilter.addEventListener('click', (e) => { e.stopPropagation(); saveCurrentTagFilter(); });
-  labelsTitle.appendChild(saveFilter);
+  labelsTitle.textContent = 'Labels';
   labelsSection.appendChild(labelsTitle);
 
   const options = document.createElement('div');
