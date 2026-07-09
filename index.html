@@ -5950,6 +5950,40 @@ function buildTagFilterControl() {
   menu.hidden = true;
   menu.addEventListener('click', e => e.stopPropagation());
 
+  const savedSection = document.createElement('div');
+  savedSection.className = 'tag-filter-menu-section';
+  const savedTitle = document.createElement('div');
+  savedTitle.className = 'tag-filter-menu-title';
+  savedTitle.textContent = 'Saved';
+  savedSection.appendChild(savedTitle);
+  if (!savedTagFilters.length) {
+    const emptySaved = document.createElement('div');
+    emptySaved.className = 'tag-filter-empty';
+    emptySaved.textContent = 'No saved filters yet';
+    savedSection.appendChild(emptySaved);
+  } else {
+    savedTagFilters.forEach(filter => {
+      const row = document.createElement('div');
+      row.className = 'saved-tag-filter-row';
+      const apply = document.createElement('button');
+      apply.type = 'button';
+      apply.className = 'saved-tag-filter-apply';
+      apply.textContent = filter.name || filter.tags.join(', ');
+      apply.title = filter.tags.join(', ');
+      apply.addEventListener('click', (e) => { e.stopPropagation(); applySavedTagFilter(filter.id); });
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'saved-tag-filter-delete';
+      del.textContent = '×';
+      del.title = 'Delete saved filter';
+      del.addEventListener('click', (e) => { e.stopPropagation(); deleteSavedTagFilter(filter.id); });
+      row.appendChild(apply);
+      row.appendChild(del);
+      savedSection.appendChild(row);
+    });
+  }
+  menu.appendChild(savedSection);
+
   const labelsSection = document.createElement('div');
   labelsSection.className = 'tag-filter-menu-section';
   const labelsTitle = document.createElement('div');
@@ -5984,35 +6018,6 @@ function buildTagFilterControl() {
   }
   labelsSection.appendChild(options);
   menu.appendChild(labelsSection);
-
-  if (savedTagFilters.length) {
-    const savedSection = document.createElement('div');
-    savedSection.className = 'tag-filter-menu-section';
-    const savedTitle = document.createElement('div');
-    savedTitle.className = 'tag-filter-menu-title';
-    savedTitle.textContent = 'Saved';
-    savedSection.appendChild(savedTitle);
-    savedTagFilters.forEach(filter => {
-      const row = document.createElement('div');
-      row.className = 'saved-tag-filter-row';
-      const apply = document.createElement('button');
-      apply.type = 'button';
-      apply.className = 'saved-tag-filter-apply';
-      apply.textContent = filter.name || filter.tags.join(', ');
-      apply.title = filter.tags.join(', ');
-      apply.addEventListener('click', (e) => { e.stopPropagation(); applySavedTagFilter(filter.id); });
-      const del = document.createElement('button');
-      del.type = 'button';
-      del.className = 'saved-tag-filter-delete';
-      del.textContent = '×';
-      del.title = 'Delete saved filter';
-      del.addEventListener('click', (e) => { e.stopPropagation(); deleteSavedTagFilter(filter.id); });
-      row.appendChild(apply);
-      row.appendChild(del);
-      savedSection.appendChild(row);
-    });
-    menu.appendChild(savedSection);
-  }
   control.appendChild(menu);
   return control;
 }
