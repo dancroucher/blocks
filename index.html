@@ -330,7 +330,7 @@
     position: absolute;
     top: calc(100% + 7px);
     left: 0;
-    z-index: 70;
+    z-index: 10001;
     min-width: 11rem;
     max-width: 15rem;
     max-height: min(70vh, 32rem);
@@ -5216,13 +5216,16 @@ function wrappedTagsHeight(tagsEl) {
 function getResourceContentMinHeight(row) {
   const summary = document.querySelector(`.resource-group[data-row-id="${row.id}"] .resource-summary`);
   if (!summary) return RESOURCE_HEADER_MIN_H;
-  // The minimum row height should be based on the resource name line only, not
-  // wrapped labels. Labels may overflow at the smallest row sizes by design.
+  // Keep enough resource height for the resource name/capacity line plus any
+  // wrapped label chips. Labels are part of the row header content and should
+  // not overflow when a row is resized to its minimum height.
   const styles = getComputedStyle(summary);
   const padY = cssPx(styles.paddingTop) + cssPx(styles.paddingBottom);
-  const title = summary.querySelector('.resource-title-row');
-  const titleH = title ? elementOuterHeight(title) : 0;
-  return Math.max(RESOURCE_HEADER_MIN_H, Math.ceil(padY + titleH));
+  const gap = cssPx(styles.rowGap || styles.gap) || 2;
+  const children = Array.from(summary.children).filter(el => !el.classList.contains('summary-col-resize'));
+  const childH = children.reduce((sum, el) => sum + elementOuterHeight(el), 0);
+  const gaps = Math.max(0, children.length - 1) * gap;
+  return Math.max(RESOURCE_HEADER_MIN_H, Math.ceil(padY + childH + gaps + 2));
 }
 
 function startRowResize(e, rowId) {

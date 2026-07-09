@@ -22,7 +22,8 @@ service cloud.firestore {
     function optionalStateKeys() {
       return [
         'projectName', 'projectEnd', 'zoom', 'panelWidth', 'headerWidth', 'resourceSummaryWidth',
-        'collapsedRows', 'rowHeights', 'dependencies', 'milestones', 'nextMilestoneId', 'tagColors'
+        'collapsedRows', 'rowHeights', 'dependencies', 'milestones', 'nextMilestoneId', 'tagColors',
+        'savedTagFilters'
       ];
     }
 
@@ -70,6 +71,9 @@ service cloud.firestore {
             || (request.resource.data.nextMilestoneId is int
                 && request.resource.data.nextMilestoneId >= 1))
         && optionalMap('tagColors')
+        && (!('savedTagFilters' in request.resource.data)
+            || (request.resource.data.savedTagFilters is list
+                && request.resource.data.savedTagFilters.size() <= 100))
         && request.resource.data.nextBlockId is int
         && request.resource.data.nextBlockId >= 1
         && request.resource.data.nextRowId is int
