@@ -129,6 +129,8 @@
     min-width: 100%;
     min-height: 0;
     flex: 1;
+    /* Let the final resource scroll clear of the viewport edge for editing. */
+    padding-bottom: clamp(120px, 28vh, 240px);
   }
 
   /* Data pane (table view) — own scroll container so the map keeps its
@@ -3744,6 +3746,9 @@ function focusResourceName(rowId) {
     requestAnimationFrame(() => {
       const el = document.querySelector(`.resource-group[data-row-id="${rowId}"] .row-label-input`);
       if (!el) return;
+      // A row added near the viewport bottom would otherwise be mostly hidden.
+      // Centre the complete row to leave room for naming it and adding labels.
+      el.closest('.resource-group')?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'nearest' });
       el.focus({ preventScroll: true });
       el.select();
     });
