@@ -186,7 +186,8 @@
   .col-headers-wrap {
     position: sticky;
     top: 0;
-    z-index: 5;
+    /* Keep header popovers above sticky resource headers (z-index: 300). */
+    z-index: 400;
     background: var(--header-bg);
     box-shadow: 0 1px 0 rgba(55,53,47,0.06);
   }
