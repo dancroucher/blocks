@@ -959,8 +959,10 @@
     align-self: stretch;
   }
   .resource-row-resize {
-    left: var(--row-header-width);
-    z-index: 60;
+    /* Span the sticky resource header as well as the timeline so the divider
+       has one consistent line and resize target across all three columns. */
+    left: 0;
+    z-index: 310;
     pointer-events: auto;
   }
   .track-row-resize {
