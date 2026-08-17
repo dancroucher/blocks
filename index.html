@@ -1148,11 +1148,9 @@
     z-index: 10;
   }
 
-  .block-start-tooltip {
+  .block-date-tooltip {
     position: absolute;
-    left: -8px;
     top: 50%;
-    transform: translate(-100%, -50%);
     background: rgba(40, 54, 62, 0.96);
     color: #fff;
     border-radius: 6px;
@@ -1166,15 +1164,34 @@
     z-index: 20;
   }
 
-  .block-start-tooltip::after {
+  .block-date-tooltip.is-start {
+    left: -8px;
+    transform: translate(-100%, -50%);
+  }
+
+  .block-date-tooltip.is-end {
+    right: -8px;
+    transform: translate(100%, -50%);
+  }
+
+  .block-date-tooltip::after {
     content: '';
     position: absolute;
-    right: -5px;
     top: 50%;
     transform: translateY(-50%);
-    border-width: 5px 0 5px 5px;
     border-style: solid;
+  }
+
+  .block-date-tooltip.is-start::after {
+    right: -5px;
+    border-width: 5px 0 5px 5px;
     border-color: transparent transparent transparent rgba(40, 54, 62, 0.96);
+  }
+
+  .block-date-tooltip.is-end::after {
+    left: -5px;
+    border-width: 5px 5px 5px 0;
+    border-color: transparent rgba(40, 54, 62, 0.96) transparent transparent;
   }
 
   .block .handle-left,
@@ -5500,20 +5517,28 @@ function startResize(e, blockId, side) {
 
 const DRAG_THRESHOLD_PX = 4;
 
-function updateBlockStartTooltip(bEl, block) {
-  if (!bEl || !block) return;
-  let tip = bEl.querySelector('.block-start-tooltip');
+function setBlockDateTooltip(bEl, edgeClass, text) {
+  let tip = bEl.querySelector(`.block-date-tooltip.${edgeClass}`);
   if (!tip) {
     tip = document.createElement('div');
-    tip.className = 'block-start-tooltip';
+    tip.className = `block-date-tooltip ${edgeClass}`;
     bEl.appendChild(tip);
   }
-  tip.textContent = formatDateFull(colToDate(block.start));
+  tip.textContent = text;
 }
 
-function removeBlockStartTooltip(bEl) {
-  const tip = bEl && bEl.querySelector('.block-start-tooltip');
-  if (tip) tip.remove();
+// Dates track the bar's drawn edges (base duration), not the scheduled span —
+// contingency/capacity/holiday tails are separate elements outside bEl.
+function updateBlockDateTooltips(bEl, block) {
+  if (!bEl || !block) return;
+  const endCol = Math.max(0, block.start + getBlockBaseDuration(block) - 1);
+  setBlockDateTooltip(bEl, 'is-start', formatDateFull(colToDate(block.start)));
+  setBlockDateTooltip(bEl, 'is-end', formatDateFull(colToDate(endCol)));
+}
+
+function removeBlockDateTooltips(bEl) {
+  if (!bEl) return;
+  bEl.querySelectorAll('.block-date-tooltip').forEach(tip => tip.remove());
 }
 
 function moveBlockDrag(e) {
@@ -5630,7 +5655,7 @@ function moveBlockDrag(e) {
       }
     }
 
-    if (bEl) updateBlockStartTooltip(bEl, block);
+    if (bEl) updateBlockDateTooltips(bEl, block);
     if (dependencies.length) renderDependencyArrows(gridWrapper);
   }
 }
@@ -5666,7 +5691,7 @@ function endBlockDrag() {
       const el = document.querySelector(`[data-block-id="${draggedId}"]`);
       if (el) {
         el.classList.remove('dragging');
-        removeBlockStartTooltip(el);
+        removeBlockDateTooltips(el);
       }
       enforceDependencySchedule();
       saveState();
