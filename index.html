@@ -5531,9 +5531,13 @@ function setBlockDateTooltip(bEl, edgeClass, text) {
 // contingency/capacity/holiday tails are separate elements outside bEl.
 function updateBlockDateTooltips(bEl, block) {
   if (!bEl || !block) return;
-  const endCol = Math.max(0, block.start + getBlockBaseDuration(block) - 1);
+  const baseDuration = getBlockBaseDuration(block);
   setBlockDateTooltip(bEl, 'is-start', formatDateFull(colToDate(block.start)));
-  setBlockDateTooltip(bEl, 'is-end', formatDateFull(colToDate(endCol)));
+  if (baseDuration <= 1) {
+    bEl.querySelector('.block-date-tooltip.is-end')?.remove();
+    return;
+  }
+  setBlockDateTooltip(bEl, 'is-end', formatDateFull(colToDate(block.start + baseDuration - 1)));
 }
 
 function removeBlockDateTooltips(bEl) {
